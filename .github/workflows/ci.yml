@@ -28,4 +28,4 @@ jobs:
         run: uv sync
 
       - name: 运行单元测试
-        run: uv run python -m unittest tests.test_config tests.test_business -v
+        run: uv run python -m unittest discover tests/unit -v

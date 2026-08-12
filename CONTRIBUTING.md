@@ -129,7 +129,7 @@ GitHub 的 tag 会自动生成 Release 页面，方便下载对应版本的打�
 2. 在 GitHub 上创建 PR，目标分支为 `dev`
 3. PR 标题遵循提交信息规范（如 `feat: 添加新英雄配置`）
 4. PR 描述说明变更内容和目的
-5. CI 自动运行单元测试（`tests/test_config.py`、`tests/test_business.py`）
+5. CI 自动运行 `tests/unit/` 下所有单元测试
 6. 测试通过后合并
 
 ## CI
@@ -137,14 +137,14 @@ GitHub 的 tag 会自动生成 Release 页面，方便下载对应版本的打�
 CI 配置位于 `.github/workflows/ci.yml`，在 push 和 PR 到 `main`、`dev` 时触发，自动运行：
 
 - 主依赖安装（`uv sync`）
-- 单元测试（`uv run python -m unittest tests.test_config tests.test_business -v`）
+- 单元测试（`uv run python -m unittest discover tests/unit -v`）
 
 本地提交前可手动运行测试确认：
 
 ```bash
-# 配置系统单元测试（主环境）
-uv run python -m pytest tests/test_config.py -v
+# 全部单元测试（主环境 3.12）
+uv run python -m unittest discover tests/unit -v
 
-# 性能基准测试（大漠脚本环境）
-.venv-dm/Scripts/python.exe tests/bench_keypress.py
+# 实机测试（大漠脚本环境 3.8，需游戏窗口）
+.venv-dm/Scripts/python.exe tests/manual/test_coords.py
 ```
