@@ -7,13 +7,21 @@
 - PatrolLootTask._pickup_loop / _pickup_one / _handle_unclickable（mock 依赖）
 """
 import random
+import sys
 import time
 import unittest
 from unittest.mock import MagicMock, patch, call
 
+# Mock win32com 等大漠依赖，使 3.12 环境能导入 patrol_loot 模块
+for _mod in ("win32com", "win32com.client", "pythoncom", "winreg",
+             "win32gui", "win32con", "win32api"):
+    if _mod not in sys.modules:
+        sys.modules[_mod] = MagicMock()
+
 from GameBot.runner.business.war3.jiubing2.combat_helper import (
     CombatHelper, get_inventory_hotkey, get_inventory_hotkeys,
 )
+import GameBot.runner.tasks.war3.jiubing2.others.patrol_loot  # noqa: F401 — 注册模块供 @patch 解析路径
 
 
 HERO_CFG = {
@@ -87,7 +95,7 @@ class TestCombatHelperFeedPet(unittest.TestCase):
         task = MagicMock()
         task.pet_feed_time = time.time() - 600
         self.combat.feed_pet(task)
-        self.mock_war3.use_inventory_item.assert_called_once_with("5")
+        self.mock_war3.use_inventory_item.assert_called_once_with("5", None)
 
     def test_skip_when_interval_not_reached(self):
         task = MagicMock()
@@ -119,11 +127,11 @@ class TestCombatHelperFeedPet(unittest.TestCase):
         )
         task = MagicMock()
         task.pet_feed_time = time.time() - 999
-        with patch("GameBot.runner.business.jiubing2.combat_helper.random.choice") as mock_choice:
+        with patch("GameBot.runner.business.war3.jiubing2.combat_helper.random.choice") as mock_choice:
             mock_choice.return_value = "4"
             combat.feed_pet(task)
         mock_choice.assert_called_once_with(["4", "5"])
-        self.mock_war3.use_inventory_item.assert_called_once_with("4")
+        self.mock_war3.use_inventory_item.assert_called_once_with("4", None)
 
 
 class TestPatrolLootItemLogic(unittest.TestCase):
@@ -210,8 +218,8 @@ class TestPatrolLootConfigDefaults(unittest.TestCase):
         """构造一个最小可用的 PatrolLootTask 实例（不触发 DmClient 初始化）。"""
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
         cfg = {
-            "tasks": {"others": {"patrol_loot": {}}},
-            "war3": {}, "hero": {}, "chest": {}, "item_text": {},
+            "war3": {"jiubing2": {"tasks": {"others": {"patrol_loot": {}}}}},
+            "hero": {}, "chest": {}, "item_text": {},
             "pickup": {}, "combat_status": {},
         }
         if cfg_override:
@@ -272,8 +280,8 @@ class TestPatrolLootPickupLoop(unittest.TestCase):
     def _make_task(self, desired_items=None):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
         cfg = {
-            "tasks": {"others": {"patrol_loot": {}}},
-            "war3": {"key_time": 0.1}, "hero": {"inventory": [{"id": 0, "hotkey": "6"}]},
+            "war3": {"jiubing2": {"tasks": {"others": {"patrol_loot": {}}}}, "key_time": 0.1},
+            "hero": {"inventory": [{"id": 0, "hotkey": "6"}]},
             "chest": {}, "item_text": {}, "pickup": {}, "combat_status": {},
             "command": {"clear_nearby": "-clear"},
         }
@@ -402,8 +410,8 @@ class TestPatrolLootPickupOne(unittest.TestCase):
     def _make_task(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
         cfg = {
-            "tasks": {"others": {"patrol_loot": {}}},
-            "war3": {"key_time": 0.1}, "hero": {"inventory": [{"id": 0, "hotkey": "6"}]},
+            "war3": {"jiubing2": {"tasks": {"others": {"patrol_loot": {}}}}, "key_time": 0.1},
+            "hero": {"inventory": [{"id": 0, "hotkey": "6"}]},
             "pickup": {"unclickable_text": "不可点击", "storage_full_text": "储物箱已满", "result_timeout": 0.1},
         }
         task = PatrolLootTask.__new__(PatrolLootTask)
@@ -414,6 +422,7 @@ class TestPatrolLootPickupOne(unittest.TestCase):
         task.pickup_cfg = cfg["pickup"]
         task.dm = MagicMock()
         task.war3 = MagicMock()
+        task._stop_event = None
         return task
 
     def test_returns_picked_on_timeout(self):
@@ -455,8 +464,8 @@ class TestPatrolLootHandleUnclickable(unittest.TestCase):
     def _make_task(self, max_retries=3, retry_interval=0):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
         cfg = {
-            "tasks": {"others": {"patrol_loot": {}}},
-            "war3": {}, "hero": {},
+            "war3": {"jiubing2": {"tasks": {"others": {"patrol_loot": {}}}}},
+            "hero": {},
             "pickup": {"max_retries": max_retries, "retry_interval": retry_interval},
         }
         task = PatrolLootTask.__new__(PatrolLootTask)
@@ -468,30 +477,31 @@ class TestPatrolLootHandleUnclickable(unittest.TestCase):
         task.storage_full = False
         task.dm = MagicMock()
         task.war3 = MagicMock()
+        task._stop_event = None
         return task
 
-    @patch("GameBot.runner.tasks.others.patrol_loot.time.sleep")
+    @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
     def test_succeeds_on_first_retry(self, mock_sleep):
         task = self._make_task()
         task._pickup_one = MagicMock(side_effect=["picked"])
         result = task._handle_unclickable(100, 200, MagicMock())
         self.assertTrue(result)
 
-    @patch("GameBot.runner.tasks.others.patrol_loot.time.sleep")
+    @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
     def test_succeeds_on_second_retry(self, mock_sleep):
         task = self._make_task(max_retries=3)
         task._pickup_one = MagicMock(side_effect=["unclickable", "picked"])
         result = task._handle_unclickable(100, 200, MagicMock())
         self.assertTrue(result)
 
-    @patch("GameBot.runner.tasks.others.patrol_loot.time.sleep")
+    @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
     def test_fails_after_max_retries(self, mock_sleep):
         task = self._make_task(max_retries=2)
         task._pickup_one = MagicMock(side_effect=["unclickable", "unclickable", "unclickable"])
         result = task._handle_unclickable(100, 200, MagicMock())
         self.assertFalse(result)
 
-    @patch("GameBot.runner.tasks.others.patrol_loot.time.sleep")
+    @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
     def test_storage_full_during_retry(self, mock_sleep):
         task = self._make_task()
         task._pickup_one = MagicMock(side_effect=["storage_full"])
@@ -506,8 +516,8 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
     def _make_task(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
         cfg = {
-            "tasks": {"others": {"patrol_loot": {}}},
-            "war3": {"key_time": 0.1}, "hero": {},
+            "war3": {"jiubing2": {"tasks": {"others": {"patrol_loot": {}}}}, "key_time": 0.1},
+            "hero": {},
             "chest": {}, "item_text": {"char_fixes": {"廣": "魔"}}, "pickup": {},
         }
         task = PatrolLootTask.__new__(PatrolLootTask)
@@ -530,7 +540,7 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
         task._progress_lines_callback = None
         return task
 
-    @patch("GameBot.runner.tasks.others.patrol_loot.time.sleep")
+    @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
     def test_non_target_returns_none(self, mock_sleep):
         """非目标物品返回 None，items_skipped+1。"""
         task = self._make_task()
@@ -541,7 +551,7 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
         self.assertEqual(task._stats['items_skipped'], 1)
         task._pickup_one.assert_not_called()
 
-    @patch("GameBot.runner.tasks.others.patrol_loot.time.sleep")
+    @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
     def test_unrecognized_returns_none(self, mock_sleep):
         """OCR 未识别返回空字符串 → None。"""
         task = self._make_task()
@@ -550,7 +560,7 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
         self.assertIsNone(result)
         self.assertEqual(task._stats['items_skipped'], 1)
 
-    @patch("GameBot.runner.tasks.others.patrol_loot.time.sleep")
+    @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
     def test_picked_success(self, mock_sleep):
         """目标物品拾取成功 → True，picked+1。"""
         task = self._make_task()
@@ -561,7 +571,7 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
         self.assertEqual(task.item_targets["白眼魔盔"]["picked"], 1)
         self.assertEqual(task._stats['items_picked']["白眼魔盔"], 1)
 
-    @patch("GameBot.runner.tasks.others.patrol_loot.time.sleep")
+    @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
     def test_storage_full_sets_flag(self, mock_sleep):
         """储物箱满 → False，storage_full=True。"""
         task = self._make_task()
@@ -571,7 +581,7 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
         self.assertFalse(result)
         self.assertTrue(task.storage_full)
 
-    @patch("GameBot.runner.tasks.others.patrol_loot.time.sleep")
+    @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
     def test_unclickable_retry_success(self, mock_sleep):
         """不可点击 → 重试成功 → True，picked+1。"""
         task = self._make_task()
@@ -582,7 +592,7 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(task.item_targets["白眼魔盔"]["picked"], 1)
 
-    @patch("GameBot.runner.tasks.others.patrol_loot.time.sleep")
+    @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
     def test_unclickable_retry_fail(self, mock_sleep):
         """不可点击 → 重试失败 → False，picked 不变。"""
         task = self._make_task()
@@ -593,7 +603,7 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual(task.item_targets["白眼魔盔"]["picked"], 0)
 
-    @patch("GameBot.runner.tasks.others.patrol_loot.time.sleep")
+    @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
     def test_char_fixes_applied_before_match(self, mock_sleep):
         """OCR 形近字纠错后再匹配。"""
         task = self._make_task()
