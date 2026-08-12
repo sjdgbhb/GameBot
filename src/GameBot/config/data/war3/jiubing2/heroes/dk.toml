@@ -1,0 +1,7 @@
+############## 死骑 ##############
+dependencies = ["war3.jiubing2"]
+
+
+[hero]
+name = "死骑"
+floor_key = "O"

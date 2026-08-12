@@ -1,0 +1,182 @@
+############## 构造师 ##############
+dependencies = ["war3.jiubing2"]
+
+
+[hero]
+name = "构造师"
+floor_key = "P"
+
+# ------------------------------ 物品栏配置（背包1-6格） ------------------------------
+[[hero.inventory]]
+slot = 0
+id = 1
+hotkey = "1"
+
+[[hero.inventory]]
+slot = 1
+id = 2
+hotkey = "2"
+
+[[hero.inventory]]
+slot = 5
+id = 0
+hotkey = "6"
+
+# ------------------------------ 学习技能 ------------------------------
+# 默认学习的技能
+
+# ------------------------------ 技能池 ------------------------------
+# id: 技能唯一标识，路线点通过 id 引用技能
+# key: 游戏内快捷键
+# target_type: self(自身/无指向) | ground(地面目标) | enemy(锁头敌方) | ally(锁头友军)
+# position: target_area(目标区域) 、target（目标），具体坐标需自行抓取后在路线点设置
+# fixed_key = true 可以编辑该技能的快捷键
+# 共18个技能，初级技能4个，二级技能6个（无序，元素相同，2种效果），三级技能4个（无序，元素相同，3种效果），终级技能4个（初始元素固定，其他无序，3种效果）
+[[hero.skills]]
+id = 0
+desc = '法术重构'
+key = "Q"
+target_type = "self"
+
+# Q技能
+# 初级
+[[hero.skills]]
+id = 1
+desc = '火焰冲击（火）'
+key = "W"
+target_type = "enemy"
+position = 'target'
+# 二级
+[[hero.skills]]
+id = 2
+desc = '阿科玛强酸吐息（水|火）'
+key = "W"
+target_type = "ground"
+position = 'target_area'
+fixed_key = true
+#二级
+[[hero.skills]]
+id = 3
+desc = '灼热岩盾（土|火）'
+key = "W"
+target_type = "self"
+fixed_key = true
+#二级
+[[hero.skills]]
+id = 4
+desc = '灼热之风（气|火）'
+key = "W"
+target_type = "ground"
+position = 'target_area'
+fixed_key = true
+# 三级
+[[hero.skills]]
+id = 5
+desc = '复苏之光（水|土|火）'  # |代表无序，火提升魔攻，水恢复魔法，土提升治疗
+key = "W"
+target_type = "ground"
+position = 'target_area'
+fixed_key = true
+# 三级
+[[hero.skills]]
+id = 6
+desc = '精神风暴（水|气|火）'  # |代表无序，火提升伤害，水提升魔攻下限，土物伤减免、斗气魔法易伤
+key = "W"
+target_type = "self"
+fixed_key = true
+# 三级
+[[hero.skills]]
+id = 7
+desc = '流星陨落（土|气|火）'  # |代表无序，
+key = "W"
+target_type = "ground"
+position = 'target_area'
+fixed_key = true
+# 终级
+[[hero.skills]]
+id = 8
+desc = '寒天之钉（水xx火）'  # x为任意元素，火提升伤害，气控制
+key = "W"
+target_type = "enemy"
+position = 'target'
+fixed_key = true
+# 终级
+[[hero.skills]]
+id = 9
+desc = '奇点裂隙（土xx火）'  # x为任意元素，火提升伤害，水冰冻，
+key = "W"
+target_type = "ground"
+position = 'target_area'
+fixed_key = true
+# 终级
+[[hero.skills]]
+id = 10
+desc = '雷云风暴（气xx火）'  # x为任意元素，火提升伤害，水提升范围
+key = "W"
+target_type = "ground"
+position = 'target_area'
+fixed_key = true
+
+# E技能
+# 初级
+[[hero.skills]]
+id = 11
+desc = '寒冰爆破（水）'
+key = "E"
+target_type = "enemy"
+position = 'target'
+# 二级
+[[hero.skills]]
+id = 12
+desc = '土龙波动（土水）'
+key = "E"
+target_type = "ground"
+position = 'target_area'
+fixed_key = true
+# 二级
+[[hero.skills]]
+id = 13
+desc = '寒冰之环（气水）'
+key = "E"
+target_type = "ground"
+position = 'target_area'
+fixed_key = true
+# 三级
+[[hero.skills]]
+id = 14
+desc = '魔力火墙（土|气|水）'  # 水降冷却，土增加范围，气增加时间
+key = "E"
+target_type = "ground"
+position = 'target_area'
+fixed_key = true
+# 终级
+[[hero.skills]]
+id = 15
+desc = '燃烧之怒（火xx水）'  # x为任意元素，水提升召唤物魔法回复，土提升召唤物坦克
+key = "T"
+target_type = "self"
+fixed_key = true
+
+# R技能
+# 初级
+[[hero.skills]]
+id = 16
+desc = '岩石投掷（土）'
+key = "R"
+target_type = "self"
+# 二级
+[[hero.skills]]
+id = 17
+desc = '奥古斯振波（气土）'
+key = "R"
+target_type = "self"
+fixed_key = true
+
+# T技能
+# 初级
+[[hero.skills]]
+id = 18
+desc = '飓风扫荡（气）'
+key = "T"
+target_type = "ground"
+position = 'target_area'

@@ -1,0 +1,20 @@
+# KK 平台配置
+dependencies = ["base"]
+
+[kk]
+window_class = "Qt5152QWindowIcon" # KK 主界面、房间等窗口的类名
+window_title = 'KK官方对战平台' # KK 主界面、房间、创建房间、退出、断线重连弹窗等窗口、的标题名
+create_room_window_class = "Qt5152QWindow" # 创建房间、退出、断线重连弹窗的类名
+
+# kk房间
+[kk.room]
+window_size = [1224,904] # 房间窗口客户区尺寸，运行时强制对齐
+start_button_coords = [867,613] # 窗口坐标，开始游戏按钮/准备开始坐标
+start_wait_time = 6 # 点击开始游戏按钮后，进入游戏前的时间（正常情况）
+
+# 掉线重连弹窗（类名与 create_room_window_class 相同，通过窗口尺寸区分）
+[kk.disconnect_dialog]
+window_size = [440, 260] # 弹窗客户区尺寸
+start_button_coords = [125,190] # 重连按钮坐标
+cancel_button_coords = [309,190] # 取消重连按钮坐标
+cancel_wait_time = 3 # 点击取消重连后等待回到房间的时间（秒）

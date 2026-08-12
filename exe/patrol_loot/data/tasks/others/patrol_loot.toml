@@ -1,0 +1,143 @@
+dependencies = ["jiubing2"]
+
+[tasks.others.patrol_loot]
+name = "刷装备"
+desired_items = [
+    { name = "玄武盔", count = 3 },
+    { name = "龙王盔", count = 3 },
+    { name = "白眼魔盔", count = 3 },
+    { name = "抗魔指环", count = 4 },
+    { name = "封魔指环", count = 4 },
+    { name = "神殿守卫者战靴", count = 1 },
+    { name = "神殿监察者皮靴", count = 1 },
+]
+route_scheme = "奇异之地"
+mouse_avoid_pos = [200, 200]
+feed_only_interval = 10
+clear_nearby_interval = 0
+
+[tasks.others.patrol_loot.patrol]
+rounds = 0
+
+# 物品栏装备配置
+[[hero.inventory]]
+slot = 3
+id = 6
+hotkey = "4"
+[[hero.inventory]]
+slot = 4
+id = 9
+hotkey = "5"
+[[hero.inventory]]
+slot = 5
+id = 0
+hotkey = "6"
+
+# ── 路线预设 ──
+[[tasks.others.patrol_loot.route_presets]]
+name = "奇异之地"
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "裂隙上方第一个鱼人"
+mini_coords = [121,928]
+coords = [1459,396]
+time = 3
+walk_mode = 1
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "鱼人沙滩右侧房子"
+mini_coords = [136,920]
+coords = [693,606]
+time = 5
+walk_mode = 1
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "鱼人沙滩下方房子右侧"
+mini_coords = [114,925]
+coords = [1274,495]
+time = 4
+walk_mode = 1
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "鱼人沙滩下方房子左侧"
+mini_coords = [114,922]
+coords = [993,617]
+time = 3
+walk_mode = 1
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "鱼人沙滩中间房子"
+mini_coords = [114,922]
+coords = [999,301]
+time = 6
+walk_mode = 1
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "鱼人沙滩左边房子"
+mini_coords = [114,922]
+coords = [677,441]
+time = 5
+walk_mode = 1
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "中间走廊上方树人"
+mini_coords = [114,933]
+coords = [580,455]
+time = 8
+walk_mode = 1
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "回到走廊（避免引怪）"
+mini_coords = [114,933]
+coords = [1112,629]
+time = 5
+walk_mode = 0
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "裂隙旁石笋"
+mini_coords = [114,933]
+coords = [1733,458]
+time = 7
+walk_mode = 0
+
+[[tasks.others.patrol_loot.route_presets]]
+name = "荒漠废墟"
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "6点入口"
+mini_coords = [197,946]
+coords = [910,557]
+time = 30
+walk_mode = 1
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "7点（第1处怪聚集点）"
+mini_coords = [138,935]
+coords = [891,499]
+time = 10
+walk_mode = 0
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "9点"
+mini_coords = [68,865]
+coords = [873,582]
+time = 32
+walk_mode = 0
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "10点"
+mini_coords = [92,824]
+coords = [1007,398]
+time = 12
+walk_mode = 1
+
+[[tasks.others.patrol_loot.route_presets.points]]
+desc = "boss区域下方（准备使用跳刀回到起点）"
+mini_coords = [194,936]
+coords = [1101,445]
+time = 13
+walk_mode = 0
+[[tasks.others.patrol_loot.route_presets.points.actions]]
+type = "item"
+id = 6
+coords = [1126,646]

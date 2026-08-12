@@ -1,0 +1,7 @@
+############## 火枪 ##############
+dependencies = ["war3.jiubing2"]
+
+
+[hero]
+name = "火枪"
+floor_key = "P"

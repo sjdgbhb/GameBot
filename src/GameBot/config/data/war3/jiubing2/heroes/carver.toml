@@ -1,0 +1,7 @@
+############## 刻师傅 ##############
+dependencies = ["war3.jiubing2"]
+
+
+[hero]
+name = "刻师傅"
+floor_key = "P"

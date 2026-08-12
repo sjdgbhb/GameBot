@@ -1,0 +1,49 @@
+# =============================================================================
+# 小炎蛇（LV4）原子任务配置
+# 任务流程：走到村民杰菲特 → 点技能格接 → 沿路线清怪 → OCR 检测完成 → 回 NPC 交
+# NPC 坐标、技能格等场景信息见 scenes/kami_village.toml
+#
+# 前置要求：本局游戏内必须完成至少一次「毒蛇」任务才能接取
+# 接取前会检查 _prerequisite_done 标志，由 MultiAtomicLoopTask 在编排时设置
+# =============================================================================
+dependencies = ["war3.jiubing2.scenes.kami_village", "war3.jiubing2.heroes.hxd"]
+
+[war3.jiubing2.tasks.atomic.little_flame_snake]
+name = "小炎蛇（LV4）"
+respawn_time = 300                 # Boss 刷新间隔（秒），小炎蛇5分钟刷新
+cooldown_start = "kill"            # 冷却计时起点：kill=走完路线点击杀时，submit=提交任务时
+accept_timeout = 8                 # 接取后等提示的超时（秒）
+route_complete_timeout = 120       # 路线走完仍未完成的兜底超时（秒）
+
+# =============================================================================
+# 路线点（按顺序执行，walk_mode=1 = A+左键边走边打，末点是 NPC 附近即交任务）
+# =============================================================================
+[[war3.jiubing2.tasks.atomic.little_flame_snake.points]]
+desc = "农场下部入口小道"
+mini_coords = [332,845]
+coords = [875,658]
+walk_mode = 1
+time = 3
+
+[[war3.jiubing2.tasks.atomic.little_flame_snake.points]]
+desc = "小炎蛇"
+mini_coords = [332,845]
+coords = [537,630]
+walk_mode = 1
+time = 10
+
+[[war3.jiubing2.tasks.atomic.little_flame_snake.points]]
+desc = "村民杰菲特附近"
+mini_coords = [332,845]
+coords = [1046,245]
+walk_mode = 1
+time = 10
+# =============================================================================
+# 技能分配（按英雄 + 点位 id，暂不用技能，保留扩展能力）
+# =============================================================================
+[war3.jiubing2.tasks.atomic.little_flame_snake.hero_skills.hxd]
+# hxd：Q=轨道炮(ground), T=舰队信标(ground), R=相位作战服(self)
+# p1 = [
+#     {key = "R", timing = "after"},
+#     {key = "Q", timing = "after", direction = "left_down"},
+# ]

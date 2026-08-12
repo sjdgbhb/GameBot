@@ -1,0 +1,7 @@
+############## 元素法师 ##############
+dependencies = ["war3.jiubing2"]
+
+
+[hero]
+name = "元素法师"
+floor_key = "P"

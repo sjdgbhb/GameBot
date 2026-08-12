@@ -1,0 +1,29 @@
+[project]
+name = "GameBot"
+version = "0.1.0"
+description = "魔兽争霸3 RPG地图九种兵器2的Python自动化脚本系统"
+readme = "README.md"
+authors = [
+    { name = "sjdgbhb", email = "sjdgbhb@163.com" }
+]
+requires-python = ">=3.12"  # 主环境：Web 服务器、OCR/AI 推理（64 位 Python 3.12）
+dependencies = [
+    # ── Web 服务器 ──
+    "fastapi>=0.115.0",
+    "uvicorn>=0.34.0",
+    "pydantic>=2.10.6",
+    # ── OCR / AI 推理 ──
+    "rapidocr",
+    "onnxruntime",
+    "numpy",
+    "Pillow>=10.0.0",
+    # ── 通用工具 ──
+    "loguru>=0.7.3",
+]
+
+[project.scripts]
+GameBot-web = "GameBot.web.server:main"
+
+[build-system]
+requires = ["uv_build>=0.11.2,<0.12.0"]
+build-backend = "uv_build"

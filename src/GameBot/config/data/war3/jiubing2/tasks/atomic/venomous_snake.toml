@@ -1,0 +1,89 @@
+# =============================================================================
+# 毒蛇原子任务配置
+# 任务流程：走到村民杰菲特 → 点技能格接 → 沿路线清怪 → OCR 检测完成 → 回 NPC 交
+# NPC 坐标、技能格等场景信息见 scenes/kami_village.toml
+# =============================================================================
+dependencies = ["war3.jiubing2.scenes.kami_village", "war3.jiubing2.heroes.hxd"]
+
+[war3.jiubing2.tasks.atomic.venomous_snake]
+name = "毒蛇"
+respawn_time = 60                  # 杀怪后刷新间隔（秒），毒蛇1分钟刷新
+cooldown_start = "kill"             # 冷却计时起点：kill=开始杀毒蛇时（毒蛇1路线点），submit=提交任务时
+accept_timeout = 8                 # 接取后等提示的超时（秒）
+route_complete_timeout = 120       # 路线走完仍未完成的兜底超时（秒）
+
+# =============================================================================
+# 路线点（按顺序执行，walk_mode=1 = A+左键边走边打，末点是 NPC 附近即交任务）
+# =============================================================================
+[[war3.jiubing2.tasks.atomic.venomous_snake.points]]
+desc = "农场上部"
+mini_coords = [332,845]
+coords = [1302,244]
+walk_mode = 0
+time = 3
+
+[[war3.jiubing2.tasks.atomic.venomous_snake.points]]
+desc = "毒蛇1"
+mini_coords = [332,845]
+coords = [1400,210]
+walk_mode = 1
+time = 1
+
+[[war3.jiubing2.tasks.atomic.venomous_snake.points]]
+desc = "毒蛇2"
+mini_coords = [332,845]
+coords = [1261,337]
+walk_mode = 1
+time = 1
+
+[[war3.jiubing2.tasks.atomic.venomous_snake.points]]
+desc = "毒蛇3"
+mini_coords = [332,845]
+coords = [1443,373]
+walk_mode = 1
+time = 1
+
+[[war3.jiubing2.tasks.atomic.venomous_snake.points]]
+desc = "农场下部"
+mini_coords = [332,845]
+coords = [1299,502]
+walk_mode = 1
+time = 3
+
+[[war3.jiubing2.tasks.atomic.venomous_snake.points]]
+desc = "毒蛇4"
+mini_coords = [332,845]
+coords = [1156,483]
+walk_mode = 1
+time = 1
+
+[[war3.jiubing2.tasks.atomic.venomous_snake.points]]
+desc = "毒蛇5"
+mini_coords = [332,845]
+coords = [1400,560]
+walk_mode = 1
+time = 1
+
+[[war3.jiubing2.tasks.atomic.venomous_snake.points]]
+desc = "农场下部入口小道"
+mini_coords = [332,845]
+coords = [875,658]
+walk_mode = 1
+time = 2
+
+[[war3.jiubing2.tasks.atomic.venomous_snake.points]]
+desc = "村民杰菲特附近"
+mini_coords = [332,845]
+coords = [1046,245]
+walk_mode = 2
+time = 2
+
+# =============================================================================
+# 技能分配（按英雄 + 点位 id，暂不用技能，保留扩展能力）
+# =============================================================================
+[war3.jiubing2.tasks.atomic.venomous_snake.hero_skills.hxd]
+# hxd：Q=轨道炮(ground), T=舰队信标(ground), R=相位作战服(self)
+# p1 = [
+#     {key = "R", timing = "after"},
+#     {key = "Q", timing = "after", direction = "left_down"},
+# ]

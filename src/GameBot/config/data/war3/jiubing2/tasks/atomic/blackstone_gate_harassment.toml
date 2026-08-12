@@ -1,0 +1,78 @@
+# =============================================================================
+# 城门骚扰原子任务配置
+# 任务流程：走到 NPC → 点技能格接 → 沿路线 A 清怪 → OCR 检测完成 → 回 NPC 交
+# NPC 坐标、技能格等场景信息见 scenes/blackstone_city.toml
+# =============================================================================
+dependencies = ["war3.jiubing2.scenes.blackstone_city"]
+
+[war3.jiubing2.tasks.atomic.blackstone_gate_harassment]
+name = "城门骚扰"
+accept_timeout = 8                 # 接取后等提示的超时（秒）
+route_complete_timeout = 120       # 路线走完仍未完成的兜底超时（秒）
+combat_mode = "auto_attack"        # 战斗模式：auto_attack（全程平A）/ cast_skills（自动施法）
+
+# =============================================================================
+# 路线点（按顺序执行，walk_mode=1 = A+左键边走边打，末点是 NPC 附近即交任务）， 约74秒
+# =============================================================================
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "小道入口附近"
+mini_coords = [173, 828]
+coords = [1158, 314]
+walk_mode = 1
+time = 11
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "石拱门"
+mini_coords = [173, 828]
+coords = [767, 140]
+walk_mode = 1
+time = 4
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "石拱门（避免怪物睡着无法自动攻击）"
+mini_coords = [173, 828]
+coords = [600,249]
+walk_mode = 1
+time = 2
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "小道出口内"
+mini_coords = [105, 813]
+coords = [1010, 311]
+walk_mode = 1
+time = 8
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "小道出口内（避免怪物睡着无法自动攻击）"
+mini_coords = [105, 813]
+coords = [1081,503]
+walk_mode = 1
+time = 3
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "小道出口外"
+mini_coords = [105, 813]
+coords = [690,383]
+walk_mode = 1
+time = 6
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "裂隙传送口左方"
+mini_coords = [105, 813]
+coords = [191, 234]
+walk_mode = 1
+time = 5
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "裂隙传送口下方"
+mini_coords = [105, 813]
+coords = [476,519]
+walk_mode = 1
+time = 5
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "黑石城守卫队长附近（交/接任务）"
+mini_coords = [254, 867]
+coords = [920, 369]
+walk_mode = 0
+time = 22

@@ -1,0 +1,7 @@
+############## 盾卫 ##############
+dependencies = ["war3.jiubing2"]
+
+
+[hero]
+name = "盾卫"
+floor_key = "O"

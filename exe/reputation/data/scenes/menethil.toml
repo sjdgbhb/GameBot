@@ -1,0 +1,27 @@
+# =============================================================================
+# 米奈希尔场景点位配置
+# =============================================================================
+
+#[scenes.menethil.points.palace_entrance]
+#desc = "皇宫入口坐标（传送至复活石并以英雄为中心时的窗口相对坐标）"
+#mini_coords = [287,928]
+#coords = [1711,433]
+#walk_mode = 2
+#time = 8
+
+# 地图中具有传送功能的相关配置
+[scenes.menethil.teleport.palace_waygate]
+desc = "皇宫入口（传送圈）"
+trigger = "walk"     # 踩圈即传，其他值，如click 需右键物体
+mini_coords = [287,928]
+coords = [1711,433]
+walk_mode = 2  # 通过右键移动到该位置
+time = 8
+
+[scenes.menethil.teleport.forest_waygate]
+desc = "远古森林外围入口（传送圈）"
+trigger = "walk"    # 踩圈即传
+mini_coords = [161,931]
+coords = [790,532]
+walk_mode = 2  # 通过右键移动到该位置
+time = 2

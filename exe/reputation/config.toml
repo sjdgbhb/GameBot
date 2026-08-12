@@ -1,0 +1,34 @@
+# =============================================================================
+# 每日声望任务配置文件
+# 修改后保存，重新运行 每日声望.exe 即可生效
+# 本文件中的参数会覆盖默认配置。未列出的参数保持默认值。
+# 如需查看或修改完整配置，直接编辑 _internal/config/data/ 下的源文件：
+#   tasks/reputation/daily_reputation.toml  — 每日声望任务配置（路线点、声望参数等）
+#   tasks/atomic/blackstone_gate_harassment.toml — 黑石城城门骚扰原子任务配置
+#   tasks/atomic/swift_beast.toml           — 森之城迅猛野兽原子任务配置
+#   scenes/blackstone_city.toml             — 黑石城场景配置
+#   scenes/forest_city.toml                 — 森之城场景配置
+# =============================================================================
+
+# ------------------------------ 窗口尺寸 ------------------------------
+[war3]
+client_size = [1902, 1033]
+
+
+# ------------------------------ 每日声望任务 ------------------------------
+[tasks.reputation.daily_reputation]
+enable_blackstone = true       # 是否执行黑石城声望
+enable_forest = true           # 是否执行森之城声望
+clear_nearby_probability = 0.3 # 每个路线点清理英雄附近物品的概率（0~1），0 = 禁用
+
+# 黑石城声望子配置
+[tasks.reputation.daily_reputation.blackstone]
+target_reputation = 150       # 每日声望上限
+reputation_per_run = 5         # 每次城门骚扰任务获得的声望
+loop_interval_time = 1.5       # 两次城门骚扰任务之间的间隔（秒）
+
+# 森之城声望子配置
+[tasks.reputation.daily_reputation.forest]
+target_reputation = 150        # 每日声望上限
+reputation_per_run = 10        # 每次迅猛野兽任务获得的声望
+loop_interval_time = 50        # 两次迅猛野兽任务之间的间隔（秒）

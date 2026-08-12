@@ -1,0 +1,6 @@
+############## 萨满 ##############
+dependencies = ["war3.jiubing2"]
+
+[hero]
+name = "萨满"
+floor_key = "O"

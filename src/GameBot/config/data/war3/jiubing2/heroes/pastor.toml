@@ -1,0 +1,7 @@
+############## 牧师 ##############
+dependencies = ["war3.jiubing2"]
+
+
+[hero]
+name = "牧师"
+floor_key = "P"

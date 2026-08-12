@@ -1,0 +1,7 @@
+############## 狂战士 ##############
+dependencies = ["war3.jiubing2"]
+
+
+[hero]
+name = "狂战士"
+floor_key = "P"

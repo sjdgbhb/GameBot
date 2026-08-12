@@ -1,0 +1,7 @@
+############## 炎魔 ##############
+dependencies = ["war3.jiubing2"]
+
+
+[hero]
+name = "炎魔"
+floor_key = "O"

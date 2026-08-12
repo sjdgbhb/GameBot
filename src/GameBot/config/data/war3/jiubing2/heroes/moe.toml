@@ -1,0 +1,7 @@
+############## 萌萌哒 ##############
+dependencies = ["war3.jiubing2"]
+
+
+[hero]
+name = "萌萌哒"
+floor_key = "P"

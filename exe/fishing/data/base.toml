@@ -1,0 +1,9 @@
+dependencies = []
+
+[paths]
+log_path = "logs"
+resources_path = "resources"
+
+[dm]
+version = "3.1233"
+dll_path = "dm"

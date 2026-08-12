@@ -1,0 +1,221 @@
+# =============================================================================
+# 局内无尽积分任务配置
+# endless.py  创建好密码房即可运行
+# endless_single.py  英雄在3点石笋位置即可运行
+# =============================================================================
+dependencies = ["war3.jiubing2.heroes.hxd"]   # heroes.hxd 传递依赖 jiubing2
+
+[war3.jiubing2.tasks.endless.endless_single]
+name = "局内无尽"
+min_level = 1  # 从该层数开始，只能选择1或者15，不要选择其他数字
+max_level = 15  # 到该层结束
+loop_interval_time = 5
+refresh_timer = 20  # 当层无尽打完后至下一层开始的刷新时间
+use_shard_floor = 20  # 从该层开始使用魔法水晶
+drink_floor = 20  # 从该层开始喝药（英雄减伤低，容易掉血）
+pet_feed_interval = 100  # 每100秒喂一次
+boss_death_text = "开始挑战"  # BOSS 死亡后屏幕提示文字（OCR 检测）
+boss_death_timeout = 60  # 等待 BOSS 死亡提示的超时时间（秒），超时用当前时间兜底
+
+# ------------------------------ 无尽地图路径点定义（按序执行） ------------------------------
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "3点（地图入口或初始位置到无尽刷怪循环起点）"
+mini_coords = [302,897]
+coords = [1482,439]
+time = 3
+entrance_to_start_time = 30
+walk_mode = 0
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "skill"
+id = 2
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "4点位置"
+mini_coords = [272,962]
+coords = [1802,291]
+time = 8
+walk_mode = 2
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "5点"
+mini_coords = [272,962]
+coords = [1401,684]
+time = 8
+walk_mode = 1
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "5点坡道附近"
+mini_coords = [239,920]
+coords = [1357,641]
+time = 6
+walk_mode = 1
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "5点坡道下方靠地图中间墙边"
+mini_coords = [239,920]
+coords = [827,534]
+time = 8
+walk_mode = 1
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "5点坡道下方靠地图中间高台"
+mini_coords = [239,920]
+coords = [833,243]
+time = 4
+walk_mode = 0
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "skill"
+id = 1
+target_coords = [882,149]
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "skill"
+id = 2
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "5点坡道下方靠地图下方"
+mini_coords = [272,962]
+coords = [435,422]
+time = 9
+walk_mode = 1
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "item"
+id = 1
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "6点"
+mini_coords = [103,941]
+coords = [1700,716]
+time = 6
+walk_mode = 1
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "6点（向上移动到地图中间坡道下）"
+mini_coords = [103,941]
+coords = [1244,336]
+time = 15
+walk_mode = 2
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "skill"
+id = 1
+target_coords = [1138,285]
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "skill"
+id = 2
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "6点半（坡道下）"
+mini_coords = [103,941]
+coords = [1340,763]
+time = 3
+walk_mode = 0
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "8点"
+mini_coords = [103,941]
+coords = [20,582]
+time = 12
+walk_mode = 2
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "item"
+id = 1
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "10点（石笋下坡处）的中途，大概还在高台上"
+mini_coords = [93,874]
+coords = [696,196]
+time = 9
+walk_mode = 2
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "skill"
+id = 2
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "10点（石笋下坡处）"
+mini_coords = [93,874]
+coords = [696,196]
+time = 12
+walk_mode = 2
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "item"
+id = 1
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "中间上方台阶处（去往12点位置方向）"
+mini_coords = [93,874]
+coords = [1450,450]
+time = 8
+walk_mode = 2
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "skill"
+id = 1
+target_coords = [1631,595]
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "skill"
+id = 2
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "12点（门右侧下坡）"
+mini_coords = [272,836]
+coords = [1200,160]
+time = 20
+walk_mode = 2
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "skill"
+id = 2
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "1点下方桥上"
+mini_coords = [272,836]
+coords = [1269,656]
+time = 8
+walk_mode = 1
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "boss右侧第一台阶平台附近"
+mini_coords = [150,897]
+coords = [1656,370]
+time = 14
+walk_mode = 2
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "item"
+id = 8
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "msg"
+content = "-del"
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "技能施放位置（下台阶，boss右侧）"
+mini_coords = [150,897]
+coords = [1340,370]
+time = 1.5
+walk_mode = 0
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "skill"
+id = 0  # 轨道炮
+target_coords = [1160, 550]
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "skill"
+id = 1  # 舰队信标
+target_coords = [1160, 550]
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "skill"
+id = 2  # 相位作战服
+[[war3.jiubing2.tasks.endless.endless_single.points.actions]]
+type = "item"
+id = 6
+coords = [1660, 360]
+
+#[[war3.jiubing2.tasks.endless.endless_single.points]]
+#desc = "boss右侧第二台阶（离的太远boss可能脱战）"
+#mini_coords = [302,897]
+#coords = [415,435]
+#time = 5
+#walk_mode = 0
+
+[[war3.jiubing2.tasks.endless.endless_single.points]]
+desc = "3点（无尽刷怪循环起点）"
+mini_coords = [302,897]
+coords = [1482,439]
+time = 8
+entrance_to_start_time = 30
+walk_mode = 0

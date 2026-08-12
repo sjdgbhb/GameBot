@@ -1,0 +1,136 @@
+# =============================================================================
+# 个人任务成就（完成一定次数的任务）任务配置
+# 一次性接取多个同场景原子任务 → 走共享路线同时完成 → 依次提交，每次提交算 1 次
+# 任务状态通过 -rw 弹窗确认（屏幕提示完成时触发查询）
+# NPC 坐标、技能格、行走偏移等均从各原子任务自身配置获取，此处仅引用 key + 走到 NPC 时间
+#
+# 当前配置：卡米村村民杰菲特的 3 个任务（毒蛇、蛇蛋、小炎蛇LV4）
+# 注意：小炎蛇（LV4）有前置要求——本局必须完成至少一次毒蛇
+#       因此接取顺序固定为：毒蛇 → 蛇蛋 → 小炎蛇（LV4）
+# 1、英雄初始位置在npc左侧附近
+# 2、别带如辉耀等被动aoe技能，容易提前烫死怪
+# =============================================================================
+dependencies = [
+    "war3.jiubing2.tasks.atomic.venomous_snake",
+    "war3.jiubing2.tasks.atomic.snake_egg",
+    "war3.jiubing2.tasks.atomic.little_flame_snake"
+]
+
+[war3.jiubing2.tasks.achievements.personal]
+name = "个人任务成就"
+task_times = 4150               # 需完成多少次个人任务
+loop_interval_time = 1.5        # 两轮之间的间隔（秒）
+clear_nearby_probability = 0.15  # 每个路线点清理英雄附近物品的概率（0~1），0 = 禁用
+route_complete_timeout = 50    # 路线走完仍未全部完成的兜底超时（秒）
+
+# ── 原子任务列表（仅引用 key + 走到 NPC 的时间） ──
+# 每轮：接取全部 → 走共享路线 → 弹窗确认全部"已完成" → 依次提交 → 计 N 次
+# 总轮数 = ceil(task_times / N)，N = atomic_tasks 数量
+# 注意：毒蛇必须在小炎蛇（LV4）之前，因为小炎蛇需要本局完成过毒蛇
+
+[[war3.jiubing2.tasks.achievements.personal.atomic_tasks]]
+key = "venomous_snake"
+walk_time = 2                   # 走到村民杰菲特的时间（秒）
+
+[[war3.jiubing2.tasks.achievements.personal.atomic_tasks]]
+key = "snake_egg"
+walk_time = 2                   # 已在 NPC 旁，等待时间短
+
+[[war3.jiubing2.tasks.achievements.personal.atomic_tasks]]
+key = "little_flame_snake"
+walk_time = 2                   # 已在 NPC 旁，等待时间短
+
+# ── 路线点（按 task 分组：毒蛇/蛇蛋共用一条路线，小炎蛇单独一条） ──
+# task 标记：该点仅在接取了对应任务时才走；无 task 标记的点始终走
+
+# ── 毒蛇路线（venomous_snake + snake_egg 共用） ──
+[[war3.jiubing2.tasks.achievements.personal.points]]
+desc = "农场上部"
+mini_coords = [332,845]
+coords = [1302,244]
+walk_mode = 0
+time = 3
+task = ["venomous_snake", "snake_egg"]
+
+[[war3.jiubing2.tasks.achievements.personal.points]]
+desc = "毒蛇1"
+mini_coords = [332,845]
+coords = [1400,210]
+walk_mode = 1
+time = 1
+task = ["venomous_snake", "snake_egg"]
+kill_start = ["venomous_snake", "snake_egg"]  # 到达此点开始杀毒蛇，记录刷新计时
+
+[[war3.jiubing2.tasks.achievements.personal.points]]
+desc = "毒蛇2"
+mini_coords = [332,845]
+coords = [1261,337]
+walk_mode = 1
+time = 1
+task = ["venomous_snake", "snake_egg"]
+
+[[war3.jiubing2.tasks.achievements.personal.points]]
+desc = "毒蛇3"
+mini_coords = [332,845]
+coords = [1443,373]
+walk_mode = 1
+time = 1
+task = ["venomous_snake", "snake_egg"]
+
+[[war3.jiubing2.tasks.achievements.personal.points]]
+desc = "农场下部"
+mini_coords = [332,845]
+coords = [1299,502]
+walk_mode = 1
+time = 2
+task = ["venomous_snake", "snake_egg"]
+
+[[war3.jiubing2.tasks.achievements.personal.points]]
+desc = "毒蛇4"
+mini_coords = [332,845]
+coords = [1156,483]
+walk_mode = 1
+time = 1
+task = ["venomous_snake", "snake_egg"]
+
+[[war3.jiubing2.tasks.achievements.personal.points]]
+desc = "毒蛇5"
+mini_coords = [332,845]
+coords = [1400,560]
+walk_mode = 1
+time = 1
+task = ["venomous_snake", "snake_egg"]
+
+[[war3.jiubing2.tasks.achievements.personal.points]]
+desc = "毒蛇6"
+mini_coords = [332,845]
+coords = [1394,704]
+walk_mode = 1
+time = 1
+task = ["venomous_snake", "snake_egg"]
+
+[[war3.jiubing2.tasks.achievements.personal.points]]
+desc = "农场下部入口小道"
+mini_coords = [332,845]
+coords = [875,658]
+walk_mode = 1
+time = 2
+task = ["venomous_snake", "snake_egg", "little_flame_snake"]
+
+# ── 小炎蛇路线（little_flame_snake 专用） ──
+[[war3.jiubing2.tasks.achievements.personal.points]]
+desc = "小炎蛇"
+mini_coords = [332,845]
+coords = [537,630]
+walk_mode = 1
+time = 10
+task = "little_flame_snake"
+kill_start = ["little_flame_snake"]
+
+# ── 共享终点：回到 NPC 附近 ──
+[[war3.jiubing2.tasks.achievements.personal.points]]
+desc = "村民杰菲特附近"
+mini_coords = [332,845]
+coords = [1046,245]
+walk_mode = 2
+time = 4

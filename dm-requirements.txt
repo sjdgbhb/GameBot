@@ -1,0 +1,12 @@
+# .venv-dm 环境依赖（32 位 Python 3.8）
+# 仅用于大漠插件 COM 自动化脚本（main.py、runner/tasks/ 下所有任务模块）
+# 与主环境（pyproject.toml，Python 3.12）完全隔离
+#
+# 创建方式：
+#   uv venv .venv-dm --python 3.8    # 需 32 位 Python 3.8
+#   uv pip install -r dm-requirements.txt --python .venv-dm
+
+loguru>=0.7.3
+Pillow>=10.0.0
+pywin32>=311
+tomli>=2.4.1; python_version < '3.11'

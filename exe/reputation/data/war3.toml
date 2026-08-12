@@ -1,0 +1,11 @@
+dependencies = ["base"]
+
+[war3]
+window_class = "Warcraft III"
+window_title = "Warcraft III"
+client_size = [1902, 1033]
+small_window_response_time = 0.5
+quit_war3_time = 2
+interface_switch_time = 0.5
+general_time = 0.5
+key_time = 0.1

@@ -1,0 +1,37 @@
+# War3 窗口/界面交互配置 (随游戏版本可能调整)
+dependencies = ["base"]
+
+[war3]
+window_class = "Warcraft III"
+window_title = "Warcraft III"
+client_size = [1902, 1033] # 窗口客户区大小 [宽，高]——所有坐标均以此尺寸标定，运行时强制对齐
+# 对应 KK 平台 → 设置 → 图像设置，需与开发环境保持一致：
+#   1. war3（非重置版），窗口模式，分辨率和窗口尺寸均设为 1920x1080
+#   2. 启用视距调整，视距高度3000
+small_window_response_time = 0.5 # 小窗口响应时间（秒）
+quit_war3_time = 2 # 退出 war3 的时间
+interface_switch_time = 0.5 # war3 界面切换时间（秒）
+general_time = 0.3 # 普通延迟（秒）
+key_time = 0.1 # 按键、点击间法
+cast_move_time = 0.05 # 鼠标移动都某区域施法所需移动时间
+fast_skill_time = 0.3 # 需要快速施法的时候，设置此操作间隔
+unit_nearby_offset = 100 # 单位附近的偏移量（像素），以单位中心坐标为中心，半径 100 内视为单位附近
+unit_offset = 10 # 点击单位的偏移量
+cast_skill_offset = 180 # 指向前方施放，单位为中心偏移
+
+end_statistics_img = 'end_war3_statistics.bmp' # 退出 war3 时，会在退出前出现玩家本局资源统计页面，此图片作为检测此页面是否出现的判断依据
+end_statistics_area_coords = [1269,896,1740,1022] # 检测区域
+end_statistics_sim = 0.7 # 相似度
+end_statistics_delta_color = '202020'
+
+mini_map_signal_img = 'mini_map_signal_icon.bmp' # war3 菜单栏，用于检测是否处于游戏内
+mini_map_signal_area_coords = [363,784,428,833]
+mini_map_signal_sim = 0.7
+mini_map_signal_delta_color = '202020'
+
+check_interval_time = 2 # 检测间隔
+
+# 进游戏检测配置
+[war3.in_game_detect]
+method = "image"       # "image"=图色检测（使用 mini_map_signal_* 配置）, "none"=纯等待不检测
+timeout = 120          # 等待进入游戏的超时时间（秒），超时可能卡在加载界面

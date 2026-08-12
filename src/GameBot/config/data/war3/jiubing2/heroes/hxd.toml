@@ -1,0 +1,116 @@
+# =============================================================================
+# 英雄配置：异界之人
+# =============================================================================
+dependencies = ["war3.jiubing2"]
+
+[hero]
+name = "异界之人"
+floor_key = "O"
+coords = [1185,333]
+is_load = true
+load_save = "-load3"
+
+# ------------------------------ 技能 ------------------------------
+# id: 技能唯一标识，路线点通过 id 引用技能
+# key: 游戏内快捷键
+# target_type: self(自身/无指向) | ground(地面目标) | enemy(锁头敌方) | ally(锁头友军)
+# position: target_area(目标区域) 、target（目标），具体坐标需自行抓取后在路线点设置
+[[hero.skills]]
+id = 0
+desc = '轨道炮'
+key = "Q"
+target_type = "ground"
+position = 'target_area'
+
+[[hero.skills]]
+id = 1
+desc = '舰队信标'
+key = "T"
+target_type = "ground"
+position = "target_area"
+
+[[hero.skills]]
+id = 2
+desc = '相位作战服'
+key = "R"
+target_type = "self"
+
+# ------------------------------ 学习技能列表（按学习顺序） ------------------------------
+[[hero.learn_skills]]
+index_x = 1
+index_y = 1
+
+[[hero.learn_skills]]
+index_x = 1
+index_y = 3
+
+[[hero.learn_skills]]
+index_x = 1
+index_y = 1
+
+[[hero.learn_skills]]
+index_x = 1
+index_y = 1
+
+# ------------------------------ 物品栏配置（背包1-6格） ------------------------------
+[[hero.inventory]]
+slot = 0  # 格子id，0~5对应第1~6格
+id = 1  # 物品id，详见jiubing2.toml  血瓶
+hotkey = "1"  # 该物品所在物品栏中对应的快捷键，快捷键在平台上设置
+
+[[hero.inventory]]
+slot = 1
+id = 8  # 魔法水晶
+hotkey = "2"
+
+[[hero.inventory]]
+slot = 2
+id = 4  # 米奈希尔传送卷轴
+hotkey = "3"
+
+[[hero.inventory]]
+slot = 3
+id = 6  # 跳刀
+hotkey = "4"
+
+[[hero.inventory]]
+slot = 4
+id = 9  # 宠物食物
+hotkey = "5"
+
+[[hero.inventory]]
+slot = 5
+id = 0  # 拾取
+hotkey = "6"
+
+# ------------------------------ 圣痕 ------------------------------
+[hero.stigmata]
+is_open = true
+use_index = 1
+
+# ------------------------------ 卡牌 ------------------------------
+[hero.card]
+is_open = true
+use_index = [
+    [1, 1],
+    [1, 2],
+#    [2, 2],
+    [5, 2],
+    [5, 5],
+    [4, 5],
+]
+
+# ------------------------------ 神碎 ------------------------------
+# 神碎配置
+[hero.shard]
+is_open = true  # 是否装备神碎
+is_resonance = true  # 是否激活神碎共鸣
+is_absorb = true  # 是否吸收覆盖神碎
+max_pages = 3  # 神碎最大可用页数
+use_index = [
+    [1, 2],
+    [1, 3],
+    [2, 2],
+    [2, 3]
+]  # 示例：[1, 2] 即第1页第2行
+absorb_index = [1, 1]  # 在第几页第几行吸收神碎，会自动覆盖当前位置神碎

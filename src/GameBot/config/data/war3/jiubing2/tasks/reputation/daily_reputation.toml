@@ -1,0 +1,39 @@
+# =============================================================================
+# 每日声望任务配置 — 获取黑石城、森之城声望各 150 点
+# 流程：黑石城声望（城门骚扰 x N）→ 使用物品栏 tp 传送至远古森林外围入口 →
+#       走进远古森林（到达森之城）→ 森之城声望（迅猛野兽 x N）
+# =============================================================================
+# heroes.paladin 置于最后：与子任务依赖的 heroes.hxd 互斥，后加载者生效（一场游戏只玩 paladin）
+dependencies = [
+    "war3.jiubing2.tasks.atomic.blackstone_gate_harassment",
+    "war3.jiubing2.tasks.atomic.swift_beast",
+    "war3.jiubing2.scenes.menethil",
+]
+
+# 物品栏装备
+[[hero.inventory]]
+slot = 4
+id = 5  # 物品id，传送至远古森林外围入口的卷轴
+hotkey = "5"  # 改物品栏格子对应的快捷键
+
+[war3.jiubing2.tasks.reputation.daily_reputation]
+name = "每日声望"
+enable_blackstone = false       # 是否执行黑石城声望 true 或 false
+enable_forest = true           # 是否执行森之城声望 true 或 false
+clear_nearby_probability = 0.3 # 每个路线点清理英雄附近物品的概率（0~1），0 = 禁用（子任务共用）
+
+# 黑石城声望子配置
+[war3.jiubing2.tasks.reputation.daily_reputation.blackstone]
+name = "每日黑石城声望"
+progress_label = "黑石城"       # 浮窗显示标签
+target_reputation = 150       # 每日声望上限
+reputation_per_run = 5         # 每次城门骚扰任务获得的声望
+loop_interval_time = 1.5       # 两次城门骚扰任务之间的间隔（秒）
+
+# 森之城声望子配置
+[war3.jiubing2.tasks.reputation.daily_reputation.forest]
+name = "每日森之城声望"
+progress_label = "森之城"       # 浮窗显示标签
+target_reputation = 150        # 每日声望上限
+reputation_per_run = 10        # 每次迅猛野兽任务获得的声望
+loop_interval_time = 50        # 两次迅猛野兽任务之间的间隔（秒），迅猛野兽刷新时间大约150秒，一次任务大概90秒

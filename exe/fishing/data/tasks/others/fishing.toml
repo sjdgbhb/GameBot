@@ -1,0 +1,32 @@
+dependencies = ["jiubing2"]
+
+[[hero.inventory]]
+slot = 3
+id = 7
+hotkey = "4"
+
+[tasks.others.fishing]
+name = "钓鱼"
+fishing_mode = 1
+max_times = 10000
+success_times = 40
+fishing_interval_time = 1
+clear_nearby_interval = 120
+mode = 0
+hook_coords = [943, 554]
+is_test_check = false
+
+[tasks.others.fishing.check]
+predict_mode = true
+retract_lead_time = 0.1
+hook_sim = 1
+hook_status_image = "hook_status.bmp"
+status_area_coords = [850, 350, 1200, 450]
+hook_delta_color = '202020'
+hook_color = 'ff0000'
+hook_attempts = 200
+hook_check_interval = 0.005
+hook_timeout = 15
+success_check_timeout = 3
+success_check_interval = 0.3
+success_wait_time = 4

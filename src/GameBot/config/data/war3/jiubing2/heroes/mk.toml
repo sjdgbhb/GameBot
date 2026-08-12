@@ -1,0 +1,17 @@
+############## 山丘之王 ##############
+dependencies = ["war3.jiubing2"]
+
+
+[hero]
+name = "山丘之王"
+floor_key = "P"
+# ------------------------------ 物品栏配置（背包1-6格） ------------------------------
+[[hero.inventory]]
+slot = 4
+id = 9
+hotkey = "5"
+
+[[hero.inventory]]
+slot = 5
+id = 0  # 拾取
+hotkey = "6"

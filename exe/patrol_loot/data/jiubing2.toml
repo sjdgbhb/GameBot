@@ -1,0 +1,65 @@
+dependencies = ["war3"]
+
+[game]
+combat_timeout = 120
+
+[command]
+clear_nearby = "-delh"
+
+[pet]
+starvation_rate = 0.03
+feeding_interval = 15
+
+# ------------------------------ 物品定义表 ------------------------------
+[[items]]
+id = 0
+name = "拾取"
+
+[[items]]
+id = 1
+name = "血瓶"
+
+[[items]]
+id = 6
+name = "跳刀"
+
+[[items]]
+id = 9
+name = "宠物食物"
+
+# ------------------------------ 战斗状态检测 ------------------------------
+[combat_status]
+in_combat_area_coords = [11,48,98,109]
+frame_count = 6
+frame_interval = 0.3
+check_interval = 1.0
+ai_img_w = 87
+ai_img_h = 61
+ai_threshold = 0.5
+
+# ------------------------------ 屏幕提示文本 OCR 区域 ------------------------------
+[prompt_text]
+area_coords = [110, 551, 500, 644]
+last_area_coords = [117,588,877,622]
+
+# ------------------------------ 宝箱检测 ------------------------------
+[chest]
+ai_conf = 0.85
+ai_iou = 0.8
+ai_input_size = 1280
+hover_wait_time = 1.5
+
+# ------------------------------ 物品名称 OCR ------------------------------
+[item_text]
+offset_y = 50
+area_width = 200
+area_height = 60
+char_fixes = { "廣" = "魔", "磨" = "魔" }
+
+# ------------------------------ 拾取配置 ------------------------------
+[pickup]
+unclickable_text = "不可点击"
+storage_full_text = "储物箱已满"
+result_timeout = 2
+retry_interval = 3
+max_retries = 3

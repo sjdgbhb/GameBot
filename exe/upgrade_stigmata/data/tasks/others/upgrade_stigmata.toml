@@ -1,0 +1,64 @@
+# =============================================================================
+# 升级圣痕任务配置
+# 每完成一次黑石城任务都能获得一次升级机会，机会不可叠加，只能完成一次任务，去圣痕npc处升级一次圣痕，以下通过城门骚扰任务来获得升级机会
+# 英雄圣痕升级操作：点击圣痕npc（blackstone_city.toml里有该npc的配置），再点击相应的其技能（即升级相应位置的圣痕），有几率成功（根据屏幕文本提示成功或失败，检测区域与城门骚扰任务提示一致）
+# 英雄圣痕：上位、核心、中位、下位共四个位置，每个位置有三个词条
+# 圣痕npc技能板共3行4列，第一行对应上位三个词条（第4列无），第二、三类似，技能板第3行第4列是翻页的按钮（点击后可以翻页，翻页后的第一行对应下位的三个词条，当不再选中圣痕npc时，翻页会重置到第一页）
+# 升级逻辑：每次升级前按F2打开圣痕面板，OCR读取各词条当前数值，与 stigmata.term_limit（jiubing2.toml）对比，
+#   选择未达上限且差距最大的词条进行升级；全部达上限则停止
+# =============================================================================
+# 默认依赖 heroes.mk 作为占位英雄，任务本身不绑定特定英雄；
+# 自动施法模式下，用户可在 Web 端选择任意英雄并配置技能路线。
+dependencies = ["tasks.atomic.blackstone_gate_harassment"]
+
+[tasks.others.upgrade_stigmata]
+name = "升级圣痕"
+combat_mode = "auto_attack"    # 战斗模式：auto_attack（全程平A）/ cast_skills（自动施法）
+success_text = "成功"          # 升级成功提示文本（OCR 在城门骚扰 prompt_text 区域检测）
+fail_text = "失败"             # 升级失败提示文本
+result_timeout = 8             # 升级后等待成功/失败提示的超时（秒），提示出现很快，与接任务文本提示一致
+result_check_interval = 0.5    # OCR 检测间隔（秒，仅无 monitor 回退时使用）
+loop_interval_time = 1.0       # 两次升级循环之间的间隔（秒）
+clear_nearby_probability = 0.30 # 每个路线点清理英雄附近物品的概率（0~1），0 = 禁用
+
+# =============================================================================
+# 路线点（2个）：城门骚扰完成后走到圣痕NPC（points[0]），升级后返回守卫队长（points[1]）
+# 城门骚扰自身的路线点见 tasks/atomic/blackstone_gate_harassment.toml
+# =============================================================================
+[[tasks.others.upgrade_stigmata.points]]
+desc = "走到圣痕NPC"
+mini_coords = [209, 887]
+coords = [1196, 339]
+walk_mode = 2
+time = 5
+
+[[tasks.others.upgrade_stigmata.points]]
+desc = "返回守卫队长"
+mini_coords = [254, 867]
+coords = [1018, 369]
+walk_mode = 2
+time = 5
+
+# 浮窗显示用缩写映射
+[tasks.others.upgrade_stigmata.term_short]
+"生命值" = "生命"
+"魔法值" = "魔法"
+"暴击伤害" = "暴伤"
+"物理防御" = "物防"
+"魔法抗性" = "魔抗"
+"力量" = "力量"
+"自然属性" = "自然"
+"格挡属性" = "格挡"
+"穿透属性" = "穿透"
+"暴击几率" = "暴击"
+
+[tasks.others.upgrade_stigmata.pos_labels]
+"upper" = "上位"
+"core" = "核心"
+"middle" = "中位"
+"lower" = "下位"
+
+# 浮窗位置（别遮挡任务文本、圣痕词条）
+[float_window]
+x = 20       # 浮窗默认 x 坐标（屏幕坐标）
+y = 400      # 浮窗默认 y 坐标（屏幕坐标）

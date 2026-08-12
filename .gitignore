@@ -1,0 +1,58 @@
+# Python 生成文件
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# 虚拟环境
+.venv
+.venv-dm
+
+# 日志
+logs/
+
+# AI 模型权重（.pt 文件较大，不应提交；.onnx 模型已在 resources/models/ 下按需保留）
+*.pt
+
+# 训练数据集（截图样本，体积大）
+/data/
+
+# 临时文件
+*.tmp
+*.bmp
+tmp_*
+
+# 运行时日志
+*.log
+
+# IDE 配置
+.vscode/
+.idea/
+
+# PyInstaller 构建产物
+exe/dist/
+exe/_extracted/
+exe/build/
+
+# 二进制/压缩包
+*.exe
+*.7z
+*.zip
+*.pyc
+*.pyz
+*.dis
+
+# 大漠插件 DLL（外部依赖，不纳入版本控制）
+external/dm/*.dll
+
+# Windsurf 本地配置
+.windsurf/settings.local.json
+
+# 前端构建产物
+src/jiubing2auto/web/dist/
+*.tsbuildinfo
+
+# 前端依赖
+node_modules/

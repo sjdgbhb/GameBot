@@ -1,0 +1,29 @@
+# =============================================================================
+# 迅猛野兽原子任务配置
+# 任务流程：走到狄安娜 → 点技能格接 → 沿路线清怪 → OCR 检测完成 → 回 NPC 交
+# NPC 坐标、技能格等场景信息见 scenes/forest_city.toml
+# =============================================================================
+dependencies = ["scenes.forest_city"]
+
+[tasks.atomic.swift_beast]
+name = "迅猛野兽"
+accept_timeout = 8                 # 接取后等提示的超时（秒）
+route_complete_timeout = 120       # 路线走完仍未完成的兜底超时（秒）
+combat_mode = "auto_attack"        # 战斗模式：auto_attack（全程平A）/ cast_skills（自动施法）
+
+# =============================================================================
+# 路线点（按顺序执行，walk_mode=1 = A+左键边走边打，末点是 NPC 附近即交任务）
+# =============================================================================
+[[tasks.atomic.swift_beast.points]]
+desc = "迅猛野兽所在位置（远古森林外围，即森之城所在区域）"
+mini_coords = [252,818]     # TODO
+coords = [948,387]          # TODO
+walk_mode = 1
+time = 55
+
+[[tasks.atomic.swift_beast.points]]
+desc = "月之女祭司狄安娜附近（交/接任务）"
+mini_coords = [230,986]     # TODO: 与 scenes/forest_city.toml 中 npcs.diana.mini_coords 一致
+coords = [936,532]          # TODO: npc 附近偏移点
+walk_mode = 0
+time = 35

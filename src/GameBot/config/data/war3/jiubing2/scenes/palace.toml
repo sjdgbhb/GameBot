@@ -1,0 +1,15 @@
+# =============================================================================
+# 皇宫场景点位及 NPC 交互配置
+# =============================================================================
+
+[war3.jiubing2.scenes.palace.endless_npc.point]
+desc = "无尽入口 NPC 坐标（刚进入皇宫英雄为中心时的窗口相对坐标）"
+mini_coords = [227,927]
+coords = [1188,496]
+walk_mode = 2
+time = 5
+
+[war3.jiubing2.scenes.palace.endless_npc.skill]
+enter_grid = [1, 1]  # 进入无尽
+reset_1_grid = [3, 2]  # 重置为1层
+reset_15_grid = [3, 4]  # 重置为15层（需要地图vip）
