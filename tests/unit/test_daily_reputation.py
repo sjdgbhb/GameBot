@@ -74,7 +74,7 @@ attack = 120
 """
 
 BLACKSTONE_CITY_TOML = """
-dependencies = ["jiubing2"]
+dependencies = ["war3.jiubing2"]
 
 [scenes.blackstone_city.npcs.guard_captain]
 desc = "黑石城守卫队长"
@@ -112,7 +112,7 @@ time = 3
 """
 
 GATE_HARASSMENT_TOML = """
-dependencies = ["scenes.blackstone_city"]
+dependencies = ["war3.jiubing2.scenes.blackstone_city"]
 
 [tasks.atomic.blackstone_gate_harassment]
 name = "城门骚扰"
@@ -122,7 +122,7 @@ combat_mode = "auto_attack"
 """
 
 SWIFT_BEAST_TOML = """
-dependencies = ["scenes.forest_city", "heroes.hxd"]
+dependencies = ["war3.jiubing2.scenes.forest_city", "war3.jiubing2.heroes.hxd"]
 
 [tasks.atomic.swift_beast]
 name = "迅猛野兽"
@@ -133,10 +133,10 @@ combat_mode = "auto_attack"
 
 DAILY_REPUTATION_TOML = """
 dependencies = [
-    "tasks.atomic.blackstone_gate_harassment",
-    "tasks.atomic.swift_beast",
-    "scenes.menethil",
-    "heroes.paladin",
+    "war3.jiubing2.tasks.atomic.blackstone_gate_harassment",
+    "war3.jiubing2.tasks.atomic.swift_beast",
+    "war3.jiubing2.scenes.menethil",
+    "war3.jiubing2.heroes.paladin",
 ]
 
 [tasks.reputation.daily_reputation]
@@ -184,17 +184,17 @@ def _make_test_config_dir():
     tmp = Path(tempfile.mkdtemp(prefix="jiubing2_test_rep_"))
 
     _write_toml(tmp, "base.toml", BASE_TOML)
-    _write_toml(tmp, "war3.toml", WAR3_TOML)
-    _write_toml(tmp, "jiubing2.toml", JIUBING2_TOML)
-    _write_toml(tmp, "heroes/paladin.toml", PALADIN_TOML)
-    _write_toml(tmp, "heroes/hxd.toml", HXD_TOML)
-    _write_toml(tmp, "scenes/blackstone_city.toml", BLACKSTONE_CITY_TOML)
-    _write_toml(tmp, "scenes/kami_village.toml", KAMI_VILLAGE_TOML)
-    _write_toml(tmp, "scenes/forest_city.toml", FOREST_CITY_TOML)
-    _write_toml(tmp, "scenes/menethil.toml", MENETHIL_TOML)
-    _write_toml(tmp, "tasks/atomic/blackstone_gate_harassment.toml", GATE_HARASSMENT_TOML)
-    _write_toml(tmp, "tasks/atomic/swift_beast.toml", SWIFT_BEAST_TOML)
-    _write_toml(tmp, "tasks/reputation/daily_reputation.toml", DAILY_REPUTATION_TOML)
+    _write_toml(tmp, "war3/war3.toml", WAR3_TOML)
+    _write_toml(tmp, "war3/jiubing2/base.toml", JIUBING2_TOML)
+    _write_toml(tmp, "war3/jiubing2/heroes/paladin.toml", PALADIN_TOML)
+    _write_toml(tmp, "war3/jiubing2/heroes/hxd.toml", HXD_TOML)
+    _write_toml(tmp, "war3/jiubing2/scenes/blackstone_city.toml", BLACKSTONE_CITY_TOML)
+    _write_toml(tmp, "war3/jiubing2/scenes/kami_village.toml", KAMI_VILLAGE_TOML)
+    _write_toml(tmp, "war3/jiubing2/scenes/forest_city.toml", FOREST_CITY_TOML)
+    _write_toml(tmp, "war3/jiubing2/scenes/menethil.toml", MENETHIL_TOML)
+    _write_toml(tmp, "war3/jiubing2/tasks/atomic/blackstone_gate_harassment.toml", GATE_HARASSMENT_TOML)
+    _write_toml(tmp, "war3/jiubing2/tasks/atomic/swift_beast.toml", SWIFT_BEAST_TOML)
+    _write_toml(tmp, "war3/jiubing2/tasks/reputation/daily_reputation.toml", DAILY_REPUTATION_TOML)
 
     return tmp
 
@@ -300,7 +300,7 @@ class TestReputationTaskConfigPath(TestDailyReputationBase):
     def test_blackstone_cfg_extracted(self):
         """通过 task_config_path 从合并配置中提取黑石城子表。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        path = ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "blackstone")
+        path = ("tasks", "reputation", "daily_reputation", "blackstone")
         cfg = result
         for key in path:
             cfg = cfg.get(key, {})
@@ -311,7 +311,7 @@ class TestReputationTaskConfigPath(TestDailyReputationBase):
     def test_forest_cfg_extracted(self):
         """通过 task_config_path 从合并配置中提取森之城子表。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        path = ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "forest")
+        path = ("tasks", "reputation", "daily_reputation", "forest")
         cfg = result
         for key in path:
             cfg = cfg.get(key, {})
@@ -322,7 +322,7 @@ class TestReputationTaskConfigPath(TestDailyReputationBase):
     def test_parent_cfg_extracted(self):
         """_parent_cfg 应为 daily_reputation 段（子表的父级）。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        parent_path = ("war3", "jiubing2", "tasks", "reputation", "daily_reputation")
+        parent_path = ("tasks", "reputation", "daily_reputation")
         parent = result
         for key in parent_path:
             parent = parent.get(key, {})
@@ -379,7 +379,7 @@ class TestParentCfgFallback(TestDailyReputationBase):
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
 
         # 模拟 __init__ 中的 _parent_cfg 计算
-        path = ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "blackstone")
+        path = ("tasks", "reputation", "daily_reputation", "blackstone")
         sub_cfg = result
         for key in path:
             sub_cfg = sub_cfg.get(key, {})
@@ -460,9 +460,10 @@ class TestDailyReputationRun(TestDailyReputationBase):
         """run 应将 stop_event 传递给子任务。"""
         task = self._make_daily_task()
         stop_event = MagicMock()
+        stop_event.is_set.return_value = False
         task.run(stop_event=stop_event)
-        task.blackstone.run.assert_called_once_with(stop_event=stop_event)
-        task.forest.run.assert_called_once_with(stop_event=stop_event)
+        task.blackstone.run.assert_called_once_with(stop_event=stop_event, progress_lines_callback=None)
+        task.forest.run.assert_called_once_with(stop_event=stop_event, progress_lines_callback=None)
 
     def test_task_name(self):
         """task_name 应从配置中读取。"""
