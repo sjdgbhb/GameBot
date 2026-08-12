@@ -24,6 +24,9 @@ logs/
 *.bmp
 tmp_*
 
+# 例外：resources/images 下的 .bmp 是脚本运行所需的模板图片
+!src/GameBot/resources/images/*.bmp
+
 # 运行时日志
 *.log
 
