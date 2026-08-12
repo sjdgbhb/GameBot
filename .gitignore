@@ -54,7 +54,7 @@ external/dm/*.dll
 .windsurf/settings.local.json
 
 # 前端构建产物
-src/jiubing2auto/web/dist/
+src/GameBot/web/dist/
 *.tsbuildinfo
 
 # 前端依赖
