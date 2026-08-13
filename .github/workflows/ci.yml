@@ -7,7 +7,21 @@ on:
     branches: [main, master, dev]
 
 jobs:
+  branch-check:
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检查 PR 来源分支（main 只接受 dev 合并）
+        run: |
+          if [ "${{ github.head_ref }}" != "dev" ]; then
+            echo "❌ main 分支只接受来自 dev 的 PR，当前来源分支: ${{ github.head_ref }}"
+            exit 1
+          fi
+          echo "✅ 来源分支为 dev，允许合并"
+
   test:
+    needs: branch-check
+    if: always() && (needs.branch-check.result == 'success' || needs.branch-check.result == 'skipped')
     runs-on: windows-latest
     strategy:
       matrix:
