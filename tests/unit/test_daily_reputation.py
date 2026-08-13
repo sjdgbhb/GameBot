@@ -1,4 +1,4 @@
-﻿"""每日声望任务单元测试 — 覆盖配置加载、嵌套子表路径、次数反推、
+"""每日声望任务单元测试 — 覆盖配置加载、嵌套子表路径、次数反推、
 父级 fallback、enable 开关路由等逻辑（mock 所有外部依赖）。
 
 覆盖：
@@ -8,12 +8,16 @@
 - _parent_cfg fallback：子表未配置 clear_nearby_interval 时从父级读取
 - DailyReputationTask.run：enable_blackstone / enable_forest 开关控制子任务执行
 """
+
 import math
 import unittest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from GameBot.config import Config
 
+pytestmark = [pytest.mark.unit]
 
 # ── 测试用 TOML 文件内容 ──
 
@@ -74,7 +78,7 @@ attack = 120
 """
 
 BLACKSTONE_CITY_TOML = """
-dependencies = ["jiubing2"]
+dependencies = ["war3.jiubing2"]
 
 [scenes.blackstone_city.npcs.guard_captain]
 desc = "黑石城守卫队长"
@@ -112,7 +116,7 @@ time = 3
 """
 
 GATE_HARASSMENT_TOML = """
-dependencies = ["scenes.blackstone_city"]
+dependencies = ["war3.jiubing2.scenes.blackstone_city"]
 
 [tasks.atomic.blackstone_gate_harassment]
 name = "城门骚扰"
@@ -122,7 +126,7 @@ combat_mode = "auto_attack"
 """
 
 SWIFT_BEAST_TOML = """
-dependencies = ["scenes.forest_city", "heroes.hxd"]
+dependencies = ["war3.jiubing2.scenes.forest_city", "war3.jiubing2.heroes.hxd"]
 
 [tasks.atomic.swift_beast]
 name = "迅猛野兽"
@@ -133,10 +137,10 @@ combat_mode = "auto_attack"
 
 DAILY_REPUTATION_TOML = """
 dependencies = [
-    "tasks.atomic.blackstone_gate_harassment",
-    "tasks.atomic.swift_beast",
-    "scenes.menethil",
-    "heroes.paladin",
+    "war3.jiubing2.tasks.atomic.blackstone_gate_harassment",
+    "war3.jiubing2.tasks.atomic.swift_beast",
+    "war3.jiubing2.scenes.menethil",
+    "war3.jiubing2.heroes.paladin",
 ]
 
 [tasks.reputation.daily_reputation]
@@ -172,6 +176,7 @@ attack = 90
 def _write_toml(directory, relative_path, content):
     """在 directory 下按 relative_path 写入 TOML 文件。"""
     from pathlib import Path
+
     filepath = Path(directory) / relative_path
     filepath.parent.mkdir(parents=True, exist_ok=True)
     filepath.write_text(content, encoding="utf-8")
@@ -181,20 +186,21 @@ def _make_test_config_dir():
     """创建一个独立的临时 config 目录，包含每日声望任务所需的所有 TOML 文件。"""
     import tempfile
     from pathlib import Path
+
     tmp = Path(tempfile.mkdtemp(prefix="jiubing2_test_rep_"))
 
     _write_toml(tmp, "base.toml", BASE_TOML)
-    _write_toml(tmp, "war3.toml", WAR3_TOML)
-    _write_toml(tmp, "jiubing2.toml", JIUBING2_TOML)
-    _write_toml(tmp, "heroes/paladin.toml", PALADIN_TOML)
-    _write_toml(tmp, "heroes/hxd.toml", HXD_TOML)
-    _write_toml(tmp, "scenes/blackstone_city.toml", BLACKSTONE_CITY_TOML)
-    _write_toml(tmp, "scenes/kami_village.toml", KAMI_VILLAGE_TOML)
-    _write_toml(tmp, "scenes/forest_city.toml", FOREST_CITY_TOML)
-    _write_toml(tmp, "scenes/menethil.toml", MENETHIL_TOML)
-    _write_toml(tmp, "tasks/atomic/blackstone_gate_harassment.toml", GATE_HARASSMENT_TOML)
-    _write_toml(tmp, "tasks/atomic/swift_beast.toml", SWIFT_BEAST_TOML)
-    _write_toml(tmp, "tasks/reputation/daily_reputation.toml", DAILY_REPUTATION_TOML)
+    _write_toml(tmp, "war3/war3.toml", WAR3_TOML)
+    _write_toml(tmp, "war3/jiubing2/base.toml", JIUBING2_TOML)
+    _write_toml(tmp, "war3/jiubing2/heroes/paladin.toml", PALADIN_TOML)
+    _write_toml(tmp, "war3/jiubing2/heroes/hxd.toml", HXD_TOML)
+    _write_toml(tmp, "war3/jiubing2/scenes/blackstone_city.toml", BLACKSTONE_CITY_TOML)
+    _write_toml(tmp, "war3/jiubing2/scenes/kami_village.toml", KAMI_VILLAGE_TOML)
+    _write_toml(tmp, "war3/jiubing2/scenes/forest_city.toml", FOREST_CITY_TOML)
+    _write_toml(tmp, "war3/jiubing2/scenes/menethil.toml", MENETHIL_TOML)
+    _write_toml(tmp, "war3/jiubing2/tasks/atomic/blackstone_gate_harassment.toml", GATE_HARASSMENT_TOML)
+    _write_toml(tmp, "war3/jiubing2/tasks/atomic/swift_beast.toml", SWIFT_BEAST_TOML)
+    _write_toml(tmp, "war3/jiubing2/tasks/reputation/daily_reputation.toml", DAILY_REPUTATION_TOML)
 
     return tmp
 
@@ -203,7 +209,6 @@ class TestDailyReputationBase(unittest.TestCase):
     """测试基类 — 每个测试方法创建独立的 Config 实例和临时目录。"""
 
     def setUp(self):
-        import shutil
         Config.reset()
         self.config_dir = _make_test_config_dir()
         self.cfg = Config(str(self.config_dir))
@@ -211,6 +216,7 @@ class TestDailyReputationBase(unittest.TestCase):
 
     def tearDown(self):
         import shutil
+
         Config.reset()
         for d in self._cleanup_dirs:
             shutil.rmtree(d, ignore_errors=True)
@@ -239,10 +245,8 @@ class TestDailyReputationConfig(TestDailyReputationBase):
         """daily_reputation 的依赖链应包含原子任务和场景配置。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
         # 原子任务配置
-        self.assertIn("blackstone_gate_harassment",
-                      result.get("tasks", {}).get("atomic", {}))
-        self.assertIn("swift_beast",
-                      result.get("tasks", {}).get("atomic", {}))
+        self.assertIn("blackstone_gate_harassment", result.get("tasks", {}).get("atomic", {}))
+        self.assertIn("swift_beast", result.get("tasks", {}).get("atomic", {}))
         # 场景配置
         self.assertIn("blackstone_city", result.get("scenes", {}))
         self.assertIn("forest_city", result.get("scenes", {}))
@@ -275,11 +279,17 @@ class TestReputationTaskConfigPath(TestDailyReputationBase):
 
     def test_blackstone_config_path(self):
         """BlackstoneReputationTask.task_config_path 应指向 daily_reputation.blackstone。"""
-        with patch.dict('sys.modules', {
-            'win32com': MagicMock(), 'win32com.client': MagicMock(),
-            'pythoncom': MagicMock(), 'pywintypes': MagicMock(),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "win32com": MagicMock(),
+                "win32com.client": MagicMock(),
+                "pythoncom": MagicMock(),
+                "pywintypes": MagicMock(),
+            },
+        ):
             from GameBot.runner.tasks.war3.jiubing2.reputation.blackstone_reputation import BlackstoneReputationTask
+
             self.assertEqual(
                 BlackstoneReputationTask.task_config_path,
                 ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "blackstone"),
@@ -287,11 +297,17 @@ class TestReputationTaskConfigPath(TestDailyReputationBase):
 
     def test_forest_config_path(self):
         """ForestReputationTask.task_config_path 应指向 daily_reputation.forest。"""
-        with patch.dict('sys.modules', {
-            'win32com': MagicMock(), 'win32com.client': MagicMock(),
-            'pythoncom': MagicMock(), 'pywintypes': MagicMock(),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "win32com": MagicMock(),
+                "win32com.client": MagicMock(),
+                "pythoncom": MagicMock(),
+                "pywintypes": MagicMock(),
+            },
+        ):
             from GameBot.runner.tasks.war3.jiubing2.reputation.forest_reputation import ForestReputationTask
+
             self.assertEqual(
                 ForestReputationTask.task_config_path,
                 ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "forest"),
@@ -300,7 +316,7 @@ class TestReputationTaskConfigPath(TestDailyReputationBase):
     def test_blackstone_cfg_extracted(self):
         """通过 task_config_path 从合并配置中提取黑石城子表。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        path = ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "blackstone")
+        path = ("tasks", "reputation", "daily_reputation", "blackstone")
         cfg = result
         for key in path:
             cfg = cfg.get(key, {})
@@ -311,7 +327,7 @@ class TestReputationTaskConfigPath(TestDailyReputationBase):
     def test_forest_cfg_extracted(self):
         """通过 task_config_path 从合并配置中提取森之城子表。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        path = ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "forest")
+        path = ("tasks", "reputation", "daily_reputation", "forest")
         cfg = result
         for key in path:
             cfg = cfg.get(key, {})
@@ -322,7 +338,7 @@ class TestReputationTaskConfigPath(TestDailyReputationBase):
     def test_parent_cfg_extracted(self):
         """_parent_cfg 应为 daily_reputation 段（子表的父级）。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        parent_path = ("war3", "jiubing2", "tasks", "reputation", "daily_reputation")
+        parent_path = ("tasks", "reputation", "daily_reputation")
         parent = result
         for key in parent_path:
             parent = parent.get(key, {})
@@ -335,10 +351,15 @@ class TestEffectiveTimes(TestDailyReputationBase):
 
     def _make_reputation_task(self, sub_cfg):
         """构造一个最小可用的 ReputationTask 实例（不触发 DmClient 初始化）。"""
-        with patch.dict('sys.modules', {
-            'win32com': MagicMock(), 'win32com.client': MagicMock(),
-            'pythoncom': MagicMock(), 'pywintypes': MagicMock(),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "win32com": MagicMock(),
+                "win32com.client": MagicMock(),
+                "pythoncom": MagicMock(),
+                "pywintypes": MagicMock(),
+            },
+        ):
             from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
         task = ReputationTask.__new__(ReputationTask)
         task.cfg = sub_cfg
@@ -379,7 +400,7 @@ class TestParentCfgFallback(TestDailyReputationBase):
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
 
         # 模拟 __init__ 中的 _parent_cfg 计算
-        path = ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "blackstone")
+        path = ("tasks", "reputation", "daily_reputation", "blackstone")
         sub_cfg = result
         for key in path:
             sub_cfg = sub_cfg.get(key, {})
@@ -392,8 +413,7 @@ class TestParentCfgFallback(TestDailyReputationBase):
         # 父级有
         self.assertEqual(parent_cfg.get("clear_nearby_interval"), 120)
         # fallback 逻辑：子表无则用父级
-        val = sub_cfg.get("clear_nearby_interval",
-                          parent_cfg.get("clear_nearby_interval", 0))
+        val = sub_cfg.get("clear_nearby_interval", parent_cfg.get("clear_nearby_interval", 0))
         self.assertEqual(val, 120)
 
     def test_no_parent_clear_nearby_defaults_zero(self):
@@ -401,8 +421,7 @@ class TestParentCfgFallback(TestDailyReputationBase):
         # 构造无 clear_nearby_interval 的父级
         parent_cfg = {}
         sub_cfg = {}
-        val = sub_cfg.get("clear_nearby_interval",
-                          parent_cfg.get("clear_nearby_interval", 0))
+        val = sub_cfg.get("clear_nearby_interval", parent_cfg.get("clear_nearby_interval", 0))
         self.assertEqual(val, 0)
 
 
@@ -417,10 +436,15 @@ class TestDailyReputationRun(TestDailyReputationBase):
             daily_cfg.update(cfg_override)
 
         # 用 __new__ 跳过 __init__ 中的 BlackstoneReputationTask / ForestReputationTask 创建
-        with patch.dict('sys.modules', {
-            'win32com': MagicMock(), 'win32com.client': MagicMock(),
-            'pythoncom': MagicMock(), 'pywintypes': MagicMock(),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "win32com": MagicMock(),
+                "win32com.client": MagicMock(),
+                "pythoncom": MagicMock(),
+                "pywintypes": MagicMock(),
+            },
+        ):
             from GameBot.runner.tasks.war3.jiubing2.reputation.daily_reputation import DailyReputationTask
         task = DailyReputationTask.__new__(DailyReputationTask)
         task.cfg = daily_cfg
@@ -460,9 +484,10 @@ class TestDailyReputationRun(TestDailyReputationBase):
         """run 应将 stop_event 传递给子任务。"""
         task = self._make_daily_task()
         stop_event = MagicMock()
+        stop_event.is_set.return_value = False
         task.run(stop_event=stop_event)
-        task.blackstone.run.assert_called_once_with(stop_event=stop_event)
-        task.forest.run.assert_called_once_with(stop_event=stop_event)
+        task.blackstone.run.assert_called_once_with(stop_event=stop_event, progress_lines_callback=None)
+        task.forest.run.assert_called_once_with(stop_event=stop_event, progress_lines_callback=None)
 
     def test_task_name(self):
         """task_name 应从配置中读取。"""

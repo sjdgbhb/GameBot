@@ -1,11 +1,11 @@
-﻿"""
+"""
 战斗状态 AI 检测模块
 
 使用 ONNX 模型对英雄头像截图进行战斗/非战斗二分类。
 模型由 scripts/train_combat_model.py 训练并导出。
 """
+
 import os
-import tempfile
 
 import numpy as np
 from PIL import Image
@@ -15,8 +15,8 @@ try:
 except ImportError:
     ort = None
 
-from GameBot.utils.logger import logger
 from GameBot.config import config
+from GameBot.utils.logger import logger
 
 
 def _get_model_path():
@@ -44,6 +44,7 @@ def _get_img_size():
 def _get_threshold():
     """从 jiubing2.toml [combat_status] 读取分类阈值。"""
     return float(config.get("combat_status.ai_threshold", 0.5))
+
 
 _session = None
 

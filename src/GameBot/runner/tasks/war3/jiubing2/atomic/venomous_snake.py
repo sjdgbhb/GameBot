@@ -1,17 +1,18 @@
-﻿"""
+"""
 毒蛇原子任务（卡米村）
 流程：走到村民杰菲特 → 点技能格接任务 → 沿路线过去 → OCR 检测完成 → 回 NPC 交任务。
 后台 OCR 线程实时监测任务进度，检测到完成立即中断移动。
 """
-from GameBot.utils import logger, setup_log_file
+
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
 from GameBot.inference import get_ocr_client
 from GameBot.runner import DmClient
 from GameBot.runner.business.war3 import War3Business
-from GameBot.runner.business.war3.jiubing2 import GameUI, CombatHelper
+from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI
 from GameBot.runner.tasks.war3.jiubing2.atomic.base import AtomicTaskBase
 from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 
 class VenomousSnakeTask(AtomicTaskBase):
@@ -30,6 +31,7 @@ class VenomousSnakeTask(AtomicTaskBase):
 
 
 # ── 独立运行入口 ──────────────────────────────────────────
+
 
 def main():
     setup_global_exception_hook()

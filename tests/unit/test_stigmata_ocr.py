@@ -1,34 +1,51 @@
-﻿"""圣痕面板 OCR 文本解析 — 单元测试。
+"""圣痕面板 OCR 文本解析 — 单元测试。
 
 覆盖：
 - _parse_stigmata_text：各种 OCR 文本格式的解析（标准/混排/缺失/空文本）
 - _pick_upgrade_target：未达上限词条选择逻辑
 - _update_float_lines：浮窗多行文本格式化（从任务配置读取缩写映射）
 """
+
 import sys
 import types
 import unittest
+
+import pytest
 
 # Mock win32com 等大漠依赖（3.12 环境不可用），避免导入链报错
 for mod_name in ("win32com", "win32com.client", "pythoncom", "pywintypes"):
     if mod_name not in sys.modules:
         sys.modules[mod_name] = types.ModuleType(mod_name)
 
-from GameBot.runner.tasks.war3.jiubing2.others.upgrade_stigmata import UpgradeStigmataTask
+pytestmark = [pytest.mark.unit]
 
+from GameBot.runner.tasks.war3.jiubing2.others.upgrade_stigmata import UpgradeStigmataTask
 
 # 与 jiubing2.toml 中 stigmata.term_limit 保持一致
 TERM_LIMIT = {
-    "生命值": 350, "魔法值": 350, "暴击伤害": 50,
-    "物理防御": 40, "魔法抗性": 40, "力量": 40,
-    "自然属性": 2, "格挡属性": 5, "穿透属性": 2, "暴击几率": 5,
+    "生命值": 350,
+    "魔法值": 350,
+    "暴击伤害": 50,
+    "物理防御": 40,
+    "魔法抗性": 40,
+    "力量": 40,
+    "自然属性": 2,
+    "格挡属性": 5,
+    "穿透属性": 2,
+    "暴击几率": 5,
 }
 
 # 与 upgrade_stigmata.toml 中 term_short / pos_labels 保持一致
 TERM_SHORT = {
-    "生命值": "生命", "魔法值": "魔法", "暴击伤害": "暴伤",
-    "物理防御": "物防", "魔法抗性": "魔抗", "力量": "力量",
-    "自然属性": "自然", "格挡属性": "格挡", "穿透属性": "穿透",
+    "生命值": "生命",
+    "魔法值": "魔法",
+    "暴击伤害": "暴伤",
+    "物理防御": "物防",
+    "魔法抗性": "魔抗",
+    "力量": "力量",
+    "自然属性": "自然",
+    "格挡属性": "格挡",
+    "穿透属性": "穿透",
     "暴击几率": "暴击",
 }
 

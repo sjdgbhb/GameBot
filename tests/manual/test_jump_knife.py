@@ -1,9 +1,9 @@
-﻿"""
+"""
 跳刀目标坐标测试：移动到指定坐标 → 按快捷键 → 点击，验证跳刀落点是否正确。
 用法：切到魔兽窗口后运行 .venv-dm/Scripts/python.exe tests/test_jump_knife.py
 """
+
 import time
-import sys
 
 from GameBot.config import config
 from GameBot.runner import DmClient
@@ -56,7 +56,7 @@ def main():
     with dm.bind_window(hwnd):
         # 测试 3 次
         for i in range(3):
-            logger.info(f"--- 第 {i+1} 次测试 ---")
+            logger.info(f"--- 第 {i + 1} 次测试 ---")
             logger.info(f"移动到 {jump_coords}")
             dm.move_to(*jump_coords)
             time.sleep(0.5)
@@ -66,7 +66,7 @@ def main():
             logger.info("点击")
             dm.left_click()
             time.sleep(30)  # 等待跳刀动画完成，观察落点
-            logger.info(f"第 {i+1} 次测试完成，观察英雄落点是否正确")
+            logger.info(f"第 {i + 1} 次测试完成，观察英雄落点是否正确")
 
     logger.info("测试结束")
 

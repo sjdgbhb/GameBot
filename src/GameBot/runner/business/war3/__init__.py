@@ -7,13 +7,17 @@
 - TextMonitor  — 常驻 OCR 监测类
 """
 
+
 def __getattr__(name):
     if name == "War3Business":
         from .core import War3Business
+
         return War3Business
     if name == "TextMonitor":
         from .core import TextMonitor
+
         return TextMonitor
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = ["War3Business", "TextMonitor"]
