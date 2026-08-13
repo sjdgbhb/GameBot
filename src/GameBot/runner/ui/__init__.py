@@ -8,16 +8,21 @@
 - display_monitor.py — 显示器变化监听器
 """
 
+
 def __getattr__(name):
     if name == "run_with_float_window":
         from .float_window import run_with_float_window
+
         return run_with_float_window
     if name == "HotkeyListener":
         from .hotkey_listener import HotkeyListener
+
         return HotkeyListener
     if name == "DisplayChangeMonitor":
         from .display_monitor import DisplayChangeMonitor
+
         return DisplayChangeMonitor
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = ["run_with_float_window", "HotkeyListener", "DisplayChangeMonitor"]

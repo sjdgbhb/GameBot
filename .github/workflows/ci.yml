@@ -7,7 +7,21 @@ on:
     branches: [main, master, dev]
 
 jobs:
+  branch-check:
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检查 PR 来源分支（main 只接受 dev 合并）
+        run: |
+          if [ "${{ github.head_ref }}" != "dev" ]; then
+            echo "❌ main 分支只接受来自 dev 的 PR，当前来源分支: ${{ github.head_ref }}"
+            exit 1
+          fi
+          echo "✅ 来源分支为 dev，允许合并"
+
   test:
+    needs: branch-check
+    if: always() && (needs.branch-check.result == 'success' || needs.branch-check.result == 'skipped')
     runs-on: windows-latest
     strategy:
       matrix:
@@ -27,5 +41,14 @@ jobs:
       - name: 同步主依赖
         run: uv sync
 
-      - name: 运行单元测试
-        run: uv run python -m unittest discover tests/unit -v
+      - name: 代码风格检查
+        run: uv run ruff check src/ tests/
+
+      - name: 代码格式检查
+        run: uv run ruff format --check src/ tests/
+
+      - name: 运行单元测试（含覆盖率）
+        run: uv run pytest tests/unit/ --cov=GameBot --cov-report=term-missing --cov-fail-under=34 -v
+
+      - name: 运行集成测试
+        run: uv run pytest tests/integration/ -v

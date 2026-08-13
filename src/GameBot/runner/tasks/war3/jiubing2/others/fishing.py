@@ -1,15 +1,16 @@
 """
 钓鱼任务
 """
-import ctypes
+
 import time
-from GameBot.utils import logger, StopTaskError, setup_log_file
+
 from GameBot.config import config as config
-from GameBot.utils import retry, DmError, setup_global_exception_hook
 from GameBot.runner import DmClient
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import NearbyCleaner, get_inventory_hotkey
 from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import StopTaskError, logger, setup_global_exception_hook, setup_log_file
+
 
 class FishingTask:
     __doc__ = "钓鱼业务"
@@ -32,11 +33,15 @@ class FishingTask:
         self._hook_no_success_count = 0
         self._fill_period = None
         clear_nearby_probability = self.fishing_cfg.get("clear_nearby_probability", 0)
-        self.nearby_cleaner = NearbyCleaner(
-            self.war3,
-            cfg.get("command", {}),
-            probability=clear_nearby_probability,
-        ) if clear_nearby_probability > 0 else None
+        self.nearby_cleaner = (
+            NearbyCleaner(
+                self.war3,
+                cfg.get("command", {}),
+                probability=clear_nearby_probability,
+            )
+            if clear_nearby_probability > 0
+            else None
+        )
 
     def _interruptible_wait(self, seconds: float):
         """可被停止信号中断的等待，检测到停止时抛出 StopTaskError。"""
@@ -104,15 +109,16 @@ class FishingTask:
         x1, y1, x2, y2 = self.check_cfg["status_area_coords"]
         if self.fishing_cfg["mode"] != 0:
             # 找图模式：先找图，未命中再找色兜底
-            index, x, y = self.dm.find_pic(x1,
-              y1, x2, y2, (self.check_cfg["hook_status_image"]),
-              sim=sim,
-              delta_color=delta_color)
+            index, x, y = self.dm.find_pic(
+                x1, y1, x2, y2, (self.check_cfg["hook_status_image"]), sim=sim, delta_color=delta_color
+            )
             found = index != -1
             if found:
                 if not self._hook_check_logged:
                     self._hook_check_logged = True
-                    logger.info(f'找图首次命中：index={index}, 坐标=({x},{y}), 图片={self.check_cfg["hook_status_image"]}, 区域=[{x1},{y1},{x2},{y2}]')
+                    logger.info(
+                        f"找图首次命中：index={index}, 坐标=({x},{y}), 图片={self.check_cfg['hook_status_image']}, 区域=[{x1},{y1},{x2},{y2}]"
+                    )
                 return found
         # 找色模式（mode=0 直接找色，mode=1 找图未命中时兜底找色）
         dm_ret, x, y = self.dm.find_color(x1, y1, x2, y2, color_str, sim)
@@ -169,7 +175,10 @@ class FishingTask:
                 time.sleep(remaining)
 
         self.dm.key_press_char("s")
-        logger.debug(f"预判收竿：周期 {period * 1000:.0f}ms，提前 {lead * 1000:.0f}ms" + ("（红色提前出现，已兜底立即收竿）" if early else ""))
+        logger.debug(
+            f"预判收竿：周期 {period * 1000:.0f}ms，提前 {lead * 1000:.0f}ms"
+            + ("（红色提前出现，已兜底立即收竿）" if early else "")
+        )
         return True
 
     def _wait_red_state(self, target: bool, timeout: float):
@@ -189,7 +198,7 @@ class FishingTask:
                     consecutive = 0
                 time.sleep(interval)
 
-        logger.warning(f'等待红色{"出现" if target else "消失"}超时（{timeout}s）— 请检查检测区域坐标和图片是否匹配')
+        logger.warning(f"等待红色{'出现' if target else '消失'}超时（{timeout}s）— 请检查检测区域坐标和图片是否匹配")
 
     def run(self):
         """钓鱼主循环。"""
@@ -201,9 +210,7 @@ class FishingTask:
         max_times = self.fishing_cfg.get("max_times", 10000)
         interval = self.fishing_cfg.get("fishing_interval_time", 1)
 
-        hwnd = self.dm.get_active_window(
-            self.war3_cfg["window_class"], self.war3_cfg["window_title"]
-        )
+        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return

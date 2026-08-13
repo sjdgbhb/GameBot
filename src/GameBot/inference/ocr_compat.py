@@ -7,6 +7,7 @@
 注意：模块名 paddle_ocr 为历史遗留，实际引擎为 RapidOCR（onnxruntime 后端），
 文件名保留以避免大面积 import 改动。
 """
+
 from .client import InferenceClient, get_inference_client
 
 # 向后兼容别名

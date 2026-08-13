@@ -1,4 +1,4 @@
-﻿"""圣痕面板 OCR 实测脚本 — 在游戏中按 F2 打开圣痕面板，OCR 读取并打印结果。
+"""圣痕面板 OCR 实测脚本 — 在游戏中按 F2 打开圣痕面板，OCR 读取并打印结果。
 
 用法（大漠脚本环境 .venv-dm）：
   .venv-dm/Scripts/python.exe tests/test_stigmata_ocr_live.py
@@ -11,6 +11,7 @@
   5. 打印原始 OCR 行、合并全文、解析结果
   6. 按 F2 关闭面板
 """
+
 import time
 
 from GameBot.config import config
@@ -50,8 +51,7 @@ def main():
 
         # 客户区坐标转屏幕坐标
         cx, cy, _, _ = dm.get_client_rect(hwnd)
-        screen_bbox = [cx + num_coords[0], cy + num_coords[1],
-                       cx + num_coords[2], cy + num_coords[3]]
+        screen_bbox = [cx + num_coords[0], cy + num_coords[1], cx + num_coords[2], cy + num_coords[3]]
         print(f"客户区坐标: {num_coords}")
         print(f"窗口原点: ({cx}, {cy})")
         print(f"屏幕坐标: {screen_bbox}")
@@ -102,8 +102,7 @@ def main():
                 # 合并去重
                 all_lines = list(lines)
                 for rl in row_lines:
-                    if not any(abs(rl.get("y_center", 0) - el.get("y_center", 0)) < 20
-                               for el in all_lines):
+                    if not any(abs(rl.get("y_center", 0) - el.get("y_center", 0)) < 20 for el in all_lines):
                         all_lines.append(rl)
                 all_lines.sort(key=lambda l: l.get("y_center", 0))
                 lines = all_lines

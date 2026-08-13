@@ -1,8 +1,9 @@
 """任务 schema 接口 — GET /api/schema/{task_id}。"""
+
 from fastapi import APIRouter, HTTPException
 
-from ..models import SchemaResponse
 from .. import services
+from ..models import SchemaResponse
 
 router = APIRouter()
 

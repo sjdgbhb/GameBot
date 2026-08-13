@@ -27,3 +27,39 @@ GameBot-web = "GameBot.web.server:main"
 [build-system]
 requires = ["uv_build>=0.11.2,<0.12.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "coverage>=7.15.4",
+    "httpx>=0.28.1",
+    "pytest>=8.3",
+    "pytest-cov>=5.0",
+    "ruff>=0.16.2",
+]
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests/unit"]
+pythonpath = ["src"]
+addopts = "-ra -q"
+filterwarnings = [
+    "ignore::starlette.testclient.StarletteDeprecationWarning",
+]
+markers = [
+    "unit: 单元测试",
+    "integration: 集成测试（真实文件 I/O，多模块协作）",
+    "manual: 需人工介入的手动测试",
+    "dm: 依赖大漠插件 COM（仅 .venv-dm 32 位 Python 3.8）",
+    "slow: 耗时较长的测试",
+    "inference: 依赖 ONNX / AI 模型的推理测试",
+    "web: Web API / FastAPI 测试",
+    "config: 配置系统测试",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["F", "I"]
+ignore = ["E501"]

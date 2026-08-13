@@ -1,4 +1,4 @@
-﻿"""推理子进程客户端 —— 在主进程（32 位，大漠 COM）中调用。
+"""推理子进程客户端 —— 在主进程（32 位，大漠 COM）中调用。
 
 主进程通过本模块启动一个 64 位 Python 子进程运行 inference_worker.py，
 以行式 JSON 通信，统一提供三种推理能力：
@@ -8,15 +8,16 @@
 
 子进程常驻，模型只加载一次。线程安全（内部加锁）。
 """
+
 import json
 import os
 import subprocess
 import threading
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
-from GameBot.utils import logger
 from GameBot.config import config
+from GameBot.utils import logger
 
 _client = None
 _init_lock = threading.Lock()
@@ -32,9 +33,7 @@ def _worker_script_path() -> str:
         if not p.is_absolute():
             p = config.project_root / p
         return str(p)
-    return str(
-        config.project_root / "src" / "GameBot" / "inference" / "worker.py"
-    )
+    return str(config.project_root / "src" / "GameBot" / "inference" / "worker.py")
 
 
 def _python_path() -> str:
@@ -106,7 +105,9 @@ class InferenceClient:
                 nvidia_dirs.append(bin_dir)
         if nvidia_dirs:
             env["PATH"] = os.pathsep.join(nvidia_dirs) + os.pathsep + env.get("PATH", "")
-        env["JIUBING_INFERENCE_CONFIG"] = json.dumps(_build_worker_config(self.load_chest, self.load_combat), ensure_ascii=True)
+        env["JIUBING_INFERENCE_CONFIG"] = json.dumps(
+            _build_worker_config(self.load_chest, self.load_combat), ensure_ascii=True
+        )
         # CREATE_NO_WINDOW 隐藏子进程黑窗，不影响 stdin/stdout 管道通信
         self._proc = subprocess.Popen(
             cmd,
@@ -250,9 +251,9 @@ class InferenceClient:
             return [False] * len(img_paths)
         return msg.get("combat", [False] * len(img_paths))
 
-    def capture_and_predict_combat(self, bbox, frame_count: int = 10,
-                                   frame_interval: float = 0.3,
-                                   cancel_file: str = "") -> List[bool]:
+    def capture_and_predict_combat(
+        self, bbox, frame_count: int = 10, frame_interval: float = 0.3, cancel_file: str = ""
+    ) -> List[bool]:
         """子进程直接截屏 + 战斗检测，无需主进程写临时 BMP 文件。
 
         :param bbox: 屏幕区域 [x1, y1, x2, y2]

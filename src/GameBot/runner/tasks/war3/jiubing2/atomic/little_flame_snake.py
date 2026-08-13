@@ -1,18 +1,19 @@
-﻿"""
+"""
 小炎蛇（LV4）原子任务（卡米村）
 流程：走到村民杰菲特 → 点技能格接任务 → 沿路线过去 → OCR 检测完成 → 回 NPC 交任务。
 前置要求：本局游戏内必须完成至少一次「毒蛇」任务才能接取。
 后台 OCR 线程实时监测任务进度，检测到完成立即中断移动。
 """
-from GameBot.utils import logger, setup_log_file
+
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
 from GameBot.inference import get_ocr_client
 from GameBot.runner import DmClient
 from GameBot.runner.business.war3 import War3Business
-from GameBot.runner.business.war3.jiubing2 import GameUI, CombatHelper
+from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI
 from GameBot.runner.tasks.war3.jiubing2.atomic.base import AtomicTaskBase
 from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 
 class LittleFlameSnakeTask(AtomicTaskBase):
@@ -43,6 +44,7 @@ class LittleFlameSnakeTask(AtomicTaskBase):
 
 # ── 独立运行入口 ──────────────────────────────────────────
 
+
 def main():
     setup_global_exception_hook()
     setup_log_file("小火焰蛇任务")
@@ -70,7 +72,12 @@ def main():
             task = LittleFlameSnakeTask(dm, war3, ui, combat, task_cfg)
             task.run(stop_event=stop_event)
 
-    run_with_float_window(f"{LittleFlameSnakeTask.TASK_LABEL}任务", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
+    run_with_float_window(
+        f"{LittleFlameSnakeTask.TASK_LABEL}任务",
+        task_wrapper,
+        countdown_seconds=5,
+        float_cfg=cfg.get("float_window", {}),
+    )
 
 
 if __name__ == "__main__":

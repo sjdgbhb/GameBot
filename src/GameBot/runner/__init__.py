@@ -1,4 +1,4 @@
-﻿"""大漠脚本运行器 — 32 位 Python 3.8 环境下的自动化脚本包。
+"""大漠脚本运行器 — 32 位 Python 3.8 环境下的自动化脚本包。
 
 包含：
 - dm_client.py       — 大漠插件 COM 封装
@@ -11,10 +11,13 @@
 import GameBot.runner 时触发 win32com 依赖。
 """
 
+
 def __getattr__(name):
     if name == "DmClient":
         from .dm_client import DmClient
+
         return DmClient
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = ["DmClient"]

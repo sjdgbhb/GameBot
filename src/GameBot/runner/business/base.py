@@ -1,7 +1,7 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import time
+from abc import ABC
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -26,9 +26,10 @@ class Base(ABC):
         import win32api
         import win32con
         import win32gui
+
         hwnd = win32gui.GetForegroundWindow()
         # '00000409' 是美式键盘的语言代码
-        hkl = win32api.LoadKeyboardLayout('00000409', win32con.KLF_ACTIVATE)
+        hkl = win32api.LoadKeyboardLayout("00000409", win32con.KLF_ACTIVATE)
         win32api.SendMessage(hwnd, win32con.WM_INPUTLANGCHANGEREQUEST, 0, hkl)
         return hwnd
 

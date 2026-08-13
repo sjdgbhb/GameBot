@@ -27,6 +27,7 @@
   - combat_threshold: 战斗分类阈值
   - ai_device: AI 推理设备
 """
+
 import json
 import os
 import sys
@@ -71,6 +72,7 @@ def _get_provider(device_key: str = "ai_device"):
     if device == "gpu":
         try:
             import onnxruntime as ort
+
             available = ort.get_available_providers()
             if "CUDAExecutionProvider" in available:
                 return ["CUDAExecutionProvider", "CPUExecutionProvider"]
@@ -81,8 +83,10 @@ def _get_provider(device_key: str = "ai_device"):
 
 # ── OCR ──────────────────────────────────────────────
 
+
 def _build_ocr():
     from rapidocr import RapidOCR
+
     device = _cfg.get("ocr_device", "cpu")
     params = {
         "Global.use_cls": False,
@@ -160,6 +164,7 @@ def _get_chest_session():
     global _chest_session
     if _chest_session is None:
         import onnxruntime as ort
+
         model_path = _cfg.get("chest_model_path", "")
         if not model_path or not os.path.exists(model_path):
             raise FileNotFoundError(f"宝箱检测模型不存在: {model_path}")
@@ -276,10 +281,12 @@ def _handle_capture_and_detect_chests(bbox: list = None) -> dict:
 
 # ── 战斗状态检测 ──────────────────────────────────────
 
+
 def _get_combat_session():
     global _combat_session
     if _combat_session is None:
         import onnxruntime as ort
+
         model_path = _cfg.get("combat_model_path", "")
         if not model_path or not os.path.exists(model_path):
             raise FileNotFoundError(f"战斗状态模型不存在: {model_path}")
@@ -309,7 +316,9 @@ def _handle_predict_combat(img_paths: list) -> dict:
     return {"combat": combat}
 
 
-def _handle_capture_and_predict_combat(bbox: list, frame_count: int, frame_interval: float, cancel_file: str = "") -> dict:
+def _handle_capture_and_predict_combat(
+    bbox: list, frame_count: int, frame_interval: float, cancel_file: str = ""
+) -> dict:
     """子进程直接截屏 + 战斗检测，避免主进程写临时 BMP 文件。
 
     :param bbox: 屏幕区域 [x1, y1, x2, y2]
@@ -333,6 +342,7 @@ def _handle_capture_and_predict_combat(bbox: list, frame_count: int, frame_inter
         batch.append(arr)
         if i < frame_count - 1 and not (cancel_file and os.path.exists(cancel_file)):
             import time as _time
+
             _time.sleep(frame_interval)
     if cancel_file and os.path.exists(cancel_file):
         try:
@@ -349,6 +359,7 @@ def _handle_capture_and_predict_combat(bbox: list, frame_count: int, frame_inter
 
 
 # ── 主循环 ────────────────────────────────────────────
+
 
 def main():
     _init_stdout()

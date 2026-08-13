@@ -1,6 +1,6 @@
 # Python 生成文件
 __pycache__/
-*.py[oc]
+*.py[cod]
 build/
 dist/
 wheels/
@@ -13,8 +13,10 @@ wheels/
 # 日志
 logs/
 
-# AI 模型权重（.pt 文件较大，不应提交；.onnx 模型已在 resources/models/ 下按需保留）
+# AI 模型权重（.pt/.pth/.ckpt 文件较大，不应提交；.onnx 模型已在 resources/models/ 下按需保留）
 *.pt
+*.pth
+*.ckpt
 
 # 训练数据集（截图样本，体积大）
 /data/
@@ -30,9 +32,18 @@ tmp_*
 # 运行时日志
 *.log
 
+# 环境变量文件（可能含密钥）
+.env
+.env.*
+
 # IDE 配置
 .vscode/
 .idea/
+
+# 编辑器临时文件
+*.swp
+*.swo
+*~
 
 # PyInstaller 构建产物
 exe/dist/
@@ -43,7 +54,6 @@ exe/build/
 *.exe
 *.7z
 *.zip
-*.pyc
 *.pyz
 *.dis
 
@@ -59,3 +69,33 @@ src/GameBot/web/dist/
 
 # 前端依赖
 node_modules/
+
+# Coverage 产物
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+
+# pytest 缓存
+.pytest_cache/
+
+# mypy 缓存
+.mypy_cache/
+
+# ruff 缓存
+.ruff_cache/
+
+# Windows 系统文件
+Thumbs.db
+desktop.ini
+
+# 备份/合并冲突残留
+*.bak
+*.orig
+
+# 空占位目录
+__nonexistent__/
+
+# 测试报告目录（保留在版本控制中，供 Dev/QA 协作）
+# docs/test_reports/ — 不忽略，需提交
+# docs/review_reports/ — 不忽略，需提交
