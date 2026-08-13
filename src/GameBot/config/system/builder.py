@@ -1,4 +1,5 @@
 """合并构建 — 按加载顺序合并配置、深度合并、英雄互斥处理。"""
+
 import copy
 from typing import Dict, List
 
@@ -53,7 +54,9 @@ class ConfigBuilderMixin:
                     if key == "hero" and isinstance(value, dict) and isinstance(result.get("hero"), dict):
                         merged_hero = copy.deepcopy(result["hero"])
                         for sub_key, sub_val in value.items():
-                            merged_hero[sub_key] = copy.deepcopy(sub_val) if isinstance(sub_val, (dict, list)) else sub_val
+                            merged_hero[sub_key] = (
+                                copy.deepcopy(sub_val) if isinstance(sub_val, (dict, list)) else sub_val
+                            )
                         result["hero"] = merged_hero
                     elif key in result and isinstance(result[key], dict) and isinstance(value, dict):
                         self._deep_merge(result[key], value)
@@ -76,4 +79,3 @@ class ConfigBuilderMixin:
             else:
                 # 非 dict 或新增键，直接覆盖
                 base[key] = copy.deepcopy(value) if isinstance(value, (dict, list)) else value
-

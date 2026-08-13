@@ -1,17 +1,21 @@
-﻿"""
+"""
 单局无尽刷分 — 已在无尽地图内，直接开刷
 """
+
 import time
-from GameBot.utils import logger, StopTaskError, setup_log_file
+
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
+from GameBot.inference import get_ocr_client
 from GameBot.runner import DmClient
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import (
-    GameUI, CombatHelper, EndlessRunner,
+    CombatHelper,
+    EndlessRunner,
+    GameUI,
 )
 from GameBot.runner.ui import run_with_float_window
-from GameBot.inference import get_ocr_client
+from GameBot.utils import StopTaskError, logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 
 class EndlessSingleTask:
@@ -28,8 +32,7 @@ class EndlessSingleTask:
         self.war3 = War3Business(self.dm, war3_cfg)
         self.ui = GameUI(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
         self.combat = CombatHelper(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
-        self.runner = EndlessRunner(self.dm, self.war3, self.ui, self.combat,
-                                    war3_cfg, hero_cfg, self.task_cfg)
+        self.runner = EndlessRunner(self.dm, self.war3, self.ui, self.combat, war3_cfg, hero_cfg, self.task_cfg)
         self.endless_cfg = endless_cfg
         self.war3_cfg = war3_cfg
 
@@ -43,10 +46,7 @@ class EndlessSingleTask:
         games = self.endless_cfg.get("games", 10)
         min_level = self.endless_cfg.get("min_level", 15)
         max_level = self.endless_cfg.get("max_level", 100)
-        logger.info(
-            f'游戏总局数：{games}，'
-            f'每局刷怪楼层：{min_level} -> {max_level}'
-        )
+        logger.info(f"游戏总局数：{games}，每局刷怪楼层：{min_level} -> {max_level}")
         self._progress_callback(f"楼层 {min_level}/{max_level}")
         hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
         if not hwnd:
@@ -73,8 +73,7 @@ def main():
     def task_wrapper(stop_event, progress_callback=None):
         EndlessSingleTask(cfg).run(stop_event=stop_event, progress_callback=progress_callback)
 
-    run_with_float_window("无尽刷怪", task_wrapper, countdown_seconds=5,
-                          float_cfg=cfg.get("float_window", {}))
+    run_with_float_window("无尽刷怪", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
 
 
 if __name__ == "__main__":

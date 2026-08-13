@@ -9,6 +9,7 @@ dependencies = []
 [paths]
 log_path = "logs"                                # 日志输出目录
 resources_path = "src/GameBot/resources"     # 资源根目录
+screenshot_path = "logs/screenshots"             # 非预想流程截图输出目录
 
 # ---------------------------------------------------------------------------
 # 大漠插件配置

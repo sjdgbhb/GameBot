@@ -7,6 +7,7 @@
 对外导出（通过 system 子包转发）：
 - Config, ConfigurationError, config, get_config
 """
+
 from .system import Config, ConfigurationError, config, get_config
 
 __all__ = [

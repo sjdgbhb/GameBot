@@ -1,24 +1,25 @@
-﻿"""
+"""
 巡逻拾取任务 — 在路线点循环杀怪，检测地面宝箱并拾取所需物品。
 英雄已在游戏内即可运行，类似 endless_single.py。
 """
+
 from __future__ import annotations
 
+import ctypes
 import os
-import time
 import tempfile
 import threading
-import ctypes
-from typing import Optional, List, Dict, TYPE_CHECKING
+import time
+from typing import Optional
 
-from GameBot.utils import logger, StopTaskError, setup_log_file
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
-from GameBot.inference import get_ocr_client, get_inference_client
-from GameBot.runner.ui import run_with_float_window
+from GameBot.inference import get_inference_client, get_ocr_client
 from GameBot.runner import DmClient
-from GameBot.runner.business.war3 import War3Business, TextMonitor
-from GameBot.runner.business.war3.jiubing2 import GameUI, CombatHelper, get_inventory_hotkey, get_inventory_hotkeys
+from GameBot.runner.business.war3 import TextMonitor, War3Business
+from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI, get_inventory_hotkey, get_inventory_hotkeys
+from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import StopTaskError, logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 
 class PatrolLootTask:
@@ -53,7 +54,7 @@ class PatrolLootTask:
 
         self.hwnd = None
         self.pet_feed_time = time.time()
-        self.item_targets = self._parse_item_targets(self.cfg.get('desired_items', []))
+        self.item_targets = self._parse_item_targets(self.cfg.get("desired_items", []))
         self.storage_full = False
 
         # 初始上报进度
@@ -61,21 +62,21 @@ class PatrolLootTask:
 
         # 运行统计
         self._stats = {
-            'start_time': 0.0,
-            'rounds_completed': 0,
-            'chests_detected': 0,
-            'items_picked': {},   # {item_name: count}
-            'items_skipped': 0,
-            'non_target_names': [],  # 非目标物品名列表（供用户排查 OCR 误识别）
-            'combat_wait_total': 0.0,
-            'feed_count': 0,
+            "start_time": 0.0,
+            "rounds_completed": 0,
+            "chests_detected": 0,
+            "items_picked": {},  # {item_name: count}
+            "items_skipped": 0,
+            "non_target_names": [],  # 非目标物品名列表（供用户排查 OCR 误识别）
+            "combat_wait_total": 0.0,
+            "feed_count": 0,
         }
 
         # 可配置的等待/避让参数（从对应配置节点读取，缺省值与原硬编码一致）
-        self.hover_wait_time = self.chest_cfg.get('hover_wait_time', 1.5)
-        self.mouse_avoid_pos = self.cfg.get('mouse_avoid_pos', [200, 200])
-        self.feed_only_interval = self.cfg.get('feed_only_interval', 10)
-        self.combat_timeout = self.task_cfg.get('game', {}).get('combat_timeout', 120)
+        self.hover_wait_time = self.chest_cfg.get("hover_wait_time", 1.5)
+        self.mouse_avoid_pos = self.cfg.get("mouse_avoid_pos", [200, 200])
+        self.feed_only_interval = self.cfg.get("feed_only_interval", 10)
+        self.combat_timeout = self.task_cfg.get("game", {}).get("combat_timeout", 120)
 
         # 预启动战斗检测线程（与移动等待并行）
         self._combat_check_thread = None
@@ -105,22 +106,22 @@ class PatrolLootTask:
     def run(self):
         rounds = self.patrol_cfg.get("rounds", 0)
         points = self.points
-        logger.info(f"刷装备任务开始：路线方案「{self.route_scheme}」，路线点 {len(points)} 个，轮数 {'无限' if rounds == 0 else rounds}")
+        logger.info(
+            f"刷装备任务开始：路线方案「{self.route_scheme}」，路线点 {len(points)} 个，轮数 {'无限' if rounds == 0 else rounds}"
+        )
 
         # 校验必须携带宠物食物（id=9），否则宠物会逃亡
         if not get_inventory_hotkeys(self.hero_cfg, 9):
             logger.error("未装备宠物食物（物品 id=9），任务拒绝启动")
             return
 
-        hwnd = self.dm.get_active_window(
-            self.war3_cfg["window_class"], self.war3_cfg["window_title"]
-        )
+        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
 
         self.hwnd = hwnd
-        self._stats['start_time'] = time.time()
+        self._stats["start_time"] = time.time()
         with self.dm.bind_window(hwnd):
             self.war3.set_client_size(hwnd)
             # 预初始化推理子进程（统一加载 OCR、宝箱检测、战斗检测模型）
@@ -151,7 +152,7 @@ class PatrolLootTask:
                     except StopTaskError:
                         logger.info("用户请求停止，终止巡逻")
                         break
-                    self._stats['rounds_completed'] = round_idx
+                    self._stats["rounds_completed"] = round_idx
                     logger.info(f"===== 巡逻第 {round_idx} 轮结束 =====")
                 # 储物箱满或物品拾取完毕后，继续定时喂宠物
                 if self.storage_full or self._all_items_satisfied():
@@ -181,19 +182,22 @@ class PatrolLootTask:
             time.sleep(seconds)
 
     def _navigate_to_point(self, pt: dict):
-        self.dm.key_press_char('F1')
-        self._interruptible_wait(self.war3_cfg['key_time'])
-        wait_time = pt.get('time', 3)
-        logger.info(f'目标位置：{pt["desc"]}，等待时间：{wait_time}s')
+        self.dm.key_press_char("F1")
+        self._interruptible_wait(self.war3_cfg["key_time"])
+        wait_time = pt.get("time", 3)
+        logger.info(f"目标位置：{pt['desc']}，等待时间：{wait_time}s")
         # 启动持续战斗检测线程，与移动等待并行，移动期间持续循环检测
         self._start_combat_check()
         self.war3.move_to_minimap_point(
-            pt.get('mini_coords'), pt.get('coords'), pt.get('walk_mode', 1), wait_time,
+            pt.get("mini_coords"),
+            pt.get("coords"),
+            pt.get("walk_mode", 1),
+            wait_time,
             stop_event=self._stop_event,
         )
 
     def _kill_monsters(self, pt: dict):
-        self.combat.execute_actions(pt, pt.get('coords'), stop_event=self._stop_event)
+        self.combat.execute_actions(pt, pt.get("coords"), stop_event=self._stop_event)
 
     # ── 战斗状态检测 ──────────────────────────────────────
 
@@ -207,11 +211,11 @@ class PatrolLootTask:
         if self._combat_check_thread is not None and self._combat_check_running:
             return
         cfg = self.combat_cfg
-        area = cfg['in_combat_area_coords']
+        area = cfg["in_combat_area_coords"]
         cx, cy, _, _ = self.dm.get_client_rect(self.hwnd)
         bbox = [cx + area[0], cy + area[1], cx + area[2], cy + area[3]]
-        frame_count = cfg.get('frame_count', 10)
-        frame_interval = cfg.get('frame_interval', 0.3)
+        frame_count = cfg.get("frame_count", 10)
+        frame_interval = cfg.get("frame_interval", 0.3)
 
         self._combat_check_result = None
         self._combat_check_error = None
@@ -224,7 +228,9 @@ class PatrolLootTask:
             while self._combat_check_running:
                 try:
                     results = get_inference_client().capture_and_predict_combat(
-                        bbox, frame_count=frame_count, frame_interval=frame_interval,
+                        bbox,
+                        frame_count=frame_count,
+                        frame_interval=frame_interval,
                         cancel_file=self._combat_cancel_file,
                     )
                     self._combat_check_result = results
@@ -241,11 +247,11 @@ class PatrolLootTask:
         """停止持续战斗检测线程，通过取消信号中断子进程截帧后等待线程退出。"""
         self._combat_check_running = False
         # 创建取消信号文件，中断子进程正在进行的截帧循环
-        cancel_file = getattr(self, '_combat_cancel_file', None)
+        cancel_file = getattr(self, "_combat_cancel_file", None)
         if cancel_file:
             try:
-                with open(cancel_file, 'w') as f:
-                    f.write('1')
+                with open(cancel_file, "w") as f:
+                    f.write("1")
             except OSError:
                 pass
         if self._combat_check_thread is not None:
@@ -276,7 +282,7 @@ class PatrolLootTask:
                     return
                 if time.time() - start >= self.combat_timeout:
                     logger.warning(f"等待战斗检测超时（{self.combat_timeout}s），强制继续")
-                    self._stats['combat_wait_total'] += time.time() - start
+                    self._stats["combat_wait_total"] += time.time() - start
                     self._stop_combat_check()
                     return
                 if self._stop_event is not None:
@@ -297,7 +303,7 @@ class PatrolLootTask:
                 wait_time = time.time() - start
                 if wait_time > 0.5:
                     logger.info(f"英雄已脱离战斗（等待 {wait_time:.1f}s）")
-                self._stats['combat_wait_total'] += wait_time
+                self._stats["combat_wait_total"] += wait_time
                 # 脱战后直接停止线程并 join，调用方无需再显式调用 _stop_combat_check
                 self._stop_combat_check()
                 return
@@ -328,7 +334,7 @@ class PatrolLootTask:
                 logger.info(f"第 {round_idx} 轮检测：未检测到地面宝箱，拾取结束")
                 break
             logger.info(f"第 {round_idx} 轮检测：发现 {len(chests)} 个宝箱")
-            self._stats['chests_detected'] += len(chests)
+            self._stats["chests_detected"] += len(chests)
             found_target_this_round = False
             for idx, cx, cy, conf in chests:
                 if self.storage_full or self._all_items_satisfied():
@@ -337,7 +343,7 @@ class PatrolLootTask:
                 if picked is not None:
                     found_target_this_round = True
                     # 拾取后重置游戏状态：ESC 取消技能瞄准，鼠标移开清 tooltip，等待英雄稳定
-                    self.dm.key_press_char('esc')
+                    self.dm.key_press_char("esc")
                     self.dm.move_to(*self.mouse_avoid_pos)
                     time.sleep(self.hover_wait_time)
                 if self.storage_full:
@@ -350,7 +356,7 @@ class PatrolLootTask:
                 break
 
         if not self.storage_full:
-            self.war3.send_msg(self.task_cfg['command']['clear_nearby'])
+            self.war3.send_msg(self.task_cfg["command"]["clear_nearby"])
             logger.info("已清理地面物品")
 
     def _try_pickup_chest(self, idx, cx, cy, conf, monitor: TextMonitor) -> Optional[bool]:
@@ -364,9 +370,9 @@ class PatrolLootTask:
         matched_item = self._match_desired(item_name)
 
         if not (item_name and matched_item):
-            self._stats['items_skipped'] += 1
-            if item_name and item_name not in self._stats['non_target_names']:
-                self._stats['non_target_names'].append(item_name)
+            self._stats["items_skipped"] += 1
+            if item_name and item_name not in self._stats["non_target_names"]:
+                self._stats["non_target_names"].append(item_name)
             logger.info(f"宝箱#{idx} ({cx},{cy}) conf={conf:.2f} → [非目标] {item_name or '(未识别)'} → 跳过")
             return None
 
@@ -380,35 +386,39 @@ class PatrolLootTask:
             success = self._handle_unclickable(cx, cy, monitor)
             if success:
                 self._mark_picked(matched_item, item_name)
-                logger.info(f"宝箱#{idx} ({cx},{cy}) → 重试拾取成功（{self.item_targets[matched_item]['picked']}/{self.item_targets[matched_item]['target']}）")
+                logger.info(
+                    f"宝箱#{idx} ({cx},{cy}) → 重试拾取成功（{self.item_targets[matched_item]['picked']}/{self.item_targets[matched_item]['target']}）"
+                )
             else:
                 logger.info(f"宝箱#{idx} ({cx},{cy}) → 重试失败，跳过")
             return success
         else:
             self._mark_picked(matched_item, item_name)
-            logger.info(f"宝箱#{idx} ({cx},{cy}) conf={conf:.2f} → [目标] {item_name} → 拾取成功（{self.item_targets[matched_item]['picked']}/{self.item_targets[matched_item]['target']}）")
+            logger.info(
+                f"宝箱#{idx} ({cx},{cy}) conf={conf:.2f} → [目标] {item_name} → 拾取成功（{self.item_targets[matched_item]['picked']}/{self.item_targets[matched_item]['target']}）"
+            )
             return True
 
     def _mark_picked(self, matched_item: str, item_name: str):
         """记录拾取成功：更新目标计数、统计、上报进度。"""
-        self.item_targets[matched_item]['picked'] += 1
-        self._stats['items_picked'][matched_item] = self._stats['items_picked'].get(matched_item, 0) + 1
+        self.item_targets[matched_item]["picked"] += 1
+        self._stats["items_picked"][matched_item] = self._stats["items_picked"].get(matched_item, 0) + 1
         self._report_progress()
 
     def _feed_pet(self):
         """喂宠物（间隔由 jiubing2.toml [pet].feeding_interval 控制）。"""
-        old_feed_time = getattr(self, 'pet_feed_time', time.time())
+        old_feed_time = getattr(self, "pet_feed_time", time.time())
         self.combat.feed_pet(self)
         # 统计喂食次数（feed_pet 内部更新 pet_feed_time，通过时间变化判断是否实际喂食）
-        if hasattr(self, 'pet_feed_time') and self.pet_feed_time != old_feed_time:
-            self._stats['feed_count'] += 1
+        if hasattr(self, "pet_feed_time") and self.pet_feed_time != old_feed_time:
+            self._stats["feed_count"] += 1
 
     def _handle_unclickable(self, cx: int, cy: int, monitor: TextMonitor) -> bool:
         """不可点击 → ESC取消 → 等待 → 重试。返回 True 表示拾取成功。"""
-        max_retries = self.pickup_cfg.get('max_retries', 3)
-        retry_interval = self.pickup_cfg.get('retry_interval', 3)
+        max_retries = self.pickup_cfg.get("max_retries", 3)
+        retry_interval = self.pickup_cfg.get("retry_interval", 3)
 
-        self.dm.key_press_char('esc')
+        self.dm.key_press_char("esc")
         for attempt in range(1, max_retries + 1):
             self._interruptible_wait(retry_interval)
             logger.info(f"重试拾取({cx},{cy})，第 {attempt}/{max_retries} 次")
@@ -420,17 +430,17 @@ class PatrolLootTask:
             if result == "picked":
                 return True
             if result == "unclickable":
-                self.dm.key_press_char('esc')
+                self.dm.key_press_char("esc")
         logger.warning(f"宝箱({cx},{cy})重试 {max_retries} 次仍不可点击，跳过")
         return False
 
     def _pickup_one(self, cx: int, cy: int, monitor: TextMonitor) -> str:
         """执行一次拾取操作，返回 'picked' / 'unclickable' / 'storage_full'。"""
         hotkey = get_inventory_hotkey(self.hero_cfg, 0)
-        key_time = self.war3_cfg['key_time']
+        key_time = self.war3_cfg["key_time"]
 
         # 先选中英雄，避免悬停识别物品时选中了其他单位
-        self.dm.key_press_char('F1')
+        self.dm.key_press_char("F1")
         self._interruptible_wait(key_time)
         self.dm.key_press_char(hotkey)
         self._interruptible_wait(key_time)
@@ -438,13 +448,11 @@ class PatrolLootTask:
         self._interruptible_wait(key_time)
         self.dm.left_click()
 
-        unclickable_text = self.pickup_cfg.get('unclickable_text', '不可点击')
-        storage_full_text = self.pickup_cfg.get('storage_full_text', '储物箱已满')
-        timeout = self.pickup_cfg.get('result_timeout', 5)
+        unclickable_text = self.pickup_cfg.get("unclickable_text", "不可点击")
+        storage_full_text = self.pickup_cfg.get("storage_full_text", "储物箱已满")
+        timeout = self.pickup_cfg.get("result_timeout", 5)
 
-        result = monitor.wait_for_any(
-            [unclickable_text, storage_full_text], timeout=timeout
-        )
+        result = monitor.wait_for_any([unclickable_text, storage_full_text], timeout=timeout)
         if result == unclickable_text:
             return "unclickable"
         elif result == storage_full_text:
@@ -463,7 +471,7 @@ class PatrolLootTask:
 
         # 获取客户区屏幕坐标，让子进程直接截屏+检测，无需写读 BMP 文件
         cx, cy, _, _ = self.dm.get_client_rect(self.hwnd)
-        client_size = self.war3_cfg.get('client_size', [1902, 1033])
+        client_size = self.war3_cfg.get("client_size", [1902, 1033])
         bbox = [cx, cy, cx + client_size[0], cy + client_size[1]]
         t0 = time.time()
         detections = get_inference_client().capture_and_detect_chests(bbox)
@@ -483,14 +491,16 @@ class PatrolLootTask:
 
     def _read_item_name(self, chest_x: int, chest_y: int) -> str:
         """OCR 读取宝箱上方区域的物品名称。"""
-        offset_y = self.item_text_cfg.get('offset_y', 50)
-        half_w = self.item_text_cfg.get('area_width', 200) // 2
-        half_h = self.item_text_cfg.get('area_height', 60) // 2
+        offset_y = self.item_text_cfg.get("offset_y", 50)
+        half_w = self.item_text_cfg.get("area_width", 200) // 2
+        half_h = self.item_text_cfg.get("area_height", 60) // 2
 
         text_y = chest_y - offset_y
         area_coords = [
-            chest_x - half_w, text_y - half_h,
-            chest_x + half_w, text_y + half_h,
+            chest_x - half_w,
+            text_y - half_h,
+            chest_x + half_w,
+            text_y + half_h,
         ]
         bbox = self.war3._compute_ocr_bbox({"area_coords": area_coords}, self.hwnd)
         text = get_ocr_client().ocr_screen(bbox)
@@ -506,11 +516,11 @@ class PatrolLootTask:
         if not item_name:
             return None
         # OCR 形近字纠错
-        char_fixes = self.item_text_cfg.get('char_fixes', {})
+        char_fixes = self.item_text_cfg.get("char_fixes", {})
         if char_fixes:
             item_name = item_name.translate(str.maketrans(char_fixes))
         for name, info in self.item_targets.items():
-            if name in item_name and info['picked'] < info['target']:
+            if name in item_name and info["picked"] < info["target"]:
                 return name
         return None
 
@@ -524,19 +534,19 @@ class PatrolLootTask:
         targets = {}
         for item in desired_items:
             if isinstance(item, str):
-                targets[item] = {'target': 1, 'picked': 0}
+                targets[item] = {"target": 1, "picked": 0}
             elif isinstance(item, dict):
-                name = item.get('name', '')
-                count = item.get('count', 1)
+                name = item.get("name", "")
+                count = item.get("count", 1)
                 if name:
-                    targets[name] = {'target': count, 'picked': 0}
+                    targets[name] = {"target": count, "picked": 0}
         return targets
 
     def _all_items_satisfied(self) -> bool:
         """检查所有目标物品是否已拾取到目标数量。"""
         if not self.item_targets:
             return False
-        return all(info['picked'] >= info['target'] for info in self.item_targets.values())
+        return all(info["picked"] >= info["target"] for info in self.item_targets.values())
 
     def _report_progress(self):
         """上报各装备拾取进度到浮窗，每行一件装备。"""
@@ -544,7 +554,7 @@ class PatrolLootTask:
             return
         lines = []
         for name, info in self.item_targets.items():
-            picked, target = info['picked'], info['target']
+            picked, target = info["picked"], info["target"]
             if target <= 0:
                 continue
             lines.append(f"{name} {picked}/{target}")
@@ -553,11 +563,9 @@ class PatrolLootTask:
     def _log_stats(self):
         """输出运行统计摘要。"""
         s = self._stats
-        elapsed = time.time() - s['start_time'] if s['start_time'] else 0
-        picked_summary = ', '.join(
-            f"{name}×{count}" for name, count in s['items_picked'].items()
-        ) or '无'
-        non_target_summary = ', '.join(s['non_target_names']) if s['non_target_names'] else '无'
+        elapsed = time.time() - s["start_time"] if s["start_time"] else 0
+        picked_summary = ", ".join(f"{name}×{count}" for name, count in s["items_picked"].items()) or "无"
+        non_target_summary = ", ".join(s["non_target_names"]) if s["non_target_names"] else "无"
         logger.info(
             f"===== 巡逻统计 ===== "
             f"耗时 {elapsed:.0f}s | "
@@ -588,11 +596,10 @@ def main():
     title = f"刷装备（{route_scheme}）" if route_scheme else "刷装备"
 
     def task_wrapper(stop_event, progress_callback=None, **kwargs):
-        task = PatrolLootTask(cfg, stop_event=stop_event, progress_lines_callback=kwargs.get('progress_lines_callback'))
+        task = PatrolLootTask(cfg, stop_event=stop_event, progress_lines_callback=kwargs.get("progress_lines_callback"))
         task.run()
 
-    run_with_float_window(title, task_wrapper, countdown_seconds=5,
-                          float_cfg=cfg.get("float_window", {}))
+    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
 
 
 if __name__ == "__main__":

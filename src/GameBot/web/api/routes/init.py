@@ -1,8 +1,9 @@
 """初始化接口 — GET /api/init。"""
+
 from fastapi import APIRouter
 
-from ..models import InitResponse
 from .. import services
+from ..models import InitResponse
 
 router = APIRouter()
 

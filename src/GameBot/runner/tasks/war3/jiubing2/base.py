@@ -1,4 +1,4 @@
-﻿"""
+"""
 任务基类 — 循环执行原子任务的通用逻辑。
 
 分层设计：
@@ -6,18 +6,19 @@
 - 个人任务成就、声望任务（黑石城/森之城）、升级圣痕等均为原子任务的下游、
   彼此同一层级，都继承 AtomicLoopTask 复用"装配公共对象 + 循环执行原子任务"的逻辑。
 """
+
 from __future__ import annotations
 
 import math
 import time
 
-from GameBot.utils import logger, StopTaskError
-from GameBot.utils.exception_handler import DmError
 from GameBot.inference import get_ocr_client
 from GameBot.runner import DmClient
-from GameBot.runner.business.war3 import War3Business, TextMonitor
-from GameBot.runner.business.war3.jiubing2 import GameUI, CombatHelper, NearbyCleaner
+from GameBot.runner.business.war3 import TextMonitor, War3Business
+from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI, NearbyCleaner
 from GameBot.runner.tasks.war3.jiubing2.atomic import ATOMIC_TASK_REGISTRY
+from GameBot.utils import StopTaskError, logger
+from GameBot.utils.exception_handler import DmError
 
 # 原子任务中预期可能发生的运行时异常（如 COM 调用失败、OCR 超时等），
 # 捕获后记为失败并继续下一轮；编程错误（KeyError/TypeError 等）不在此列，直接抛出
@@ -34,10 +35,10 @@ class AtomicLoopTask:
     - atomic_config_path：原子任务在 cfg 中的路径元组，如 ("war3", "jiubing2", "tasks", "atomic", "blackstone_gate_harassment")
     """
 
-    atomic_task_cls = None          # 原子任务类（子类必须指定）
-    atomic_name = "原子任务"         # 原子任务显示名（用于日志）
-    task_config_path = None         # 本任务配置在 cfg 中的路径（子类必须指定）
-    atomic_config_path = None       # 原子任务配置在 cfg 中的路径（子类必须指定）
+    atomic_task_cls = None  # 原子任务类（子类必须指定）
+    atomic_name = "原子任务"  # 原子任务显示名（用于日志）
+    task_config_path = None  # 本任务配置在 cfg 中的路径（子类必须指定）
+    atomic_config_path = None  # 原子任务配置在 cfg 中的路径（子类必须指定）
 
     def __init__(self, cfg: dict):
         """
@@ -47,7 +48,11 @@ class AtomicLoopTask:
         self.cfg = self._get_nested(cfg, self.task_config_path)
         self.atomic_cfg = self._get_nested(cfg, self.atomic_config_path)
         # 父级配置（子表 fallback 用，如 daily_reputation.blackstone → daily_reputation）
-        self._parent_cfg = self._get_nested(cfg, self.task_config_path[:-1]) if self.task_config_path and len(self.task_config_path) > 1 else {}
+        self._parent_cfg = (
+            self._get_nested(cfg, self.task_config_path[:-1])
+            if self.task_config_path and len(self.task_config_path) > 1
+            else {}
+        )
 
         # 公共对象装配（配置均来自任务依赖闭包，不再读全局 config）
         self.dm = DmClient()
@@ -61,12 +66,18 @@ class AtomicLoopTask:
 
         # 概率清理英雄附近物品（开关 + 概率由配置控制，<=0 表示禁用）
         # 子表未配置时 fallback 到父级（如 daily_reputation.blackstone → daily_reputation）
-        clear_nearby_probability = self.cfg.get('clear_nearby_probability',
-                                                self._parent_cfg.get('clear_nearby_probability', 0))
-        self.nearby_cleaner = NearbyCleaner(
-            self.war3, cfg.get('command', {}),
-            probability=clear_nearby_probability,
-        ) if clear_nearby_probability > 0 else None
+        clear_nearby_probability = self.cfg.get(
+            "clear_nearby_probability", self._parent_cfg.get("clear_nearby_probability", 0)
+        )
+        self.nearby_cleaner = (
+            NearbyCleaner(
+                self.war3,
+                cfg.get("command", {}),
+                probability=clear_nearby_probability,
+            )
+            if clear_nearby_probability > 0
+            else None
+        )
 
         # 停止信号（由 run(stop_event) 传入）
         self._stop_event = None
@@ -106,9 +117,7 @@ class AtomicLoopTask:
         loop_interval = self.cfg.get("loop_interval_time", 1.5)
         logger.info(f"{self.task_name}目标次数：{times}（通过{self.atomic_name}任务完成）")
 
-        hwnd = self.dm.get_active_window(
-            self.war3_cfg["window_class"], self.war3_cfg["window_title"]
-        )
+        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
@@ -177,8 +186,7 @@ class AtomicLoopTask:
         """子类可覆写：报告进度到浮窗（每次原子任务成功后调用）。"""
         pass
 
-    def _run_one_atomic(self, at_npc: bool = False,
-                        walk_time=None, monitor=None) -> bool:
+    def _run_one_atomic(self, at_npc: bool = False, walk_time=None, monitor=None) -> bool:
         """执行一次原子任务，返回是否成功。
 
         :param at_npc: 英雄是否已在任务 NPC 旁（为真则跳过接取前的行走）。
@@ -186,8 +194,14 @@ class AtomicLoopTask:
         :param monitor: 持续文字监测器（None 时回退到起停式 watcher）。
         """
         task = self.atomic_task_cls(
-            self.dm, self.war3, self.ui, self.combat, self.atomic_cfg,
-            at_npc=at_npc, walk_time=walk_time, monitor=monitor,
+            self.dm,
+            self.war3,
+            self.ui,
+            self.combat,
+            self.atomic_cfg,
+            at_npc=at_npc,
+            walk_time=walk_time,
+            monitor=monitor,
             nearby_cleaner=self.nearby_cleaner,
         )
         try:
@@ -204,9 +218,7 @@ class ReputationTask(AtomicLoopTask):
         target = self.cfg.get("target_reputation", 150)
         per_run = self.cfg.get("reputation_per_run", 5)
         times = math.ceil(target / per_run)
-        logger.info(
-            f"每日声望上限 {target}，每次{self.atomic_name} +{per_run}，需完成 {times} 次"
-        )
+        logger.info(f"每日声望上限 {target}，每次{self.atomic_name} +{per_run}，需完成 {times} 次")
         return times
 
     def _report_progress(self, done: int, times: int):
@@ -218,7 +230,7 @@ class ReputationTask(AtomicLoopTask):
         current = min(done * per_run, target)
         label = self.cfg.get("progress_label", self.task_name)
         # 更新共享状态中本任务对应行
-        state = getattr(self, '_progress_state', None)
+        state = getattr(self, "_progress_state", None)
         if state is not None:
             state[label] = f"{label}：{current}/{target}"
             self._progress_lines(list(state.values()))
@@ -228,18 +240,24 @@ class ReputationTask(AtomicLoopTask):
     def _build_atomic_cfg(self) -> dict:
         """根据任务级配置覆盖 points 到原子任务配置。"""
         import copy as _copy
+
         effective = _copy.deepcopy(self.atomic_cfg)
         points = self.cfg.get("points")
         if points:
             effective["points"] = _copy.deepcopy(points)
         return effective
 
-    def _run_one_atomic(self, at_npc: bool = False,
-                        walk_time=None, monitor=None) -> bool:
+    def _run_one_atomic(self, at_npc: bool = False, walk_time=None, monitor=None) -> bool:
         """执行一次原子任务，返回是否成功。"""
         task = self.atomic_task_cls(
-            self.dm, self.war3, self.ui, self.combat, self._build_atomic_cfg(),
-            at_npc=at_npc, walk_time=walk_time, monitor=monitor,
+            self.dm,
+            self.war3,
+            self.ui,
+            self.combat,
+            self._build_atomic_cfg(),
+            at_npc=at_npc,
+            walk_time=walk_time,
+            monitor=monitor,
             nearby_cleaner=self.nearby_cleaner,
         )
         try:
@@ -296,9 +314,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         logger.info(f"{self.task_name}目标次数：{times}，每轮最多 {n} 个任务")
         self._progress_callback(f"成功 0 / {times}")
 
-        hwnd = self.dm.get_active_window(
-            self.war3_cfg["window_class"], self.war3_cfg["window_title"]
-        )
+        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
@@ -315,8 +331,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
 
         logger.info(f"{self.task_name}结束：目标 {times} 次，成功 {done} 次")
 
-    def _run_multi_loop(self, rounds: int, n: int, loop_interval: float, times: int,
-                        monitor, hwnd) -> int:
+    def _run_multi_loop(self, rounds: int, n: int, loop_interval: float, times: int, monitor, hwnd) -> int:
         """多原子任务主循环，返回成功提交次数。"""
         done = 0
         for r in range(1, rounds + 1):
@@ -388,7 +403,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         :param accepted_keys: 本轮接取的任务key列表，仅考虑这些任务的冷却
         """
         specs = self.cfg.get("atomic_tasks", [])
-        min_wait = float('inf')
+        min_wait = float("inf")
         for spec in specs:
             key = spec["key"]
             if accepted_keys is not None and key not in accepted_keys:
@@ -409,7 +424,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
                 return 0.0
             if remaining < min_wait:
                 min_wait = remaining
-        return 0.0 if min_wait == float('inf') else min_wait
+        return 0.0 if min_wait == float("inf") else min_wait
 
     # ── 接取阶段 ──────────────────────────────────────────
 
@@ -456,8 +471,14 @@ class MultiAtomicLoopTask(AtomicLoopTask):
                 continue
 
             task = task_cls(
-                self.dm, self.war3, self.ui, self.combat, atomic_cfg,
-                at_npc=False, walk_time=walk_time, monitor=None,
+                self.dm,
+                self.war3,
+                self.ui,
+                self.combat,
+                atomic_cfg,
+                at_npc=False,
+                walk_time=walk_time,
+                monitor=None,
                 nearby_cleaner=self.nearby_cleaner,
             )
 
@@ -484,15 +505,15 @@ class MultiAtomicLoopTask(AtomicLoopTask):
 
         :param group: [(atomic_task, walk_time), ...] 同一 NPC 的任务列表
         """
-        gt = self.war3_cfg['general_time']
+        gt = self.war3_cfg["general_time"]
         first_task = group[0][0]
         npc = first_task._npc
-        coords = npc['coords']
+        coords = npc["coords"]
         offset = npc.get("walk_offset", [0, 0])
         walk_time = group[0][1]
 
         # 走到 NPC 附近
-        self.dm.key_press_char('F1')
+        self.dm.key_press_char("F1")
         time.sleep(gt)
         self.war3.move_to_minimap_point(
             npc["mini_coords"],
@@ -506,7 +527,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         self.dm.move_to(*coords)
         time.sleep(gt)
         self.dm.left_click()
-        time.sleep(self.war3_cfg['small_window_response_time'])
+        time.sleep(self.war3_cfg["small_window_response_time"])
 
         # 依次点击技能格接取各任务
         for task, _ in group:
@@ -551,7 +572,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         # 注册完成事件监测（用于中断行走）
         complete_event = monitor.watch(complete_text)
 
-        gt = self.war3_cfg['general_time']
+        gt = self.war3_cfg["general_time"]
 
         try:
             for pt in points:
@@ -559,11 +580,12 @@ class MultiAtomicLoopTask(AtomicLoopTask):
                 if self.nearby_cleaner is not None:
                     self.nearby_cleaner.tick()
 
-                logger.info(f'走到：{pt["desc"]}，预计 {pt["time"]}s')
-                self.dm.key_press_char('F1')
+                logger.info(f"走到：{pt['desc']}，预计 {pt['time']}s")
+                self.dm.key_press_char("F1")
                 time.sleep(gt)
                 self.war3.move_to_minimap_point(
-                    pt["mini_coords"], pt["coords"],
+                    pt["mini_coords"],
+                    pt["coords"],
                     mode=pt.get("walk_mode", 1),
                     wait_time=pt.get("time", 5),
                     stop_event=self._stop_event,
@@ -605,8 +627,14 @@ class MultiAtomicLoopTask(AtomicLoopTask):
                 continue
             atomic_cfg = self._get_nested(self.full_cfg, ("war3", "jiubing2", "tasks", "atomic", key))
             task = task_cls(
-                self.dm, self.war3, self.ui, self.combat, atomic_cfg,
-                at_npc=False, walk_time=walk_time, monitor=None,
+                self.dm,
+                self.war3,
+                self.ui,
+                self.combat,
+                atomic_cfg,
+                at_npc=False,
+                walk_time=walk_time,
+                monitor=None,
                 nearby_cleaner=None,
             )
             npc_key = task._npc_key
@@ -618,7 +646,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         for npc_key in npc_order:
             task, walk_time = npc_groups[npc_key]
             self._walk_to_npc(task, walk_time)
-            time.sleep(self.war3_cfg.get('general_time', 0.5))
+            time.sleep(self.war3_cfg.get("general_time", 0.5))
 
         # 弹窗查询：已提交的任务会从弹窗消失，弹窗中剩余的均为未提交
         # 弹窗中可能包含上一轮遗留的未提交任务（在 _in_progress 但不在本轮 accepted_keys）
@@ -639,6 +667,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         # 毒蛇提交完成后，解锁小炎蛇（LV4）的前置要求
         if submitted > 0 and "venomous_snake" in accepted_keys:
             from GameBot.runner.tasks.war3.jiubing2.atomic.little_flame_snake import LittleFlameSnakeTask
+
             LittleFlameSnakeTask.prerequisite_done = True
 
         return submitted
@@ -646,10 +675,10 @@ class MultiAtomicLoopTask(AtomicLoopTask):
     def _walk_to_npc(self, atomic_task, walk_time: float):
         """走到原子任务的 NPC 附近（用于提交）。"""
         npc = atomic_task._npc
-        coords = npc['coords']
+        coords = npc["coords"]
         offset = npc.get("walk_offset", [0, 0])
-        self.dm.key_press_char('F1')
-        time.sleep(self.war3_cfg['general_time'])
+        self.dm.key_press_char("F1")
+        time.sleep(self.war3_cfg["general_time"])
         self.war3.move_to_minimap_point(
             npc["mini_coords"],
             [coords[0] + offset[0], coords[1] + offset[1]],
@@ -710,18 +739,35 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         return len(task_lines)
 
     def _close_popup(self, close_coords: tuple = None):
-        """关闭任务弹窗：优先点击"关闭"按钮，兜底按 Escape。
+        """关闭任务弹窗。
+
+        如果配置 task_popup.close_by_x=true，则点击弹窗右上角 X 按钮；
+        否则优先点击 OCR 识别到的"关闭"按钮，兜底按 Escape。
 
         :param close_coords: "关闭"按钮的屏幕坐标 (x, y)，为 None 时按 Escape
         """
-        gt = self.war3_cfg.get('general_time', 0.3)
+        gt = self.war3_cfg.get("general_time", 0.3)
+        popup_cfg = self.full_cfg.get("task_popup", {})
+
+        if popup_cfg.get("close_by_x"):
+            area_coords = popup_cfg.get("area_coords", [600, 200, 1300, 600])
+            offset_x, offset_y = popup_cfg.get("close_offset", [15, 15])
+            click_x = area_coords[2] - offset_x
+            click_y = area_coords[1] + offset_y
+            if click_x > 0 and click_y > 0:
+                self.dm.move_to(click_x, click_y)
+                time.sleep(gt)
+                self.dm.left_click()
+                time.sleep(gt)
+                return
+
         if close_coords is not None and close_coords[0] > 0 and close_coords[1] > 0:
             self.dm.move_to(*close_coords)
             time.sleep(gt)
             self.dm.left_click()
             time.sleep(gt)
         else:
-            self.dm.key_press_char('Escape')
+            self.dm.key_press_char("Escape")
             time.sleep(gt)
 
     def _wait_text_fade(self, monitor, text: str, max_wait: float = 6.0):

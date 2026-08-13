@@ -12,6 +12,12 @@ window_size = [1224,904] # 房间窗口客户区尺寸，运行时强制对齐
 start_button_coords = [867,613] # 窗口坐标，开始游戏按钮/准备开始坐标
 start_wait_time = 6 # 点击开始游戏按钮后，进入游戏前的时间（正常情况）
 
+# 通用 KK 弹窗关闭配置（奖励、提示等弹窗）
+[kk.popup]
+close_offset = [15, 15]                    # 点击右上角 X 时相对窗口边界的偏移 [x,y]
+protected_window_sizes = []                # 不可关闭的窗口尺寸（如平台大厅），示例 [[1280, 720]]
+max_popup_area_ratio = 0.85                # 弹窗最大允许占房间面积比例，超过则视为大厅/主界面不关闭
+
 # 掉线重连弹窗（类名与 create_room_window_class 相同，通过窗口尺寸区分）
 [kk.disconnect_dialog]
 window_size = [440, 260] # 弹窗客户区尺寸

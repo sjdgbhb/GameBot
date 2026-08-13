@@ -1,4 +1,5 @@
 """依赖解析 — DFS 后序展开依赖树、循环依赖检测。"""
+
 from typing import List, Set
 
 from .base import ConfigurationError
@@ -10,8 +11,7 @@ class ConfigResolverMixin:
     依赖 self._load_file()（ConfigLoaderMixin 提供）。
     """
 
-    def _resolve_order(self, config_name: str, order: List[str],
-                       visiting: List[str], visited: Set[str]):
+    def _resolve_order(self, config_name: str, order: List[str], visiting: List[str], visited: Set[str]):
         """深度优先后序解析依赖，展开为线性加载顺序（规则 1）。
 
         依赖在前、自身在后；每个文件只出现一次（首次到达的位置生效），

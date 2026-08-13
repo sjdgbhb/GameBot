@@ -1,4 +1,4 @@
-﻿"""
+"""
 宝箱检测拾取测试 — 与 patrol_loot 任务脚本逻辑一致的独立测试。
 检测地面宝箱 → OCR 识别物品名称 → 拾取目标物品，最多 3 轮。
 
@@ -8,20 +8,21 @@
   3. 5 秒内切回游戏窗口
   4. Ctrl+C 停止
 """
+
 import os
-import time
 import tempfile
+import time
 from typing import Optional
 
 from PIL import Image, ImageDraw
 
-from GameBot.utils import logger
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
-from GameBot.inference import get_ocr_client, get_inference_client
+from GameBot.inference import get_inference_client, get_ocr_client
 from GameBot.runner import DmClient
-from GameBot.runner.business.war3 import War3Business, TextMonitor
+from GameBot.runner.business.war3 import TextMonitor, War3Business
 from GameBot.runner.business.war3.jiubing2 import get_inventory_hotkey
+from GameBot.utils import logger
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 # 调试截图保存目录
 DEBUG_DIR = os.path.join(tempfile.gettempdir(), "chest_debug")
@@ -46,7 +47,7 @@ class ChestDetectTest:
         self.item_text_cfg = self.task_cfg.get("item_text", {})
         self.pickup_cfg = self.task_cfg.get("pickup", {})
         self.desired_items = self.cfg.get("desired_items", [])
-        self.hover_wait_time = self.chest_cfg.get('hover_wait_time', 1.5)
+        self.hover_wait_time = self.chest_cfg.get("hover_wait_time", 1.5)
         self.mouse_avoid_pos = self.cfg.get("mouse_avoid_pos", [200, 200])
 
         # 解析目标物品（支持 {name, count} 格式）
@@ -62,9 +63,7 @@ class ChestDetectTest:
         logger.info(f"宝箱检测拾取测试开始，目标物品: {self.desired_items}")
         logger.info("与 patrol_loot 任务脚本逻辑一致，按 Ctrl+C 停止")
 
-        hwnd = self.dm.get_active_window(
-            self.war3_cfg["window_class"], self.war3_cfg["window_title"]
-        )
+        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
         if not hwnd:
             logger.error("未找到 war3 窗口，请先切换到游戏窗口")
             return
@@ -89,9 +88,7 @@ class ChestDetectTest:
 
     def _make_monitor(self, hwnd: int):
         interval = self.cfg.get("monitor_interval", 0.2)
-        monitor = TextMonitor(
-            self.war3, self.task_cfg.get("prompt_text"), interval=interval
-        )
+        monitor = TextMonitor(self.war3, self.task_cfg.get("prompt_text"), interval=interval)
         monitor.start(hwnd)
         return monitor
 
@@ -121,7 +118,7 @@ class ChestDetectTest:
                 if picked is not None:
                     found_target_this_round = True
                     # 拾取后重置游戏状态：ESC 取消技能瞄准，鼠标移开清 tooltip，等待英雄稳定
-                    self.dm.key_press_char('esc')
+                    self.dm.key_press_char("esc")
                     self.dm.move_to(*self.mouse_avoid_pos)
                     time.sleep(self.hover_wait_time)
                 if self.storage_full:
@@ -134,7 +131,7 @@ class ChestDetectTest:
                 break
 
         if not self.storage_full:
-            self.war3.send_msg(self.task_cfg['command']['clear_nearby'])
+            self.war3.send_msg(self.task_cfg["command"]["clear_nearby"])
             logger.info("已清理地面物品")
 
     def _try_pickup_chest(self, idx, cx, cy, conf, monitor: TextMonitor) -> Optional[bool]:
@@ -161,18 +158,22 @@ class ChestDetectTest:
             success = self._handle_unclickable(cx, cy, monitor)
             if success:
                 self._mark_picked(matched_item, item_name)
-                logger.info(f"宝箱#{idx} ({cx},{cy}) → 重试拾取成功（{self.item_targets[matched_item]['picked']}/{self.item_targets[matched_item]['target']}）")
+                logger.info(
+                    f"宝箱#{idx} ({cx},{cy}) → 重试拾取成功（{self.item_targets[matched_item]['picked']}/{self.item_targets[matched_item]['target']}）"
+                )
             else:
                 logger.info(f"宝箱#{idx} ({cx},{cy}) → 重试失败，跳过")
             return success
         else:
             self._mark_picked(matched_item, item_name)
-            logger.info(f"宝箱#{idx} ({cx},{cy}) conf={conf:.2f} → [目标] {item_name} → 拾取成功（{self.item_targets[matched_item]['picked']}/{self.item_targets[matched_item]['target']}）")
+            logger.info(
+                f"宝箱#{idx} ({cx},{cy}) conf={conf:.2f} → [目标] {item_name} → 拾取成功（{self.item_targets[matched_item]['picked']}/{self.item_targets[matched_item]['target']}）"
+            )
             return True
 
     def _mark_picked(self, matched_item: str, item_name: str):
         """记录拾取成功：更新目标计数、上报进度。"""
-        self.item_targets[matched_item]['picked'] += 1
+        self.item_targets[matched_item]["picked"] += 1
         self._log_progress()
 
     # ── 宝箱检测（与 patrol_loot._find_all_chests 一致）──────────
@@ -183,7 +184,7 @@ class ChestDetectTest:
         time.sleep(0.1)
 
         cx, cy, _, _ = self.dm.get_client_rect(self.hwnd)
-        client_size = self.war3_cfg.get('client_size', [1902, 1033])
+        client_size = self.war3_cfg.get("client_size", [1902, 1033])
         bbox = [cx, cy, cx + client_size[0], cy + client_size[1]]
         t0 = time.time()
         detections = get_inference_client().capture_and_detect_chests(bbox)
@@ -199,9 +200,7 @@ class ChestDetectTest:
             cx_pt = (x1 + x2) // 2
             cy_pt = (y1 + y2) // 2
             results.append((i, cx_pt, cy_pt, confidence))
-            logger.info(
-                f"AI检测宝箱 #{i}: 中心({cx_pt},{cy_pt}) conf={confidence:.2f} box=[{x1},{y1},{x2},{y2}]"
-            )
+            logger.info(f"AI检测宝箱 #{i}: 中心({cx_pt},{cy_pt}) conf={confidence:.2f} box=[{x1},{y1},{x2},{y2}]")
         return results
 
     def _save_annotated_screenshot(self, cx: int, cy: int, client_size: list, detections: list):
@@ -216,8 +215,6 @@ class ChestDetectTest:
         draw = ImageDraw.Draw(annotated)
         for i, (x1, y1, x2, y2, confidence) in enumerate(detections):
             draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
-            cx_pt = (x1 + x2) // 2
-            cy_pt = (y1 + y2) // 2
             draw.text((x1 + 2, y2 + 2), f"#{i} {confidence:.2f}", fill="red")
         path = os.path.join(DEBUG_DIR, f"scan_{self._scan_count}_annotated.png")
         annotated.save(path)
@@ -228,14 +225,16 @@ class ChestDetectTest:
 
     def _read_item_name(self, chest_x: int, chest_y: int) -> str:
         """OCR 读取宝箱上方区域的物品名称（与 patrol_loot._read_item_name 一致）。"""
-        offset_y = self.item_text_cfg.get('offset_y', 50)
-        half_w = self.item_text_cfg.get('area_width', 200) // 2
-        half_h = self.item_text_cfg.get('area_height', 60) // 2
+        offset_y = self.item_text_cfg.get("offset_y", 50)
+        half_w = self.item_text_cfg.get("area_width", 200) // 2
+        half_h = self.item_text_cfg.get("area_height", 60) // 2
 
         text_y = chest_y - offset_y
         area_coords = [
-            chest_x - half_w, text_y - half_h,
-            chest_x + half_w, text_y + half_h,
+            chest_x - half_w,
+            text_y - half_h,
+            chest_x + half_w,
+            text_y + half_h,
         ]
         bbox = self.war3._compute_ocr_bbox({"area_coords": area_coords}, self.hwnd)
         text = get_ocr_client().ocr_screen(bbox)
@@ -275,9 +274,7 @@ class ChestDetectTest:
         storage_full_text = self.pickup_cfg.get("storage_full_text", "储物箱已满")
         timeout = self.pickup_cfg.get("result_timeout", 5)
 
-        result = monitor.wait_for_any(
-            [unclickable_text, storage_full_text], timeout=timeout
-        )
+        result = monitor.wait_for_any([unclickable_text, storage_full_text], timeout=timeout)
         if result == unclickable_text:
             return "unclickable"
         elif result == storage_full_text:
@@ -287,10 +284,10 @@ class ChestDetectTest:
 
     def _handle_unclickable(self, cx: int, cy: int, monitor: TextMonitor) -> bool:
         """不可点击 → ESC取消 → 等待 → 重试。返回 True 表示拾取成功。"""
-        max_retries = self.pickup_cfg.get('max_retries', 3)
-        retry_interval = self.pickup_cfg.get('retry_interval', 3)
+        max_retries = self.pickup_cfg.get("max_retries", 3)
+        retry_interval = self.pickup_cfg.get("retry_interval", 3)
 
-        self.dm.key_press_char('esc')
+        self.dm.key_press_char("esc")
         for attempt in range(1, max_retries + 1):
             time.sleep(retry_interval)
             logger.info(f"重试拾取({cx},{cy})，第 {attempt}/{max_retries} 次")
@@ -302,7 +299,7 @@ class ChestDetectTest:
             if result == "picked":
                 return True
             if result == "unclickable":
-                self.dm.key_press_char('esc')
+                self.dm.key_press_char("esc")
         logger.warning(f"宝箱({cx},{cy})重试 {max_retries} 次仍不可点击，跳过")
         return False
 
@@ -316,11 +313,11 @@ class ChestDetectTest:
         if not item_name:
             return None
         # OCR 形近字纠错
-        char_fixes = self.item_text_cfg.get('char_fixes', {})
+        char_fixes = self.item_text_cfg.get("char_fixes", {})
         if char_fixes:
             item_name = item_name.translate(str.maketrans(char_fixes))
         for name, info in self.item_targets.items():
-            if name in item_name and info['picked'] < info['target']:
+            if name in item_name and info["picked"] < info["target"]:
                 return name
         return None
 
@@ -328,7 +325,7 @@ class ChestDetectTest:
         """检查所有目标物品是否已拾取到目标数量。"""
         if not self.item_targets:
             return False
-        return all(info['picked'] >= info['target'] for info in self.item_targets.values())
+        return all(info["picked"] >= info["target"] for info in self.item_targets.values())
 
     @staticmethod
     def _parse_item_targets(desired_items: list) -> dict:
@@ -336,21 +333,20 @@ class ChestDetectTest:
         targets = {}
         for item in desired_items:
             if isinstance(item, str):
-                targets[item] = {'target': 1, 'picked': 0}
+                targets[item] = {"target": 1, "picked": 0}
             elif isinstance(item, dict):
-                name = item.get('name', '')
-                count = item.get('count', 1)
+                name = item.get("name", "")
+                count = item.get("count", 1)
                 if name:
-                    targets[name] = {'target': count, 'picked': 0}
+                    targets[name] = {"target": count, "picked": 0}
         return targets
 
     def _log_progress(self):
         """输出各目标物品拾取进度。"""
         for name, info in self.item_targets.items():
-            picked, target = info['picked'], info['target']
+            picked, target = info["picked"], info["target"]
             if target > 0:
                 logger.info(f"  进度: {name} {picked}/{target}")
-
 
 
 def main():

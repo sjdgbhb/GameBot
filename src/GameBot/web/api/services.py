@@ -2,6 +2,7 @@
 
 不包含任何 HTTP 处理代码，可被路由层直接调用。
 """
+
 import copy
 import json
 import os
@@ -71,7 +72,16 @@ def _task_module_path(task_id: str) -> Path:
 
     新目录结构：runner/tasks/war3/jiubing2/<task_id>.py
     """
-    return _PROJECT_ROOT / "src" / "GameBot" / "runner" / "tasks" / "war3" / "jiubing2" / Path(*task_id.split(".")).with_suffix(".py")
+    return (
+        _PROJECT_ROOT
+        / "src"
+        / "GameBot"
+        / "runner"
+        / "tasks"
+        / "war3"
+        / "jiubing2"
+        / Path(*task_id.split(".")).with_suffix(".py")
+    )
 
 
 def is_runnable_task(task_id: str) -> bool:
@@ -124,15 +134,17 @@ def load_tasks() -> list:
         # 是否已在前端开放配置：TASK_SCHEMAS 中存在完整 task_id 或短 id
         configurable = task_id in TASK_SCHEMAS or short_id in TASK_SCHEMAS
         parts = task_id.split(".")
-        result.append({
-            "id": task_id,
-            "short_id": parts[-1],
-            "category": parts[0] if len(parts) > 1 else "",
-            "name": name,
-            "icon": icon,
-            "description": desc,
-            "configurable": configurable,
-        })
+        result.append(
+            {
+                "id": task_id,
+                "short_id": parts[-1],
+                "category": parts[0] if len(parts) > 1 else "",
+                "name": name,
+                "icon": icon,
+                "description": desc,
+                "configurable": configurable,
+            }
+        )
     return result
 
 
@@ -201,9 +213,18 @@ def load_task_defaults(task_id: str) -> dict:
                     if isinstance(preset, dict) and preset.get("name") == scheme:
                         defaults["points"] = preset.get("points", [])
                         break
-        for k in ("task_times", "loop_interval_time", "clear_nearby_probability",
-                  "result_timeout", "result_check_interval", "return_walk_time",
-                  "success_text", "fail_text", "enable_blackstone", "enable_forest"):
+        for k in (
+            "task_times",
+            "loop_interval_time",
+            "clear_nearby_probability",
+            "result_timeout",
+            "result_check_interval",
+            "return_walk_time",
+            "success_text",
+            "fail_text",
+            "enable_blackstone",
+            "enable_forest",
+        ):
             if k in task_cfg:
                 defaults[k] = task_cfg[k]
         if "mean" in task_cfg:
@@ -211,8 +232,7 @@ def load_task_defaults(task_id: str) -> dict:
         if "upgrade_config" in task_cfg and isinstance(task_cfg["upgrade_config"], dict):
             defaults["upgrade_config"] = task_cfg["upgrade_config"]
         # 钓鱼任务字段
-        for k in ("max_times", "fishing_interval_time",
-                   "mode", "hook_coords"):
+        for k in ("max_times", "fishing_interval_time", "mode", "hook_coords"):
             if k in task_cfg:
                 defaults[k] = task_cfg[k]
         # 钓鱼 check 子表
@@ -240,8 +260,8 @@ def load_task_defaults(task_id: str) -> dict:
             {"id": -1, "hotkey": "2"},
             {"id": -1, "hotkey": "3"},
             {"id": -1, "hotkey": "4"},
-            {"id": 5, "hotkey": "5"},   # 传送至远古森林外围入口的卷轴
-            {"id": 0, "hotkey": "6"},   # 拾取
+            {"id": 5, "hotkey": "5"},  # 传送至远古森林外围入口的卷轴
+            {"id": 0, "hotkey": "6"},  # 拾取
         ]
         for _atomic_file, _points_key in (
             ("blackstone_gate_harassment", "blackstone_points"),
@@ -316,16 +336,18 @@ def load_heroes() -> list:
                             name = m.group(1).strip()
         except Exception:
             pass
-        result.append({
-            "id": hero_id,
-            "name": name,
-            "floor_key": floor_key,
-            "inventory": inventory,
-            "skills": skills,
-        })
+        result.append(
+            {
+                "id": hero_id,
+                "name": name,
+                "floor_key": floor_key,
+                "inventory": inventory,
+                "skills": skills,
+            }
+        )
 
     # 按楼层和名称排序
-    floor_order = {'P': 1, 'O': 2}
+    floor_order = {"P": 1, "O": 2}
     result.sort(key=lambda h: (floor_order.get(h.get("floor_key", "P"), 99), (h.get("name") or h.get("id") or "")))
     return result
 
@@ -408,8 +430,8 @@ def save_hero_inventory(hero_id: str, inventory: list) -> None:
     block_lines = []
     for it in inv:
         block_lines.append("[[hero.inventory]]\n")
-        block_lines.append(f'slot = {it["slot"]}\n')
-        block_lines.append(f'id = {it["id"]}\n')
+        block_lines.append(f"slot = {it['slot']}\n")
+        block_lines.append(f"id = {it['id']}\n")
         block_lines.append(f'hotkey = "{it["hotkey"]}"\n')
         block_lines.append("\n")
     if not block_lines:
@@ -612,7 +634,17 @@ TASK_SCHEMAS = {
                 "key": "patrol",
                 "title": "巡逻设置",
                 "fields": [
-                    {"key": "patrol_rounds", "label": "巡逻轮数", "type": "number", "default": 0, "min": 0, "controls": False, "width": "120px", "size": "default", "help": "0 表示无限循环"},
+                    {
+                        "key": "patrol_rounds",
+                        "label": "巡逻轮数",
+                        "type": "number",
+                        "default": 0,
+                        "min": 0,
+                        "controls": False,
+                        "width": "120px",
+                        "size": "default",
+                        "help": "0 表示无限循环",
+                    },
                 ],
             },
             {
@@ -620,8 +652,26 @@ TASK_SCHEMAS = {
                 "title": "宝箱检测参数",
                 "help": "调整宝箱 AI 检测的严格程度，需与训练模型保持一致。",
                 "fields": [
-                    {"key": "chest.ai_conf", "label": "置信度阈值", "type": "number", "default": 0.5, "min": 0, "max": 1, "step": 0.05, "help": "越高越严格，越低越容易误检"},
-                    {"key": "chest.ai_iou", "label": "NMS IoU 阈值", "type": "number", "default": 0.5, "min": 0, "max": 1, "step": 0.05, "help": "重叠大于此值视为同一目标"},
+                    {
+                        "key": "chest.ai_conf",
+                        "label": "置信度阈值",
+                        "type": "number",
+                        "default": 0.5,
+                        "min": 0,
+                        "max": 1,
+                        "step": 0.05,
+                        "help": "越高越严格，越低越容易误检",
+                    },
+                    {
+                        "key": "chest.ai_iou",
+                        "label": "NMS IoU 阈值",
+                        "type": "number",
+                        "default": 0.5,
+                        "min": 0,
+                        "max": 1,
+                        "step": 0.05,
+                        "help": "重叠大于此值视为同一目标",
+                    },
                 ],
             },
             {
@@ -685,7 +735,20 @@ TASK_SCHEMAS = {
                 "key": "basic",
                 "title": "基础设置",
                 "fields": [
-                    {"key": "clear_nearby_probability", "label": "清理附近物品概率", "type": "number", "unit": "", "default": 0.15, "min": 0, "max": 1, "step": 0.05, "controls": False, "width": "160px", "size": "default", "help": "每个路线点清理英雄附近物品的概率，0 = 禁用"},
+                    {
+                        "key": "clear_nearby_probability",
+                        "label": "清理附近物品概率",
+                        "type": "number",
+                        "unit": "",
+                        "default": 0.15,
+                        "min": 0,
+                        "max": 1,
+                        "step": 0.05,
+                        "controls": False,
+                        "width": "160px",
+                        "size": "default",
+                        "help": "每个路线点清理英雄附近物品的概率，0 = 禁用",
+                    },
                 ],
             },
             {
@@ -727,9 +790,43 @@ TASK_SCHEMAS = {
                 "key": "basic",
                 "title": "基础设置",
                 "fields": [
-                    {"key": "max_times", "label": "抛竿次数", "type": "number", "default": 10000, "min": 1, "controls": False, "width": "140px", "size": "default"},
-                    {"key": "fishing_interval_time", "label": "钓鱼间隔", "type": "number", "unit": "秒", "default": 1, "min": 0, "step": 0.5, "controls": False, "width": "140px", "size": "default", "help": "两次抛竿之间的等待时间"},
-                    {"key": "clear_nearby_probability", "label": "清理附近物品概率", "type": "number", "unit": "", "default": 0.15, "min": 0, "max": 1, "step": 0.05, "controls": False, "width": "160px", "size": "default", "help": "每次收竿后清理英雄附近物品的概率，0 = 禁用"},
+                    {
+                        "key": "max_times",
+                        "label": "抛竿次数",
+                        "type": "number",
+                        "default": 10000,
+                        "min": 1,
+                        "controls": False,
+                        "width": "140px",
+                        "size": "default",
+                    },
+                    {
+                        "key": "fishing_interval_time",
+                        "label": "钓鱼间隔",
+                        "type": "number",
+                        "unit": "秒",
+                        "default": 1,
+                        "min": 0,
+                        "step": 0.5,
+                        "controls": False,
+                        "width": "140px",
+                        "size": "default",
+                        "help": "两次抛竿之间的等待时间",
+                    },
+                    {
+                        "key": "clear_nearby_probability",
+                        "label": "清理附近物品概率",
+                        "type": "number",
+                        "unit": "",
+                        "default": 0.15,
+                        "min": 0,
+                        "max": 1,
+                        "step": 0.05,
+                        "controls": False,
+                        "width": "160px",
+                        "size": "default",
+                        "help": "每次收竿后清理英雄附近物品的概率，0 = 禁用",
+                    },
                 ],
             },
             {
@@ -738,10 +835,45 @@ TASK_SCHEMAS = {
                 "help": "配置红色三角方块（中钩标志）找图参数。",
                 "fields": [
                     {"key": "hook_coords", "label": "抛竿目标位置", "type": "coords", "help": "鱼钩的窗口坐标 [x, y]"},
-                    {"key": "check.hook_sim", "label": "相似度", "type": "number", "default": 0.9, "min": 0, "max": 1, "step": 0.05, "controls": False, "width": "140px", "size": "default", "help": "相似度阈值，越低越早检测到但可能误触，最大不超过1"},
-                    {"key": "check.status_area_coords", "label": "检测区域", "type": "coords", "help": "包含所有三角形和圆圈的区域坐标[x1, y1, x2, y2]，范围越小检测越快，但所有三角和圆圈必须包含在内"},
-                    {"key": "check.hook_timeout", "label": "等待超时", "type": "number", "unit": "秒", "default": 15, "min": 1, "step": 1, "controls": False, "width": "140px", "size": "default", "help": "一次钓鱼等待中钩的超时时间"},
-                    {"key": "is_test_check", "label": "启动前测试检测区域", "type": "switch", "default": False, "help": "开启后正式钓鱼前会框选检测区域以便确认英雄位置是否正确"},
+                    {
+                        "key": "check.hook_sim",
+                        "label": "相似度",
+                        "type": "number",
+                        "default": 0.9,
+                        "min": 0,
+                        "max": 1,
+                        "step": 0.05,
+                        "controls": False,
+                        "width": "140px",
+                        "size": "default",
+                        "help": "相似度阈值，越低越早检测到但可能误触，最大不超过1",
+                    },
+                    {
+                        "key": "check.status_area_coords",
+                        "label": "检测区域",
+                        "type": "coords",
+                        "help": "包含所有三角形和圆圈的区域坐标[x1, y1, x2, y2]，范围越小检测越快，但所有三角和圆圈必须包含在内",
+                    },
+                    {
+                        "key": "check.hook_timeout",
+                        "label": "等待超时",
+                        "type": "number",
+                        "unit": "秒",
+                        "default": 15,
+                        "min": 1,
+                        "step": 1,
+                        "controls": False,
+                        "width": "140px",
+                        "size": "default",
+                        "help": "一次钓鱼等待中钩的超时时间",
+                    },
+                    {
+                        "key": "is_test_check",
+                        "label": "启动前测试检测区域",
+                        "type": "switch",
+                        "default": False,
+                        "help": "开启后正式钓鱼前会框选检测区域以便确认英雄位置是否正确",
+                    },
                 ],
             },
             {
@@ -749,7 +881,19 @@ TASK_SCHEMAS = {
                 "title": "预判收竿",
                 "help": "通过填充循环周期推算下次红色出现时刻，提前按键收竿。",
                 "fields": [
-                    {"key": "check.retract_lead_time", "label": "提前量", "type": "number", "unit": "秒", "default": 0.1, "min": 0, "step": 0.05, "controls": False, "width": "140px", "size": "default", "help": "收竿偏晚则调大，收竿过早则调小"},
+                    {
+                        "key": "check.retract_lead_time",
+                        "label": "提前量",
+                        "type": "number",
+                        "unit": "秒",
+                        "default": 0.1,
+                        "min": 0,
+                        "step": 0.05,
+                        "controls": False,
+                        "width": "140px",
+                        "size": "default",
+                        "help": "收竿偏晚则调大，收竿过早则调小",
+                    },
                 ],
             },
         ],
@@ -801,8 +945,20 @@ TASK_SCHEMAS = {
                 "key": "target",
                 "title": "声望目标",
                 "fields": [
-                    {"key": "enable_blackstone", "label": "黑石城声望", "type": "checkbox", "default": True, "help": "勾选则执行黑石城城门骚扰任务（每次+5声望，上限150）"},
-                    {"key": "enable_forest", "label": "森之城声望", "type": "checkbox", "default": True, "help": "勾选则执行森之城迅猛野兽任务（每次+10声望，上限150）"},
+                    {
+                        "key": "enable_blackstone",
+                        "label": "黑石城声望",
+                        "type": "checkbox",
+                        "default": True,
+                        "help": "勾选则执行黑石城城门骚扰任务（每次+5声望，上限150）",
+                    },
+                    {
+                        "key": "enable_forest",
+                        "label": "森之城声望",
+                        "type": "checkbox",
+                        "default": True,
+                        "help": "勾选则执行森之城迅猛野兽任务（每次+10声望，上限150）",
+                    },
                 ],
             },
             {
@@ -857,9 +1013,44 @@ TASK_SCHEMAS = {
                 "key": "task_settings",
                 "title": "任务设置",
                 "fields": [
-                    {"key": "task_times", "label": "目标完成次数", "type": "number", "default": 4150, "min": 1, "controls": False, "width": "160px", "size": "default", "help": "需要完成多少次个人任务"},
-                    {"key": "loop_interval_time", "label": "循环间隔", "type": "number", "unit": "秒", "default": 1.5, "min": 0, "step": 0.5, "controls": False, "width": "120px", "size": "default", "help": "两次任务之间的等待时间"},
-                    {"key": "clear_nearby_probability", "label": "清理附近物品概率", "type": "number", "unit": "", "default": 0.15, "min": 0, "max": 1, "step": 0.05, "controls": False, "width": "160px", "size": "default", "help": "每个路线点清理英雄附近物品的概率，0 = 禁用"},
+                    {
+                        "key": "task_times",
+                        "label": "目标完成次数",
+                        "type": "number",
+                        "default": 4150,
+                        "min": 1,
+                        "controls": False,
+                        "width": "160px",
+                        "size": "default",
+                        "help": "需要完成多少次个人任务",
+                    },
+                    {
+                        "key": "loop_interval_time",
+                        "label": "循环间隔",
+                        "type": "number",
+                        "unit": "秒",
+                        "default": 1.5,
+                        "min": 0,
+                        "step": 0.5,
+                        "controls": False,
+                        "width": "120px",
+                        "size": "default",
+                        "help": "两次任务之间的等待时间",
+                    },
+                    {
+                        "key": "clear_nearby_probability",
+                        "label": "清理附近物品概率",
+                        "type": "number",
+                        "unit": "",
+                        "default": 0.15,
+                        "min": 0,
+                        "max": 1,
+                        "step": 0.05,
+                        "controls": False,
+                        "width": "160px",
+                        "size": "default",
+                        "help": "每个路线点清理英雄附近物品的概率，0 = 禁用",
+                    },
                 ],
             },
             {
@@ -867,11 +1058,16 @@ TASK_SCHEMAS = {
                 "title": "路线",
                 "help": "可以设置原子任务专属路线点，毒蛇和蛇蛋可以共用一条路线，小炎蛇单独一条。无任务标记的点始终走。",
                 "fields": [
-                    {"key": "points", "label": "", "type": "points", "taskOptions": [
-                        {"value": "venomous_snake", "label": "毒蛇"},
-                        {"value": "snake_egg", "label": "蛇蛋"},
-                        {"value": "little_flame_snake", "label": "小炎蛇（LV4）"},
-                    ]},
+                    {
+                        "key": "points",
+                        "label": "",
+                        "type": "points",
+                        "taskOptions": [
+                            {"value": "venomous_snake", "label": "毒蛇"},
+                            {"value": "snake_egg", "label": "蛇蛋"},
+                            {"value": "little_flame_snake", "label": "小炎蛇（LV4）"},
+                        ],
+                    },
                 ],
             },
         ],

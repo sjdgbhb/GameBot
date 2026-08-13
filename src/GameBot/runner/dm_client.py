@@ -1,20 +1,23 @@
-﻿import os
-import time
-import sys
 import ctypes
+
+# 用于 GetWindowRect 等 Windows API 调用
+import ctypes.wintypes as _wintypes
+import datetime
+import os
 import subprocess
+import sys
+import time
 from contextlib import contextmanager
 from pathlib import Path
+from typing import List, Optional, Tuple, Union
 
-import win32com.client
 import pythoncom
-import winreg
-from typing import Tuple, Optional, List, Union
+import win32com.client
 
-from GameBot.utils.logger import logger
 from GameBot.config import config
-from GameBot.utils.exception_handler import DmError, retry
 from GameBot.runner.resource_manager import res_mgr
+from GameBot.utils.exception_handler import DmError
+from GameBot.utils.logger import logger
 
 # 声明进程 DPI 感知，避免 Windows DPI 缩放导致大漠坐标与实际像素不一致
 try:
@@ -51,7 +54,7 @@ class DmRegistrar:
         for regsvr in candidates:
             if not os.path.isfile(regsvr):
                 continue
-            ret = subprocess.run([regsvr, '/s', dll_path], capture_output=True).returncode
+            ret = subprocess.run([regsvr, "/s", dll_path], capture_output=True).returncode
             if ret == 0:
                 logger.info(f"regsvr32 注册成功: {regsvr} -> {dll_path}")
                 return True
@@ -68,9 +71,7 @@ class DmRegistrar:
         if not ctypes.windll.shell32.IsUserAnAdmin():
             logger.warning("当前非管理员权限，尝试提权...")
             # 重新以管理员身份运行当前脚本
-            ctypes.windll.shell32.ShellExecuteW(
-                None, "runas", sys.executable, " ".join(sys.argv), None, 1
-            )
+            ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
             sys.exit(0)  # 当前进程退出，等待提权后的新进程
 
         # 方式一：直接调用 dm.dll 的 DllRegisterServer（标准 COM 注册接口）
@@ -103,7 +104,7 @@ class DmRegistrar:
         """确保大漠已注册且版本正确，否则自动注册"""
         if DmRegistrar.is_registered(expected_version):
             return
-        logger.warning(f"大漠未注册或版本不符，开始注册（需要管理员权限）...")
+        logger.warning("大漠未注册或版本不符，开始注册（需要管理员权限）...")
         DmRegistrar.register(dll_path)
         # 注册后验证
         if not DmRegistrar.is_registered(expected_version):
@@ -112,6 +113,10 @@ class DmRegistrar:
 
 class DmClient:
     """大漠基础操作封装（不捕获 COMError，让上层处理重试）"""
+
+    # 调试截图默认配置
+    _screenshot_min_interval: float = 1.0  # 秒，避免循环中重复截图
+    _last_screenshot_time: float = 0.0
 
     def __init__(self):
         dm_config = config.get("dm", {})
@@ -133,11 +138,11 @@ class DmClient:
         self._com.SetPath(str(self.dm_dll.parent))
 
         # 设置键鼠按键弹起的默认延迟
-        self._com.SetKeypadDelay('normal', 0.03)  # 默认30ms
-        self._com.SetMouseDelay('normal', 0.03)  # 默认30ms
+        self._com.SetKeypadDelay("normal", 0.03)  # 默认30ms
+        self._com.SetMouseDelay("normal", 0.03)  # 默认30ms
 
     @contextmanager
-    def bind_window(self, hwnd, display='normal', mouse='normal', keypad='normal', mode=0):
+    def bind_window(self, hwnd, display="normal", mouse="normal", keypad="normal", mode=0):
         if hwnd == 0:
             raise DmError("未找到游戏窗口，hwnd 为 0")
         # 先绑定，如果失败直接抛异常，不会进入 finally
@@ -227,7 +232,7 @@ class DmClient:
         logger.warning(f"等待图片超时: {pic_name}")
         return False
 
-    def set_keypad_delay(self, key_type: str = 'normal', delay: float = 0.03):
+    def set_keypad_delay(self, key_type: str = "normal", delay: float = 0.03):
         """设置按键弹起延迟（秒）"""
         self._com.SetKeypadDelay(key_type, delay)
 
@@ -281,12 +286,85 @@ class DmClient:
         return int(x1), int(y1), int(x2), int(y2)
 
     @staticmethod
+    def get_window_rect(hwnd: int) -> Tuple[int, int, int, int]:
+        """获取窗口整体在屏幕上的矩形 (left, top, right, bottom)。
+
+        使用 Win32 GetWindowRect，适用于截取整个活动窗口。
+        """
+        user32 = ctypes.windll.user32
+        rect = _wintypes.RECT()
+        user32.GetWindowRect(hwnd, ctypes.byref(rect))
+        return int(rect.left), int(rect.top), int(rect.right), int(rect.bottom)
+
+    @staticmethod
+    def get_screen_rect() -> Tuple[int, int, int, int]:
+        """获取主屏幕矩形（不含 DPI 缩放）。
+
+        作为无法获取窗口句柄时的兜底截图区域。
+        """
+        user32 = ctypes.windll.user32
+        return 0, 0, user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+
+    def _screenshot_dir(self) -> Path:
+        """调试截图输出目录，从配置读取，默认 logs/screenshots。"""
+        path = config.get_path("paths.screenshot_path", "logs/screenshots")
+        if not path or path == config.project_root:
+            path = config.project_root / "logs" / "screenshots"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def save_screenshot(self, bbox: Optional[Tuple[int, int, int, int]] = None, label: str = "debug") -> Optional[Path]:
+        """截取指定屏幕区域并保存到日志目录，返回文件路径或 None。
+
+        带最小间隔限制，避免循环中重复截图。
+
+        :param bbox: 屏幕坐标 (left, top, right, bottom)，为 None 时截取整个屏幕
+        :param label: 文件名前缀，便于识别截图场景
+        """
+        now = time.time()
+        if now - DmClient._last_screenshot_time < DmClient._screenshot_min_interval:
+            return None
+        DmClient._last_screenshot_time = now
+
+        if bbox is None:
+            bbox = self.get_screen_rect()
+        x1, y1, x2, y2 = bbox
+        if x2 <= x1 or y2 <= y1:
+            logger.warning(f"截图区域无效: {bbox}")
+            return None
+
+        screenshot_dir = self._screenshot_dir()
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        filename = f"{label}_{timestamp}.bmp"
+        filepath = screenshot_dir / filename
+        try:
+            if self.capture_region(x1, y1, x2, y2, str(filepath)):
+                logger.info(f"已保存截图: {filepath}")
+                return filepath
+            logger.warning(f"截图失败，大漠 Capture 返回非 1: {filepath}")
+        except Exception as e:
+            logger.warning(f"截图异常: {e}")
+        return None
+
+    def save_active_window_screenshot(self, label: str = "active_window") -> Optional[Path]:
+        """截取当前活动（前台）窗口并保存。"""
+        hwnd = self.get_foreground_window()
+        if hwnd:
+            try:
+                bbox = self.get_window_rect(hwnd)
+                return self.save_screenshot(bbox, label)
+            except Exception as e:
+                logger.warning(f"截取活动窗口失败: {e}")
+        # 无法获取句柄时截全屏
+        return self.save_screenshot(label=label)
+
+    @staticmethod
     def get_foreground_window() -> int:
         """获取当前用户正在操作的活动窗口句柄"""
         user32 = ctypes.windll.user32
         return user32.GetForegroundWindow()
 
-    def enum_windows(self, window_class, window_title, filter: int = 1+2+8+16) -> List[int]:
+    def enum_windows(self, window_class, window_title, filter: int = 1 + 2 + 8 + 16) -> List[int]:
         """
         枚举符合条件的窗口
         :param window_class: 窗口类名，模糊匹配，为空则匹配所有
@@ -298,25 +376,74 @@ class DmClient:
 
         if not hwnds_str:
             return []
-        return [int(h) for h in hwnds_str.split(',') if h]
+        return [int(h) for h in hwnds_str.split(",") if h]
 
-    def get_active_window(self, window_class: str="", window_title: str="") -> int:
+    def close_window_by_x(self, hwnd: int, offset_x: int = 15, offset_y: int = 15) -> bool:
+        """点击窗口右上角 X 关闭按钮。
+
+        通过绑定目标窗口并移动鼠标到客户区右上角偏移位置实现，
+        适用于 KK 弹窗等独立顶层窗口。
+
+        :param hwnd: 待关闭窗口句柄
+        :param offset_x: 距右侧边界偏移（像素）
+        :param offset_y: 距上侧边界偏移（像素）
+        :return: 是否成功点击
+        """
+        if not hwnd:
+            return False
+        try:
+            x1, y1, x2, y2 = self.get_client_rect(hwnd)
+        except Exception as e:
+            logger.warning(f"获取弹窗客户区失败，无法点击 X: {e}")
+            return False
+
+        client_w = x2 - x1
+        click_x = client_w - offset_x
+        click_y = offset_y
+        if click_x < 0 or click_y < 0:
+            logger.warning(f"X 按钮计算坐标为负，窗口太小: w={client_w}, offset=({offset_x},{offset_y})")
+            return False
+
+        try:
+            with self.bind_window(hwnd):
+                self.move_to(click_x, click_y)
+                time.sleep(0.1)
+                self.left_click()
+                time.sleep(0.1)
+            return True
+        except Exception as e:
+            logger.warning(f"点击 X 关闭窗口失败: {e}")
+            return False
+
+    def get_active_window(self, window_class: str = "", window_title: str = "", capture: bool = True) -> int:
         """
         获取当前正在操作的魔兽窗口句柄
         :param window_class: 窗口类名，模糊匹配，为空则匹配所有
         :param window_title: 窗口标题，模糊匹配，为空则匹配所有
+        :param capture: 未找到预期窗口时是否截图（用于调试非预想流程）
         :return: 窗口句柄
         """
         active_hwnd = self.get_foreground_window()
         if active_hwnd == 0:
             logger.warning(f"没有获取到激活的窗口class={window_class}, title={window_title}")
+            if capture:
+                self.save_screenshot(label="no_active_window")
             return 0
         hwnds = self.enum_windows(window_class, window_title)
         # 验证该窗口是否属于魔兽
         if active_hwnd in hwnds:
             return active_hwnd
         logger.warning(f"当前活动窗口不是class={window_class}, title={window_title}，请切换到该窗口后再运行脚本")
+        if capture:
+            safe_title = self._safe_filename(window_title or "unknown")
+            safe_class = self._safe_filename(window_class or "unknown")
+            self.save_active_window_screenshot(label=f"unexpected_active_window_{safe_class}_{safe_title}")
         return 0
+
+    @staticmethod
+    def _safe_filename(name: str) -> str:
+        """将窗口类名/标题转换为安全文件名片段。"""
+        return "".join(c if c.isalnum() or c in "-_" else "_" for c in name)[:50]
 
     @property
     def version(self):

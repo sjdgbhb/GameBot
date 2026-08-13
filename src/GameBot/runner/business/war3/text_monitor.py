@@ -2,12 +2,13 @@
 
 包含 War3Business 的文字识别 mixin 和独立的 TextMonitor 常驻监测类。
 """
-import time
+
 import threading
+import time
 from typing import List, Optional
 
-from GameBot.utils import logger
 from GameBot.inference import get_ocr_client
+from GameBot.utils import logger
 
 
 class TextMonitorMixin:
@@ -24,10 +25,19 @@ class TextMonitorMixin:
             return ""
         text = text.replace("\n", "").replace("\r", "")
         # 常见全角→半角映射（OCR 常把全角标点识别为半角）
-        replacements = str.maketrans({
-            "：": ":", "，": ",", "。": ".", "！": "!", "？": "?",
-            "（": "(", "）": ")", "；": ";", "＂": '"',
-        })
+        replacements = str.maketrans(
+            {
+                "：": ":",
+                "，": ",",
+                "。": ".",
+                "！": "!",
+                "？": "?",
+                "（": "(",
+                "）": ")",
+                "；": ";",
+                "＂": '"',
+            }
+        )
         return text.translate(replacements)
 
     def _compute_ocr_bbox(self, ocr_cfg: dict, hwnd: int):
@@ -53,7 +63,14 @@ class TextMonitorMixin:
         bbox = self._compute_ocr_bbox(ocr_cfg, hwnd)
         return get_ocr_client().ocr_screen(bbox)
 
-    def wait_for_text(self, ocr_cfg: dict, expected_text: str, timeout: int = 8, interval: float = 0.5, stop_event: Optional[threading.Event] = None) -> bool:
+    def wait_for_text(
+        self,
+        ocr_cfg: dict,
+        expected_text: str,
+        timeout: int = 8,
+        interval: float = 0.5,
+        stop_event: Optional[threading.Event] = None,
+    ) -> bool:
         start = time.time()
         normalized_expected = self._normalize_ocr(expected_text)
         # 循环检测屏幕区域（子进程检测），直到出现预期文字或超时
@@ -76,8 +93,14 @@ class TextMonitorMixin:
         logger.warning(f"等待提示超时: {expected_text}")
         return False
 
-    def wait_for_any_text(self, ocr_cfg: dict, expected_texts: List[str],
-                          timeout: int = 8, interval: float = 0.5, stop_event: Optional[threading.Event] = None) -> Optional[str]:
+    def wait_for_any_text(
+        self,
+        ocr_cfg: dict,
+        expected_texts: List[str],
+        timeout: int = 8,
+        interval: float = 0.5,
+        stop_event: Optional[threading.Event] = None,
+    ) -> Optional[str]:
         """轮询 OCR 区域，返回首个匹配到的预期文字（expected_texts 中的原样字符串）；超时返回 None。
 
         适用于结果二选一（如升级圣痕的"成功"/"失败"）的场景。
@@ -108,9 +131,9 @@ class TextMonitorMixin:
 
     # ── 后台 OCR 文字监测 ─────────────────────────────────
 
-    def start_text_watcher(self, ocr_cfg: dict, expected_text: str,
-                           interval: float = 1.0,
-                           hwnd: int = None) -> threading.Event:
+    def start_text_watcher(
+        self, ocr_cfg: dict, expected_text: str, interval: float = 1.0, hwnd: int = None
+    ) -> threading.Event:
         """启动后台线程持续 OCR 监测指定文字，检测到后设置返回的 Event。
 
         屏幕 bbox 在主线程用大漠算好（大漠 COM 线程亲和，子线程不能用），
@@ -194,9 +217,9 @@ class TextMonitor:
         self._war3 = war3
         self._ocr_cfg = ocr_cfg
         self._interval = interval
-        self._latest = ""                      # 最新识别文本（规范化后）
+        self._latest = ""  # 最新识别文本（规范化后）
         self._lock = threading.Lock()
-        self._watchers = []                    # [(normalized_expected, event)]
+        self._watchers = []  # [(normalized_expected, event)]
         self._stop = threading.Event()
         self._thread = None
         self._bbox = None
@@ -273,8 +296,7 @@ class TextMonitor:
             logger.warning(f"等待提示超时: {expected}，未识别到任何文字（OCR可能失败或区域为空）")
         return False
 
-    def wait_for_any(self, expected_texts: List[str], timeout: int = 8,
-                     interval: float = 0.1) -> Optional[str]:
+    def wait_for_any(self, expected_texts: List[str], timeout: int = 8, interval: float = 0.1) -> Optional[str]:
         """阻塞等待最新文本中出现任一预期文字，返回命中的原样字符串，超时返回 None。"""
         norms = [self._war3._normalize_ocr(t) for t in expected_texts]
         start = time.time()

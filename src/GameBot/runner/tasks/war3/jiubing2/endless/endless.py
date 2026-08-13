@@ -1,20 +1,23 @@
-﻿"""
+"""
 多局无尽刷分 — 完整流程：KK → War3 → 准备 → 进皇宫 → 进无尽 → 循环 → 退出
 """
 
 import time
 
-from GameBot.utils import logger, StopTaskError, WindowLostError, setup_log_file
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
-from GameBot.runner import DmClient
-from GameBot.runner.business.war3 import War3Business
-from GameBot.runner.business.kk import KKBusiness
-from GameBot.runner.business.war3.jiubing2 import (
-    GameUI, SceneNavigator, CombatHelper, EndlessRunner,
-)
 from GameBot.inference import get_ocr_client
+from GameBot.runner import DmClient
+from GameBot.runner.business.kk import KKBusiness
+from GameBot.runner.business.war3 import War3Business
+from GameBot.runner.business.war3.jiubing2 import (
+    CombatHelper,
+    EndlessRunner,
+    GameUI,
+    SceneNavigator,
+)
 from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import StopTaskError, WindowLostError, logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 
 class EndlessTask:
@@ -24,7 +27,10 @@ class EndlessTask:
         self.task_cfg = cfg
         self.dm = DmClient()
         # 自动无尽继承局内无尽配置，再用 [tasks.endless.endless] 中独有的字段覆盖
-        endless_cfg = {**cfg["war3"]["jiubing2"]["tasks"]["endless"]["endless_single"], **cfg["war3"]["jiubing2"]["tasks"]["endless"]["endless"]}
+        endless_cfg = {
+            **cfg["war3"]["jiubing2"]["tasks"]["endless"]["endless_single"],
+            **cfg["war3"]["jiubing2"]["tasks"]["endless"]["endless"],
+        }
 
         war3_cfg = self.task_cfg.get("war3", {})
         hero_cfg = self.task_cfg.get("hero", {})
@@ -34,11 +40,15 @@ class EndlessTask:
         self.kk = KKBusiness(self.dm, kk_cfg)
         self.ui = GameUI(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
         self.nav = SceneNavigator(
-            self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3, self.ui,
+            self.dm,
+            war3_cfg,
+            hero_cfg,
+            self.task_cfg,
+            self.war3,
+            self.ui,
         )
         self.combat = CombatHelper(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
-        self.runner = EndlessRunner(self.dm, self.war3, self.ui, self.combat,
-                                    war3_cfg, hero_cfg, self.task_cfg)
+        self.runner = EndlessRunner(self.dm, self.war3, self.ui, self.combat, war3_cfg, hero_cfg, self.task_cfg)
         self.endless_cfg = endless_cfg
         self.war3_cfg = war3_cfg
         self.kk_cfg = kk_cfg
@@ -48,9 +58,8 @@ class EndlessTask:
         self.pet_feed_time = 0
 
     def do_kk(self) -> None:
-        hwnd = self.dm.find_window(self.kk_cfg["window_class"], self.kk_cfg["window_title"])
-        with self.dm.bind_window(hwnd):
-            self.kk.start_game(self.dm)
+        # start_game 内部会先清理弹窗，再自行绑定 KK 房间窗口
+        self.kk.start_game(self.dm)
 
     def _interruptible_wait(self, seconds: float):
         """可被停止信号中断的等待，检测到停止时抛出 StopTaskError。"""
@@ -90,7 +99,7 @@ class EndlessTask:
             self.war3.quit_game()
             return False
 
-        self._interruptible_wait(self.endless_cfg.get('loop_interval_time', 5))
+        self._interruptible_wait(self.endless_cfg.get("loop_interval_time", 5))
         return True
 
     def _handle_kk_disconnect(self) -> None:
@@ -108,10 +117,7 @@ class EndlessTask:
         games = self.endless_cfg.get("games", 10)
         min_level = self.endless_cfg.get("min_level", 15)
         max_level = self.endless_cfg.get("max_level", 100)
-        logger.info(
-            f'游戏总局数：{games}，'
-            f'每局刷怪楼层：{min_level} -> {max_level}'
-        )
+        logger.info(f"游戏总局数：{games}，每局刷怪楼层：{min_level} -> {max_level}")
         try:
             for game_idx in range(1, games + 1):
                 self._progress_callback(f"第 {game_idx}/{games} 局 - 准备中")
@@ -134,8 +140,7 @@ def main():
     def task_wrapper(stop_event, progress_callback=None):
         EndlessTask(cfg).run(stop_event=stop_event, progress_callback=progress_callback)
 
-    run_with_float_window("无尽刷怪", task_wrapper, countdown_seconds=5,
-                          float_cfg=cfg.get("float_window", {}))
+    run_with_float_window("无尽刷怪", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
 
 
 if __name__ == "__main__":

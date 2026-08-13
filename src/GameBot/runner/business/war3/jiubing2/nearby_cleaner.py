@@ -1,9 +1,10 @@
-﻿"""
+"""
 定时清理英雄附近地面物品的工具。
 
 内联式调用（非后台线程），避免大漠 COM 跨线程安全问题。
 任务主循环每次迭代时调用 tick()，以一定概率发送清理指令。
 """
+
 from __future__ import annotations
 
 import random
@@ -26,12 +27,11 @@ class NearbyCleaner:
     :param use_endless_cmd: True 用 clear_endless 指令，False 用 clear_nearby（默认）
     """
 
-    def __init__(self, war3: "War3Business", command_cfg: dict,
-                 probability: float = 0.0, use_endless_cmd: bool = False):
+    def __init__(
+        self, war3: "War3Business", command_cfg: dict, probability: float = 0.0, use_endless_cmd: bool = False
+    ):
         self._war3 = war3
-        self._cmd = command_cfg.get(
-            'clear_endless' if use_endless_cmd else 'clear_nearby', '-delh'
-        )
+        self._cmd = command_cfg.get("clear_endless" if use_endless_cmd else "clear_nearby", "-delh")
         self._probability = probability
 
     def tick(self):
