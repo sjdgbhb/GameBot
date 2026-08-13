@@ -5,10 +5,10 @@
 新增原子任务时，在此处注册即可。
 """
 from GameBot.runner.tasks.war3.jiubing2.atomic.blackstone_gate_harassment import GateHarassmentTask
+from GameBot.runner.tasks.war3.jiubing2.atomic.little_flame_snake import LittleFlameSnakeTask
+from GameBot.runner.tasks.war3.jiubing2.atomic.snake_egg import SnakeEggTask
 from GameBot.runner.tasks.war3.jiubing2.atomic.swift_beast import SwiftBeastTask
 from GameBot.runner.tasks.war3.jiubing2.atomic.venomous_snake import VenomousSnakeTask
-from GameBot.runner.tasks.war3.jiubing2.atomic.snake_egg import SnakeEggTask
-from GameBot.runner.tasks.war3.jiubing2.atomic.little_flame_snake import LittleFlameSnakeTask
 
 ATOMIC_TASK_REGISTRY = {
     "blackstone_gate_harassment": GateHarassmentTask,

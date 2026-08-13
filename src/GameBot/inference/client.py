@@ -13,10 +13,10 @@ import os
 import subprocess
 import threading
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
-from GameBot.utils import logger
 from GameBot.config import config
+from GameBot.utils import logger
 
 _client = None
 _init_lock = threading.Lock()

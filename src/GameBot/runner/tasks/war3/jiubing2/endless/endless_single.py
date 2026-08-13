@@ -2,16 +2,19 @@
 单局无尽刷分 — 已在无尽地图内，直接开刷
 """
 import time
-from GameBot.utils import logger, StopTaskError, setup_log_file
+
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
+from GameBot.inference import get_ocr_client
 from GameBot.runner import DmClient
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import (
-    GameUI, CombatHelper, EndlessRunner,
+    CombatHelper,
+    EndlessRunner,
+    GameUI,
 )
 from GameBot.runner.ui import run_with_float_window
-from GameBot.inference import get_ocr_client
+from GameBot.utils import StopTaskError, logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 
 class EndlessSingleTask:

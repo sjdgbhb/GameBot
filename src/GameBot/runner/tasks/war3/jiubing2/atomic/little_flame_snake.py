@@ -4,15 +4,15 @@
 前置要求：本局游戏内必须完成至少一次「毒蛇」任务才能接取。
 后台 OCR 线程实时监测任务进度，检测到完成立即中断移动。
 """
-from GameBot.utils import logger, setup_log_file
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
 from GameBot.inference import get_ocr_client
 from GameBot.runner import DmClient
 from GameBot.runner.business.war3 import War3Business
-from GameBot.runner.business.war3.jiubing2 import GameUI, CombatHelper
+from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI
 from GameBot.runner.tasks.war3.jiubing2.atomic.base import AtomicTaskBase
 from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 
 class LittleFlameSnakeTask(AtomicTaskBase):

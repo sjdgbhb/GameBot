@@ -9,9 +9,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from GameBot.web.api.routes import init as init_route
 from GameBot.web.api.routes import config as config_route
 from GameBot.web.api.routes import hero as hero_route
+from GameBot.web.api.routes import init as init_route
 from GameBot.web.api.routes import schema as schema_route
 from GameBot.web.api.routes import task as task_route
 

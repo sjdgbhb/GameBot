@@ -3,12 +3,15 @@
 每个方法独立可调用，不绑定特定游戏阶段，任何任务中途都可以单独调用。
 """
 from __future__ import annotations
+
 import time
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
-    from GameBot.runner.dm_client import DmClient
-from GameBot.utils import logger
+    pass
 from GameBot.inference import get_ocr_client
+from GameBot.utils import logger
+
 
 class GameUI:
     __doc__ = '九种兵器2 游戏内 UI 面板交互。\n\n    封装所有弹出式窗口/面板的"打开 → 操作 → 关闭"流程。\n    不包含任何任务编排逻辑，每个方法都可以被不同任务独立调用。\n    依赖 self._war3 来执行 send_msg 等 War3 通用操作。\n    '

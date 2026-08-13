@@ -2,12 +2,12 @@
 
 包含 War3Business 的文字识别 mixin 和独立的 TextMonitor 常驻监测类。
 """
-import time
 import threading
+import time
 from typing import List, Optional
 
-from GameBot.utils import logger
 from GameBot.inference import get_ocr_client
+from GameBot.utils import logger
 
 
 class TextMonitorMixin:

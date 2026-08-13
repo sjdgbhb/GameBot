@@ -1,15 +1,15 @@
 """
 钓鱼任务
 """
-import ctypes
 import time
-from GameBot.utils import logger, StopTaskError, setup_log_file
+
 from GameBot.config import config as config
-from GameBot.utils import retry, DmError, setup_global_exception_hook
 from GameBot.runner import DmClient
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import NearbyCleaner, get_inventory_hotkey
 from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import StopTaskError, logger, setup_global_exception_hook, setup_log_file
+
 
 class FishingTask:
     __doc__ = "钓鱼业务"

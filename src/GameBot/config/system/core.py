@@ -29,10 +29,10 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from .base import ConfigurationError, EXCLUSIVE_NAMESPACES, CONTROL_KEYS
+from .base import CONTROL_KEYS, EXCLUSIVE_NAMESPACES
+from .builder import ConfigBuilderMixin
 from .loader import ConfigLoaderMixin
 from .resolver import ConfigResolverMixin
-from .builder import ConfigBuilderMixin
 from .user import ConfigUserMixin
 
 

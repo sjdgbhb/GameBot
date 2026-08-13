@@ -9,9 +9,11 @@ from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     import threading
+
     from GameBot.runner.dm_client import DmClient
-from .combat_helper import get_inventory_hotkey
 from GameBot.utils import logger
+
+from .combat_helper import get_inventory_hotkey
 
 
 class SceneNavigator:

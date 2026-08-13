@@ -11,131 +11,17 @@
 - user_config 覆盖（inventory / desired_items / patrol_rounds / chest / points）
 """
 import json
-import os
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
+import pytest
+
 from GameBot.config import Config, ConfigurationError
+from tests.common.config_helpers import ConfigTestBase as TestConfigBase
 
-
-def _write_toml(directory: Path, relative_path: str, content: str):
-    """在 directory 下按 relative_path 写入 TOML 文件。"""
-    filepath = directory / relative_path
-    filepath.parent.mkdir(parents=True, exist_ok=True)
-    filepath.write_text(content, encoding="utf-8")
-
-
-def _make_test_config_dir() -> Path:
-    """创建一个独立的临时 config 目录，包含测试用 TOML 文件。"""
-    tmp = Path(tempfile.mkdtemp(prefix="jiubing2_test_cfg_"))
-
-    # base.toml — 基础配置，无依赖
-    _write_toml(tmp, "base.toml", """
-[paths]
-log_path = "logs"
-
-[dm]
-version = "3.1233"
-""")
-
-    # war3/war3.toml — 依赖 base
-    _write_toml(tmp, "war3/war3.toml", """
-dependencies = ["base"]
-
-[war3]
-window_class = "War3Class"
-window_title = "Warcraft III"
-client_size = [1902, 1033]
-key_time = 0.05
-general_time = 0.3
-""")
-
-    # war3/jiubing2/base.toml — 依赖 war3，包含可继承节点 + 命名空间节点
-    _write_toml(tmp, "war3/jiubing2/base.toml", """
-dependencies = ["war3"]
-
-[game]
-load_war3_time = 33
-
-[command]
-clear_nearby = "-delh"
-
-[hero]
-inventory = ["A", "B", "C"]
-""")
-
-    # war3/jiubing2/heroes/mk.toml — 英雄配置，可继承 [hero] 节点
-    _write_toml(tmp, "war3/jiubing2/heroes/mk.toml", """
-[hero]
-inventory = ["D", "E", "F"]
-attack = 100
-""")
-
-    # war3/jiubing2/heroes/lancer.toml — 另一个英雄
-    _write_toml(tmp, "war3/jiubing2/heroes/lancer.toml", """
-[hero]
-inventory = ["G", "H", "I"]
-attack = 80
-defense = 50
-""")
-
-    # war3/jiubing2/tasks/others/fishing.toml — 任务配置，依赖 war3.jiubing2 + war3.jiubing2.heroes.mk
-    _write_toml(tmp, "war3/jiubing2/tasks/others/fishing.toml", """
-dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
-
-[war3.jiubing2.tasks.others.fishing]
-name = "钓鱼"
-task_times = 5
-loop_interval_time = 2.0
-""")
-
-    # war3/jiubing2/tasks/others/patrol_loot.toml — 依赖 war3.jiubing2 + war3.jiubing2.heroes.lancer
-    _write_toml(tmp, "war3/jiubing2/tasks/others/patrol_loot.toml", """
-dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]
-
-[war3.jiubing2.tasks.others.patrol_loot]
-name = "巡逻拾取"
-task_times = 3
-patrol_rounds = 10
-""")
-
-    # war3/jiubing2/tasks/endless/endless_single.toml — 依赖 war3.jiubing2 + war3.jiubing2.heroes.mk
-    _write_toml(tmp, "war3/jiubing2/tasks/endless/endless_single.toml", """
-dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
-
-[war3.jiubing2.tasks.endless.endless_single]
-name = "单局无尽"
-task_times = 1
-""")
-
-    # 循环依赖测试文件
-    _write_toml(tmp, "circular_a.toml", """
-dependencies = ["circular_b"]
-[x]
-val = 1
-""")
-    _write_toml(tmp, "circular_b.toml", """
-dependencies = ["circular_a"]
-[y]
-val = 2
-""")
-
-    return tmp
-
-
-class TestConfigBase(unittest.TestCase):
-    """测试基类 — 每个测试方法创建独立的 Config 实例和临时目录。"""
-
-    def setUp(self):
-        Config.reset()
-        self.config_dir = _make_test_config_dir()
-        self.cfg = Config(str(self.config_dir))
-
-    def tearDown(self):
-        Config.reset()
-        shutil.rmtree(self.config_dir, ignore_errors=True)
+pytestmark = [pytest.mark.unit, pytest.mark.config]
 
 
 class TestDependencyResolution(TestConfigBase):
@@ -401,8 +287,6 @@ class TestUserConfig(TestConfigBase):
         # config_path = tmp, parent = parent, parent.parent = parent.parent
         # 所以 project_root = tmp.parent.parent
         # 这不太可靠，我们直接 mock project_root
-        import pathlib
-        original_project_root = self.cfg.project_root
         # 创建一个假的 project_root
         fake_root = Path(tempfile.mkdtemp(prefix="jiubing2_test_user_"))
         try:

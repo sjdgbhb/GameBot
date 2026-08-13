@@ -1,7 +1,6 @@
 """用户配置覆盖 — 加载 user_configs.json / user_config.json、应用用户覆盖到配置字典。"""
-import json
 import copy
-from typing import Optional
+import json
 
 
 class ConfigUserMixin:

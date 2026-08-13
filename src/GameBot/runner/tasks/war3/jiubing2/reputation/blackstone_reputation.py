@@ -5,11 +5,11 @@
 配置通过 config.load_task("war3.jiubing2.tasks.reputation.daily_reputation") 加载，
 其依赖 tasks.atomic.blackstone_gate_harassment（进而依赖黑石城场景）。
 """
-from GameBot.utils import logger, setup_log_file
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
-from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
 from GameBot.runner.tasks.war3.jiubing2.atomic.blackstone_gate_harassment import GateHarassmentTask
+from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
+from GameBot.utils import logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 
 class BlackstoneReputationTask(ReputationTask):

@@ -1,7 +1,8 @@
 # src/GameBot/utils/logger.py
 import sys
-from pathlib import Path
+
 from loguru import logger
+
 from GameBot.config import config
 
 # 移除默认的 handler

@@ -9,13 +9,16 @@ import sys
 import types
 import unittest
 
+import pytest
+
 # Mock win32com 等大漠依赖（3.12 环境不可用），避免导入链报错
 for mod_name in ("win32com", "win32com.client", "pythoncom", "pywintypes"):
     if mod_name not in sys.modules:
         sys.modules[mod_name] = types.ModuleType(mod_name)
 
-from GameBot.runner.tasks.war3.jiubing2.others.upgrade_stigmata import UpgradeStigmataTask
+pytestmark = [pytest.mark.unit]
 
+from GameBot.runner.tasks.war3.jiubing2.others.upgrade_stigmata import UpgradeStigmataTask
 
 # 与 jiubing2.toml 中 stigmata.term_limit 保持一致
 TERM_LIMIT = {

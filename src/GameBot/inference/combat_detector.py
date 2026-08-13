@@ -5,7 +5,6 @@
 模型由 scripts/train_combat_model.py 训练并导出。
 """
 import os
-import tempfile
 
 import numpy as np
 from PIL import Image
@@ -15,8 +14,8 @@ try:
 except ImportError:
     ort = None
 
-from GameBot.utils.logger import logger
 from GameBot.config import config
+from GameBot.utils.logger import logger
 
 
 def _get_model_path():

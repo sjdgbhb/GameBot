@@ -12,8 +12,8 @@
 import time
 
 from GameBot.config import config
-from GameBot.runner.dm_client import DmClient
 from GameBot.runner.business.war3 import War3Business
+from GameBot.runner.dm_client import DmClient
 from GameBot.runner.ui import run_with_float_window
 
 # 框选区域 [x1, y1, x2, y2]（客户区坐标，基于 1902x1033）
@@ -51,10 +51,10 @@ def main():
             print(f"配置期望: {expected[0]}x{expected[1]}")
             print(f"大漠版本: {dm.version}")
             if actual_w != expected[0] or actual_h != expected[1]:
-                print(f"⚠ 客户区尺寸不匹配！坐标可能偏移")
+                print("⚠ 客户区尺寸不匹配！坐标可能偏移")
                 progress_callback(f"⚠ 尺寸不匹配: 实际 {actual_w}x{actual_h} vs 期望 {expected[0]}x{expected[1]}")
             else:
-                print(f"✓ 客户区尺寸匹配")
+                print("✓ 客户区尺寸匹配")
                 progress_callback(f"✓ 尺寸匹配 {actual_w}x{actual_h}")
             print()
 

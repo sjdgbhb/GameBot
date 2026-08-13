@@ -3,7 +3,6 @@
 用法：切到魔兽窗口后运行 .venv-dm/Scripts/python.exe tests/test_jump_knife.py
 """
 import time
-import sys
 
 from GameBot.config import config
 from GameBot.runner import DmClient

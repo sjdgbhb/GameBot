@@ -6,14 +6,13 @@
 配置通过 config.load_task("war3.jiubing2.tasks.reputation.daily_reputation") 加载，
 依赖 tasks.atomic.swift_beast + scenes.menethil/scenes.palace + heroes.paladin。
 """
-import time
 
-from GameBot.utils import logger, setup_log_file
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
 from GameBot.runner.business.war3.jiubing2 import GameUI, SceneNavigator
-from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
 from GameBot.runner.tasks.war3.jiubing2.atomic.swift_beast import SwiftBeastTask
+from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
+from GameBot.utils import logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 
 class ForestReputationTask(ReputationTask):

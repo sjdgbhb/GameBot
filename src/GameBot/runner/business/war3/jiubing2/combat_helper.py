@@ -5,8 +5,8 @@
 from __future__ import annotations
 
 import random
-import time
 import threading
+import time
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:

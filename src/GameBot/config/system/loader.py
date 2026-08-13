@@ -4,6 +4,7 @@
 命名空间根集合发现、可继承/命名空间节点拆分。
 """
 import sys
+
 if sys.version_info >= (3, 11):
     import tomllib
 else:

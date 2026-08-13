@@ -9,19 +9,19 @@
   4. Ctrl+C 停止
 """
 import os
-import time
 import tempfile
+import time
 from typing import Optional
 
 from PIL import Image, ImageDraw
 
-from GameBot.utils import logger
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
-from GameBot.inference import get_ocr_client, get_inference_client
+from GameBot.inference import get_inference_client, get_ocr_client
 from GameBot.runner import DmClient
-from GameBot.runner.business.war3 import War3Business, TextMonitor
+from GameBot.runner.business.war3 import TextMonitor, War3Business
 from GameBot.runner.business.war3.jiubing2 import get_inventory_hotkey
+from GameBot.utils import logger
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 # 调试截图保存目录
 DEBUG_DIR = os.path.join(tempfile.gettempdir(), "chest_debug")
@@ -216,8 +216,6 @@ class ChestDetectTest:
         draw = ImageDraw.Draw(annotated)
         for i, (x1, y1, x2, y2, confidence) in enumerate(detections):
             draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
-            cx_pt = (x1 + x2) // 2
-            cy_pt = (y1 + y2) // 2
             draw.text((x1 + 2, y2 + 2), f"#{i} {confidence:.2f}", fill="red")
         path = os.path.join(DEBUG_DIR, f"scan_{self._scan_count}_annotated.png")
         annotated.save(path)

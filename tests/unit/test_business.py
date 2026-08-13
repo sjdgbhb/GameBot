@@ -1,4 +1,4 @@
-﻿"""刷装备任务物品拾取 — 单元测试（mock 所有外部依赖）。
+"""刷装备任务物品拾取 — 单元测试（mock 所有外部依赖）。
 
 覆盖：
 - get_inventory_hotkey / get_inventory_hotkeys（纯函数）
@@ -6,11 +6,12 @@
 - PatrolLootTask._parse_item_targets / _match_desired / _all_items_satisfied
 - PatrolLootTask._pickup_loop / _pickup_one / _handle_unclickable（mock 依赖）
 """
-import random
 import sys
 import time
 import unittest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Mock win32com 等大漠依赖，使 3.12 环境能导入 patrol_loot 模块
 for _mod in ("win32com", "win32com.client", "pythoncom", "winreg",
@@ -18,11 +19,14 @@ for _mod in ("win32com", "win32com.client", "pythoncom", "winreg",
     if _mod not in sys.modules:
         sys.modules[_mod] = MagicMock()
 
-from GameBot.runner.business.war3.jiubing2.combat_helper import (
-    CombatHelper, get_inventory_hotkey, get_inventory_hotkeys,
-)
-import GameBot.runner.tasks.war3.jiubing2.others.patrol_loot  # noqa: F401 — 注册模块供 @patch 解析路径
+pytestmark = [pytest.mark.unit]
 
+import GameBot.runner.tasks.war3.jiubing2.others.patrol_loot  # noqa: F401 — 注册模块供 @patch 解析路径
+from GameBot.runner.business.war3.jiubing2.combat_helper import (
+    CombatHelper,
+    get_inventory_hotkey,
+    get_inventory_hotkeys,
+)
 
 HERO_CFG = {
     "skills": [

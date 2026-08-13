@@ -11,16 +11,15 @@
 """
 from __future__ import annotations
 
-import threading
 import time
 from typing import TYPE_CHECKING, Optional
 
-from GameBot.utils import logger, StopTaskError
+from GameBot.utils import StopTaskError, logger
 
 if TYPE_CHECKING:
     from GameBot.runner import DmClient
-    from GameBot.runner.business.war3 import War3Business, TextMonitor
-    from GameBot.runner.business.war3.jiubing2 import GameUI, CombatHelper, NearbyCleaner
+    from GameBot.runner.business.war3 import TextMonitor, War3Business
+    from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI, NearbyCleaner
 
 
 class AtomicTaskBase:

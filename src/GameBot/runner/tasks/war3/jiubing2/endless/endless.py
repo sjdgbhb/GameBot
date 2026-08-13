@@ -4,17 +4,20 @@
 
 import time
 
-from GameBot.utils import logger, StopTaskError, WindowLostError, setup_log_file
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
-from GameBot.runner import DmClient
-from GameBot.runner.business.war3 import War3Business
-from GameBot.runner.business.kk import KKBusiness
-from GameBot.runner.business.war3.jiubing2 import (
-    GameUI, SceneNavigator, CombatHelper, EndlessRunner,
-)
 from GameBot.inference import get_ocr_client
+from GameBot.runner import DmClient
+from GameBot.runner.business.kk import KKBusiness
+from GameBot.runner.business.war3 import War3Business
+from GameBot.runner.business.war3.jiubing2 import (
+    CombatHelper,
+    EndlessRunner,
+    GameUI,
+    SceneNavigator,
+)
 from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import StopTaskError, WindowLostError, logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 
 class EndlessTask:
@@ -48,9 +51,8 @@ class EndlessTask:
         self.pet_feed_time = 0
 
     def do_kk(self) -> None:
-        hwnd = self.dm.find_window(self.kk_cfg["window_class"], self.kk_cfg["window_title"])
-        with self.dm.bind_window(hwnd):
-            self.kk.start_game(self.dm)
+        # start_game 内部会先清理弹窗，再自行绑定 KK 房间窗口
+        self.kk.start_game(self.dm)
 
     def _interruptible_wait(self, seconds: float):
         """可被停止信号中断的等待，检测到停止时抛出 StopTaskError。"""

@@ -1,4 +1,4 @@
-﻿"""任务运行控制 — Tkinter 暗黑风格弹窗 + 快捷键停止。
+"""任务运行控制 — Tkinter 暗黑风格弹窗 + 快捷键停止。
 
 在子线程中运行任务，主线程显示 Tkinter 弹窗并监听小键盘减号（NumPad-）停止信号。
 启动前有倒计时，按小键盘减号可随时停止任务。
@@ -14,15 +14,14 @@
 
   run_with_float_window("钓鱼", task_func)
 """
+import ctypes
 import inspect
 import threading
 import time
-import ctypes
 import tkinter as tk
 from typing import Callable, List, Optional
 
 from GameBot.utils import StopTaskError
-
 
 _VK_NUMPAD_SUBTRACT = 0x6D  # 小键盘减号
 _user32 = ctypes.windll.user32
@@ -130,7 +129,6 @@ def run_with_float_window(
     win_w = win_w_cfg if win_w_cfg else 300
     win_h_base = 70
     win_h = win_h_base
-    screen_w = root.winfo_screenwidth()
     screen_h = root.winfo_screenheight()
     x = win_x if win_x is not None else 20
     y = win_y if win_y is not None else (screen_h - win_h) // 6 + 250

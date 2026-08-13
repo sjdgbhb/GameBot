@@ -11,13 +11,13 @@ from __future__ import annotations
 import math
 import time
 
-from GameBot.utils import logger, StopTaskError
-from GameBot.utils.exception_handler import DmError
 from GameBot.inference import get_ocr_client
 from GameBot.runner import DmClient
-from GameBot.runner.business.war3 import War3Business, TextMonitor
-from GameBot.runner.business.war3.jiubing2 import GameUI, CombatHelper, NearbyCleaner
+from GameBot.runner.business.war3 import TextMonitor, War3Business
+from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI, NearbyCleaner
 from GameBot.runner.tasks.war3.jiubing2.atomic import ATOMIC_TASK_REGISTRY
+from GameBot.utils import StopTaskError, logger
+from GameBot.utils.exception_handler import DmError
 
 # 原子任务中预期可能发生的运行时异常（如 COM 调用失败、OCR 超时等），
 # 捕获后记为失败并继续下一轮；编程错误（KeyError/TypeError 等）不在此列，直接抛出
@@ -710,11 +710,28 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         return len(task_lines)
 
     def _close_popup(self, close_coords: tuple = None):
-        """关闭任务弹窗：优先点击"关闭"按钮，兜底按 Escape。
+        """关闭任务弹窗。
+
+        如果配置 task_popup.close_by_x=true，则点击弹窗右上角 X 按钮；
+        否则优先点击 OCR 识别到的"关闭"按钮，兜底按 Escape。
 
         :param close_coords: "关闭"按钮的屏幕坐标 (x, y)，为 None 时按 Escape
         """
         gt = self.war3_cfg.get('general_time', 0.3)
+        popup_cfg = self.full_cfg.get("task_popup", {})
+
+        if popup_cfg.get("close_by_x"):
+            area_coords = popup_cfg.get("area_coords", [600, 200, 1300, 600])
+            offset_x, offset_y = popup_cfg.get("close_offset", [15, 15])
+            click_x = area_coords[2] - offset_x
+            click_y = area_coords[1] + offset_y
+            if click_x > 0 and click_y > 0:
+                self.dm.move_to(click_x, click_y)
+                time.sleep(gt)
+                self.dm.left_click()
+                time.sleep(gt)
+                return
+
         if close_coords is not None and close_coords[0] > 0 and close_coords[1] > 0:
             self.dm.move_to(*close_coords)
             time.sleep(gt)

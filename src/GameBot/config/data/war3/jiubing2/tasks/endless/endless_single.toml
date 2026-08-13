@@ -7,8 +7,8 @@ dependencies = ["war3.jiubing2.heroes.hxd"]   # heroes.hxd 传递依赖 jiubing2
 
 [war3.jiubing2.tasks.endless.endless_single]
 name = "局内无尽"
-min_level = 1  # 从该层数开始，只能选择1或者15，不要选择其他数字
-max_level = 15  # 到该层结束
+min_level = 8  # 从该层数开始，只能选择1或者15，不要选择其他数字
+max_level = 35  # 到该层结束
 loop_interval_time = 5
 refresh_timer = 20  # 当层无尽打完后至下一层开始的刷新时间
 use_shard_floor = 20  # 从该层开始使用魔法水晶

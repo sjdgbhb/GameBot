@@ -3,7 +3,7 @@
 包含 War3Business 的技能施放 mixin：单技能施放、连招执行。
 """
 import threading
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 
 class SkillControllerMixin:

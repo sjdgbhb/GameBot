@@ -1,8 +1,7 @@
 """Pydantic 请求/响应模型定义。"""
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
-
 
 # ---- 基础数据模型 ----
 

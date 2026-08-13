@@ -12,8 +12,11 @@ import math
 import unittest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from GameBot.config import Config
 
+pytestmark = [pytest.mark.unit]
 
 # ── 测试用 TOML 文件内容 ──
 
@@ -203,7 +206,6 @@ class TestDailyReputationBase(unittest.TestCase):
     """测试基类 — 每个测试方法创建独立的 Config 实例和临时目录。"""
 
     def setUp(self):
-        import shutil
         Config.reset()
         self.config_dir = _make_test_config_dir()
         self.cfg = Config(str(self.config_dir))

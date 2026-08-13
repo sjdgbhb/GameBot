@@ -10,13 +10,13 @@ import copy
 import re
 import time
 
-from GameBot.utils import logger, StopTaskError, setup_log_file
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook, DmError
 from GameBot.inference import get_ocr_client
-from GameBot.runner.ui import run_with_float_window
-from GameBot.runner.tasks.war3.jiubing2.base import AtomicLoopTask
 from GameBot.runner.tasks.war3.jiubing2.atomic.blackstone_gate_harassment import GateHarassmentTask
+from GameBot.runner.tasks.war3.jiubing2.base import AtomicLoopTask
+from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import StopTaskError, logger, setup_log_file
+from GameBot.utils.exception_handler import DmError, setup_global_exception_hook
 
 # 原子任务运行期可重试异常（与 base.py 保持一致）
 _ATOMIC_RETRYABLE_EXC = (DmError, RuntimeError, TimeoutError, OSError)

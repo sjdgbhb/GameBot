@@ -3,11 +3,11 @@
 流程：一次性接取多个同场景原子任务 → 走共享路线同时完成 → 依次提交，每次提交算 1 次。
 任务状态通过 -rw 弹窗确认（屏幕提示完成时触发查询）。
 """
-from GameBot.utils import logger, setup_log_file
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
 from GameBot.runner.tasks.war3.jiubing2.base import MultiAtomicLoopTask
 from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 
 class PersonalAchievementTask(MultiAtomicLoopTask):

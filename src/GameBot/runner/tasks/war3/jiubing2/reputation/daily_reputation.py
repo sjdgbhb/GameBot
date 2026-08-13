@@ -6,12 +6,12 @@
 依赖闭包含 tasks.atomic.blackstone_gate_harassment / tasks.atomic.swift_beast /
 scenes.menethil / heroes.paladin，并注入到子任务与业务对象。
 """
-from GameBot.utils import logger, setup_log_file
 from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
 from GameBot.runner.tasks.war3.jiubing2.reputation.blackstone_reputation import BlackstoneReputationTask
 from GameBot.runner.tasks.war3.jiubing2.reputation.forest_reputation import ForestReputationTask
 from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
 
 
 class DailyReputationTask:

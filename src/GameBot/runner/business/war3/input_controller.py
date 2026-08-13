@@ -3,11 +3,11 @@
 包含 War3Business 的输入操作 mixin：消息发送、英雄居中、移动点击、
 传送行走、背包物品使用、框选等。
 """
-import time
 import threading
+import time
 from typing import Optional
 
-from GameBot.utils import logger, StopTaskError
+from GameBot.utils import StopTaskError, logger
 
 
 class InputControllerMixin:

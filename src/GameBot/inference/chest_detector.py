@@ -16,8 +16,8 @@ try:
 except ImportError:
     ort = None
 
-from GameBot.utils.logger import logger
 from GameBot.config import config
+from GameBot.utils.logger import logger
 
 PAD_COLOR = (114, 114, 114)
 
