@@ -12,6 +12,7 @@
 - _handle_predict_combat: 战斗检测（mock session）
 - _handle_capture_and_predict_combat: 截屏战斗检测含取消逻辑（mock）
 """
+
 import json
 import os
 import tempfile
@@ -31,6 +32,7 @@ class TestWorkerLoadConfig(unittest.TestCase):
     def setUp(self):
         """每个测试前清空全局 _cfg 和环境变量。"""
         from GameBot.inference import worker
+
         worker._cfg = {}
         self._old_env = os.environ.pop("JIUBING_INFERENCE_CONFIG", None)
 
@@ -42,6 +44,7 @@ class TestWorkerLoadConfig(unittest.TestCase):
     def test_load_config_from_env(self):
         """有环境变量时应解析为 dict。"""
         from GameBot.inference import worker
+
         os.environ["JIUBING_INFERENCE_CONFIG"] = json.dumps({"ocr_device": "gpu", "chest_conf": 0.7})
         worker._load_config()
         self.assertEqual(worker._cfg["ocr_device"], "gpu")
@@ -50,6 +53,7 @@ class TestWorkerLoadConfig(unittest.TestCase):
     def test_load_config_empty_env(self):
         """无环境变量时应设为空 dict。"""
         from GameBot.inference import worker
+
         os.environ.pop("JIUBING_INFERENCE_CONFIG", None)
         worker._load_config()
         self.assertEqual(worker._cfg, {})
@@ -57,6 +61,7 @@ class TestWorkerLoadConfig(unittest.TestCase):
     def test_load_config_overwrites_previous(self):
         """多次调用应覆盖之前的配置。"""
         from GameBot.inference import worker
+
         os.environ["JIUBING_INFERENCE_CONFIG"] = json.dumps({"key1": "val1"})
         worker._load_config()
         self.assertEqual(worker._cfg, {"key1": "val1"})
@@ -71,24 +76,29 @@ class TestWorkerGetProvider(unittest.TestCase):
 
     def setUp(self):
         from GameBot.inference import worker
+
         worker._cfg = {}
 
     def test_default_cpu(self):
         """默认应返回 CPU provider。"""
         from GameBot.inference.worker import _get_provider
+
         self.assertEqual(_get_provider(), ["CPUExecutionProvider"])
 
     def test_cpu_explicit(self):
         """显式 cpu 应返回 CPU provider。"""
         from GameBot.inference import worker
+
         worker._cfg = {"ai_device": "cpu"}
         from GameBot.inference.worker import _get_provider
+
         self.assertEqual(_get_provider(), ["CPUExecutionProvider"])
 
     def test_gpu_without_onnxruntime(self):
         """gpu 但 onnxruntime 不可用时应回退 CPU。"""
         from GameBot.inference import worker
         from GameBot.inference.worker import _get_provider
+
         worker._cfg = {"ai_device": "gpu"}
         with patch("builtins.__import__", side_effect=ImportError("no onnxruntime")):
             result = _get_provider()
@@ -98,6 +108,7 @@ class TestWorkerGetProvider(unittest.TestCase):
         """gpu 且 CUDA 可用时应返回 CUDA + CPU provider。"""
         from GameBot.inference import worker
         from GameBot.inference.worker import _get_provider
+
         worker._cfg = {"ai_device": "gpu"}
         mock_ort = MagicMock()
         mock_ort.get_available_providers.return_value = ["CUDAExecutionProvider", "CPUExecutionProvider"]
@@ -109,6 +120,7 @@ class TestWorkerGetProvider(unittest.TestCase):
         """gpu 但无 CUDA provider 时应回退 CPU。"""
         from GameBot.inference import worker
         from GameBot.inference.worker import _get_provider
+
         worker._cfg = {"ai_device": "gpu"}
         mock_ort = MagicMock()
         mock_ort.get_available_providers.return_value = ["CPUExecutionProvider"]
@@ -120,6 +132,7 @@ class TestWorkerGetProvider(unittest.TestCase):
         """应支持自定义 device key。"""
         from GameBot.inference import worker
         from GameBot.inference.worker import _get_provider
+
         worker._cfg = {"ocr_device": "gpu"}
         mock_ort = MagicMock()
         mock_ort.get_available_providers.return_value = ["CUDAExecutionProvider", "CPUExecutionProvider"]
@@ -140,18 +153,21 @@ class TestWorkerExtractText(unittest.TestCase):
     def test_normal_text(self):
         """正常文本应拼接返回。"""
         from GameBot.inference.worker import _extract_text
+
         result = self._make_result(["你好", "世界"])
         self.assertEqual(_extract_text(result), "你好世界")
 
     def test_empty_txts(self):
         """空 txts 应返回空字符串。"""
         from GameBot.inference.worker import _extract_text
+
         result = self._make_result([])
         self.assertEqual(_extract_text(result), "")
 
     def test_none_txts(self):
         """txts 为 None 应返回空字符串。"""
         from GameBot.inference.worker import _extract_text
+
         result = MagicMock()
         result.txts = None
         self.assertEqual(_extract_text(result), "")
@@ -159,18 +175,21 @@ class TestWorkerExtractText(unittest.TestCase):
     def test_no_txts_attr(self):
         """无 txts 属性应返回空字符串。"""
         from GameBot.inference.worker import _extract_text
+
         result = MagicMock(spec=[])
         self.assertEqual(_extract_text(result), "")
 
     def test_contains_empty_string(self):
         """txts 中包含空字符串应跳过。"""
         from GameBot.inference.worker import _extract_text
+
         result = self._make_result(["你好", "", "世界"])
         self.assertEqual(_extract_text(result), "你好世界")
 
     def test_contains_none(self):
         """txts 中包含 None 应跳过。"""
         from GameBot.inference.worker import _extract_text
+
         result = self._make_result(["你好", None, "世界"])
         self.assertEqual(_extract_text(result), "你好世界")
 
@@ -188,9 +207,10 @@ class TestWorkerExtractLines(unittest.TestCase):
     def test_normal_lines(self):
         """正常文本应返回逐行结果，按 y_center 排序。"""
         from GameBot.inference.worker import _extract_lines
+
         boxes = [
-            [[10, 30], [50, 30], [50, 40], [10, 40]],   # y_center=35
-            [[10, 10], [50, 10], [50, 20], [10, 20]],   # y_center=15
+            [[10, 30], [50, 30], [50, 40], [10, 40]],  # y_center=35
+            [[10, 10], [50, 10], [50, 20], [10, 20]],  # y_center=15
         ]
         result = self._make_result(["第二行", "第一行"], boxes)
         lines = _extract_lines(result)
@@ -204,12 +224,14 @@ class TestWorkerExtractLines(unittest.TestCase):
     def test_empty_txts(self):
         """空 txts 应返回空列表。"""
         from GameBot.inference.worker import _extract_lines
+
         result = self._make_result([])
         self.assertEqual(_extract_lines(result), [])
 
     def test_none_txts(self):
         """txts 为 None 应返回空列表。"""
         from GameBot.inference.worker import _extract_lines
+
         result = MagicMock()
         result.txts = None
         result.boxes = None
@@ -218,6 +240,7 @@ class TestWorkerExtractLines(unittest.TestCase):
     def test_no_boxes(self):
         """无 boxes 时坐标应为 0.0。"""
         from GameBot.inference.worker import _extract_lines
+
         result = self._make_result(["文本"], None)
         lines = _extract_lines(result)
         self.assertEqual(len(lines), 1)
@@ -228,6 +251,7 @@ class TestWorkerExtractLines(unittest.TestCase):
     def test_skip_empty_text(self):
         """空文本行应被跳过。"""
         from GameBot.inference.worker import _extract_lines
+
         result = self._make_result(["有内容", "", None, "也有内容"])
         lines = _extract_lines(result)
         self.assertEqual(len(lines), 2)
@@ -237,6 +261,7 @@ class TestWorkerExtractLines(unittest.TestCase):
     def test_boxes_shorter_than_txts(self):
         """boxes 数量少于 txts 时，超出部分坐标为 0.0。"""
         from GameBot.inference.worker import _extract_lines
+
         boxes = [[[10, 10], [20, 10], [20, 20], [10, 20]]]  # 只有 1 个 box，y_center=15
         result = self._make_result(["有坐标", "无坐标"], boxes)
         lines = _extract_lines(result)
@@ -250,6 +275,7 @@ class TestWorkerExtractLines(unittest.TestCase):
     def test_x_center_calculation(self):
         """x_center 应为四角点 x 坐标的平均值。"""
         from GameBot.inference.worker import _extract_lines
+
         boxes = [[[0, 0], [100, 0], [100, 50], [0, 50]]]  # x_center=50, y_center=25
         result = self._make_result(["测试"], boxes)
         lines = _extract_lines(result)
@@ -263,6 +289,7 @@ class TestWorkerLetterbox(unittest.TestCase):
     def test_square_image(self):
         """正方形图片无需填充。"""
         from GameBot.inference.worker import _letterbox
+
         img = Image.new("RGB", (100, 100))
         result, scale, pad_x, pad_y = _letterbox(img, 200)
         self.assertEqual(result.size, (200, 200))
@@ -273,6 +300,7 @@ class TestWorkerLetterbox(unittest.TestCase):
     def test_landscape_image(self):
         """宽图应上下填充。"""
         from GameBot.inference.worker import _letterbox
+
         img = Image.new("RGB", (200, 100))
         result, scale, pad_x, pad_y = _letterbox(img, 100)
         self.assertEqual(result.size, (100, 100))
@@ -283,6 +311,7 @@ class TestWorkerLetterbox(unittest.TestCase):
     def test_portrait_image(self):
         """高图应左右填充。"""
         from GameBot.inference.worker import _letterbox
+
         img = Image.new("RGB", (100, 200))
         result, scale, pad_x, pad_y = _letterbox(img, 100)
         self.assertEqual(result.size, (100, 100))
@@ -293,6 +322,7 @@ class TestWorkerLetterbox(unittest.TestCase):
     def test_pad_color(self):
         """填充区域应为灰色 (114, 114, 114)。"""
         from GameBot.inference.worker import PAD_COLOR, _letterbox
+
         img = Image.new("RGB", (200, 100), (255, 0, 0))
         result, _, _, _ = _letterbox(img, 100)
         pixel = result.getpixel((0, 0))
@@ -301,6 +331,7 @@ class TestWorkerLetterbox(unittest.TestCase):
     def test_exact_size(self):
         """图片恰好等于目标尺寸时无需缩放。"""
         from GameBot.inference.worker import _letterbox
+
         img = Image.new("RGB", (1280, 1280))
         result, scale, pad_x, pad_y = _letterbox(img, 1280)
         self.assertEqual(result.size, (1280, 1280))
@@ -315,6 +346,7 @@ class TestWorkerNMS(unittest.TestCase):
     def test_empty_input(self):
         """空输入应返回空列表。"""
         from GameBot.inference.worker import _nms
+
         boxes = np.array([]).reshape(0, 4)
         scores = np.array([])
         self.assertEqual(_nms(boxes, scores, 0.5), [])
@@ -322,6 +354,7 @@ class TestWorkerNMS(unittest.TestCase):
     def test_single_box(self):
         """单个框应直接保留。"""
         from GameBot.inference.worker import _nms
+
         boxes = np.array([[10, 10, 50, 50]])
         scores = np.array([0.9])
         self.assertEqual(_nms(boxes, scores, 0.5), [0])
@@ -329,6 +362,7 @@ class TestWorkerNMS(unittest.TestCase):
     def test_no_overlap_all_kept(self):
         """不重叠的框应全部保留。"""
         from GameBot.inference.worker import _nms
+
         boxes = np.array([[0, 0, 10, 10], [100, 100, 110, 110], [200, 200, 210, 210]])
         scores = np.array([0.9, 0.8, 0.7])
         result = _nms(boxes, scores, 0.5)
@@ -337,6 +371,7 @@ class TestWorkerNMS(unittest.TestCase):
     def test_high_overlap_suppressed(self):
         """高重叠低分框应被抑制。"""
         from GameBot.inference.worker import _nms
+
         boxes = np.array([[10, 10, 50, 50], [12, 12, 52, 52]])
         scores = np.array([0.9, 0.8])
         result = _nms(boxes, scores, 0.3)
@@ -346,6 +381,7 @@ class TestWorkerNMS(unittest.TestCase):
     def test_keeps_highest_score(self):
         """应优先保留得分最高的框。"""
         from GameBot.inference.worker import _nms
+
         boxes = np.array([[10, 10, 50, 50], [12, 12, 52, 52], [100, 100, 140, 140]])
         scores = np.array([0.7, 0.95, 0.8])
         result = _nms(boxes, scores, 0.3)
@@ -361,6 +397,7 @@ class TestWorkerSend(unittest.TestCase):
     def test_send_writes_json_line(self, mock_stdout):
         """_send 应写入 JSON + 换行并 flush。"""
         from GameBot.inference.worker import _send
+
         _send({"ready": True})
         written = mock_stdout.write.call_args[0][0]
         self.assertIn('"ready"', written)
@@ -371,6 +408,7 @@ class TestWorkerSend(unittest.TestCase):
     def test_send_ensure_ascii(self, mock_stdout):
         """_send 应使用 ensure_ascii=True 编码。"""
         from GameBot.inference.worker import _send
+
         _send({"text": "你好"})
         written = mock_stdout.write.call_args[0][0]
         # ensure_ascii=True 时中文被转义为 \uXXXX
@@ -389,16 +427,16 @@ class TestWorkerRunChestDetection(unittest.TestCase):
 
     def setUp(self):
         from GameBot.inference import worker
+
         worker._cfg = {"chest_input_size": 1280, "chest_conf": 0.5, "chest_iou": 0.5}
         worker._chest_session = None
 
     @patch("GameBot.inference.worker._get_chest_session")
     def test_no_detections(self, mock_session_fn):
         """无检测结果时应返回空列表。"""
-        mock_session_fn.return_value = self._make_mock_session(
-            np.zeros((1, 5, 1), dtype=np.float32)
-        )
+        mock_session_fn.return_value = self._make_mock_session(np.zeros((1, 5, 1), dtype=np.float32))
         from GameBot.inference.worker import _run_chest_detection
+
         img = Image.new("RGB", (800, 600))
         result = _run_chest_detection(img)
         self.assertEqual(result, {"chests": []})
@@ -409,6 +447,7 @@ class TestWorkerRunChestDetection(unittest.TestCase):
         fake_output = np.array([[[640], [320], [100], [100], [0.9]]], dtype=np.float32)
         mock_session_fn.return_value = self._make_mock_session(fake_output)
         from GameBot.inference.worker import _run_chest_detection
+
         img = Image.new("RGB", (800, 600))
         result = _run_chest_detection(img)
         self.assertEqual(len(result["chests"]), 1)
@@ -423,6 +462,7 @@ class TestWorkerRunChestDetection(unittest.TestCase):
         fake_output = np.array([[[640], [320], [100], [100], [0.3]]], dtype=np.float32)
         mock_session_fn.return_value = self._make_mock_session(fake_output)
         from GameBot.inference.worker import _run_chest_detection
+
         img = Image.new("RGB", (800, 600))
         result = _run_chest_detection(img)
         self.assertEqual(result, {"chests": []})
@@ -434,6 +474,7 @@ class TestWorkerRunChestDetection(unittest.TestCase):
         fake_output = np.array([[[10000], [10000], [100], [100], [0.9]]], dtype=np.float32)
         mock_session_fn.return_value = self._make_mock_session(fake_output)
         from GameBot.inference.worker import _run_chest_detection
+
         img = Image.new("RGB", (800, 600))
         result = _run_chest_detection(img)
         for x1, y1, x2, y2, conf in result["chests"]:
@@ -453,6 +494,7 @@ class TestWorkerHandlePredictCombat(unittest.TestCase):
 
     def setUp(self):
         from GameBot.inference import worker
+
         worker._cfg = {"combat_img_w": 87, "combat_img_h": 61, "combat_threshold": 0.5}
         worker._combat_session = None
 
@@ -466,6 +508,7 @@ class TestWorkerHandlePredictCombat(unittest.TestCase):
         mock_img_open.return_value = mock_img
 
         from GameBot.inference.worker import _handle_predict_combat
+
         result = _handle_predict_combat(["/tmp/test.bmp"])
         self.assertEqual(result, {"combat": [True]})
 
@@ -479,6 +522,7 @@ class TestWorkerHandlePredictCombat(unittest.TestCase):
         mock_img_open.return_value = mock_img
 
         from GameBot.inference.worker import _handle_predict_combat
+
         result = _handle_predict_combat(["/tmp/test.bmp"])
         self.assertEqual(result, {"combat": [False]})
 
@@ -486,14 +530,13 @@ class TestWorkerHandlePredictCombat(unittest.TestCase):
     @patch("GameBot.inference.worker.Image.open")
     def test_predict_combat_batch(self, mock_img_open, mock_session_fn):
         """批量预测应返回与输入数量相同的结果。"""
-        mock_session_fn.return_value = self._make_combat_session(
-            np.array([[0.9], [0.1], [0.8]])
-        )
+        mock_session_fn.return_value = self._make_combat_session(np.array([[0.9], [0.1], [0.8]]))
         mock_img = MagicMock()
         mock_img.convert.return_value = Image.new("RGB", (87, 61))
         mock_img_open.return_value = mock_img
 
         from GameBot.inference.worker import _handle_predict_combat
+
         result = _handle_predict_combat(["/tmp/a.bmp", "/tmp/b.bmp", "/tmp/c.bmp"])
         self.assertEqual(result, {"combat": [True, False, True]})
 
@@ -508,6 +551,7 @@ class TestWorkerCapturePredictCombat(unittest.TestCase):
 
     def setUp(self):
         from GameBot.inference import worker
+
         worker._cfg = {"combat_img_w": 87, "combat_img_h": 61, "combat_threshold": 0.5}
         worker._combat_session = None
 
@@ -519,9 +563,8 @@ class TestWorkerCapturePredictCombat(unittest.TestCase):
         mock_grab.grab.return_value = Image.new("RGB", (87, 61))
 
         from GameBot.inference.worker import _handle_capture_and_predict_combat
-        result = _handle_capture_and_predict_combat(
-            bbox=[0, 0, 87, 61], frame_count=2, frame_interval=0.01
-        )
+
+        result = _handle_capture_and_predict_combat(bbox=[0, 0, 87, 61], frame_count=2, frame_interval=0.01)
         self.assertEqual(result, {"combat": [True, False]})
 
     @patch("GameBot.inference.worker._get_combat_session")
@@ -535,8 +578,11 @@ class TestWorkerCapturePredictCombat(unittest.TestCase):
 
         try:
             from GameBot.inference.worker import _handle_capture_and_predict_combat
+
             result = _handle_capture_and_predict_combat(
-                bbox=[0, 0, 87, 61], frame_count=5, frame_interval=0.01,
+                bbox=[0, 0, 87, 61],
+                frame_count=5,
+                frame_interval=0.01,
                 cancel_file=cancel_path,
             )
             self.assertTrue(result.get("cancelled"))
@@ -573,8 +619,11 @@ class TestWorkerCapturePredictCombat(unittest.TestCase):
 
         with patch("os.path.exists", side_effect=mock_exists):
             from GameBot.inference.worker import _handle_capture_and_predict_combat
+
             result = _handle_capture_and_predict_combat(
-                bbox=[0, 0, 87, 61], frame_count=5, frame_interval=0.01,
+                bbox=[0, 0, 87, 61],
+                frame_count=5,
+                frame_interval=0.01,
                 cancel_file=cancel_path,
             )
             self.assertTrue(result.get("cancelled"))

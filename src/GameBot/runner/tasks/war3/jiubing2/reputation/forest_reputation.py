@@ -1,4 +1,4 @@
-﻿"""
+"""
 每日森之城声望任务 — 每日声望上限 150，每次迅猛野兽任务 +10 声望。
 先通过传送卷转场至森之城（SceneNavigator.tp_enter_forest_city），
 再反复完成迅猛野兽任务来达成，循环逻辑复用 ReputationTask
@@ -42,9 +42,7 @@ class ForestReputationTask(ReputationTask):
 
     def _travel_to_forest_city(self):
         """使用传送卷传送至远古森林外围入口，再走进传送圈到达森之城。"""
-        hwnd = self.dm.get_active_window(
-            self.war3_cfg["window_class"], self.war3_cfg["window_title"]
-        )
+        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
         if not hwnd:
             logger.error("未找到 war3 窗口，转场失败")
             return

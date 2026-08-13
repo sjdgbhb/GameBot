@@ -1,10 +1,11 @@
-﻿"""
+"""
 每日黑石城声望任务 — 每日声望上限 150，每次城门骚扰 +5 声望。
 通过反复完成黑石城城门骚扰任务来达成，循环逻辑复用 ReputationTask
 （窗口绑定、OCR 预热、原子任务调度、次数反推等全部继承）。
 配置通过 config.load_task("war3.jiubing2.tasks.reputation.daily_reputation") 加载，
 其依赖 tasks.atomic.blackstone_gate_harassment（进而依赖黑石城场景）。
 """
+
 from GameBot.config import config
 from GameBot.runner.tasks.war3.jiubing2.atomic.blackstone_gate_harassment import GateHarassmentTask
 from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask

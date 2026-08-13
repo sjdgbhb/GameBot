@@ -1,4 +1,4 @@
-﻿"""
+"""
 原子任务基类 — 接取任务 → 沿路线清怪 → 检测完成 → 回 NPC 交任务。
 
 子类需指定类属性：
@@ -9,6 +9,7 @@
 子类需实现：
 - _npc：返回任务 NPC 配置（含 coords / mini_coords / walk_mode / time 等）
 """
+
 from __future__ import annotations
 
 import time
@@ -29,16 +30,23 @@ class AtomicTaskBase:
     子类通过类属性差异化 NPC 定位、行走偏移和技能格选择。
     """
 
-    _task_label = "原子任务"       # 任务显示名（子类覆写）
-    _walk_offset = [0, 0]          # 走到 NPC 附近的坐标偏移（子类覆写）
-    _task_grid_key = "grid"        # NPC 配置中任务技能格的键名（子类覆写）
-    _npc_key = ""                  # NPC 唯一标识（场景名+NPC名，子类覆写或自动推断）
+    _task_label = "原子任务"  # 任务显示名（子类覆写）
+    _walk_offset = [0, 0]  # 走到 NPC 附近的坐标偏移（子类覆写）
+    _task_grid_key = "grid"  # NPC 配置中任务技能格的键名（子类覆写）
+    _npc_key = ""  # NPC 唯一标识（场景名+NPC名，子类覆写或自动推断）
 
-    def __init__(self, dm: "DmClient", war3: "War3Business",
-                 ui: "GameUI", combat: "CombatHelper", task_cfg: dict,
-                 at_npc: bool = False, walk_time: Optional[float] = None,
-                 monitor: "TextMonitor" = None,
-                 nearby_cleaner: "NearbyCleaner" = None):
+    def __init__(
+        self,
+        dm: "DmClient",
+        war3: "War3Business",
+        ui: "GameUI",
+        combat: "CombatHelper",
+        task_cfg: dict,
+        at_npc: bool = False,
+        walk_time: Optional[float] = None,
+        monitor: "TextMonitor" = None,
+        nearby_cleaner: "NearbyCleaner" = None,
+    ):
         self.dm = dm
         self.war3 = war3
         self.ui = ui
@@ -87,14 +95,15 @@ class AtomicTaskBase:
     def _on_point_arrival(self, pt: dict, complete_event) -> None:
         """到达路线点后的钩子（子类可覆写，例如施放技能）。"""
         pass
+
     # ── 接取任务 ──────────────────────────────────────────
 
     def _accept(self) -> bool:
-        gt = self.combat.war3_cfg['general_time']
+        gt = self.combat.war3_cfg["general_time"]
         npc = self._npc
-        self.dm.key_press_char('F1')
+        self.dm.key_press_char("F1")
         self._interruptible_wait(gt)
-        coords = npc['coords']
+        coords = npc["coords"]
         offset = npc.get("walk_offset", [0, 0])
         if not self.at_npc:
             wait_time = self.walk_time if self.walk_time is not None else npc.get("time", 5)
@@ -109,7 +118,7 @@ class AtomicTaskBase:
         self.dm.move_to(*coords)
         self._interruptible_wait(gt)
         self.dm.left_click()
-        self._interruptible_wait(self.combat.war3_cfg['small_window_response_time'])
+        self._interruptible_wait(self.combat.war3_cfg["small_window_response_time"])
         # 点击任务技能格
         grid = npc.get(self._task_grid_key, [1, 1])
         sx, sy = self.ui.get_skill_coords(grid[0], grid[1])
@@ -124,7 +133,8 @@ class AtomicTaskBase:
         if self.monitor is not None:
             return self.monitor.wait_for(accept_text, timeout=accept_timeout)
         return self.war3.wait_for_text(
-            prompt_text, accept_text,
+            prompt_text,
+            accept_text,
             timeout=accept_timeout,
             stop_event=self._stop_event,
         )
@@ -142,7 +152,7 @@ class AtomicTaskBase:
         # 组合事件：complete_event 或用户 stop_event 任一触发即中断行走
         combined_event = _CombinedEvent(complete_event, self._stop_event)
         points = self.cfg.get("points", [])
-        gt = self.combat.war3_cfg['general_time']
+        gt = self.combat.war3_cfg["general_time"]
 
         try:
             # 沿路线推进，检测到完成即中断后续路线点
@@ -152,12 +162,13 @@ class AtomicTaskBase:
                 # 定时清理英雄附近物品（在路线点之间执行）
                 if self.nearby_cleaner is not None:
                     self.nearby_cleaner.tick()
-                logger.info(f'走到：{pt.get("desc")}，预计 {pt.get("time", 5)}s')
-                self.dm.key_press_char('F1')
+                logger.info(f"走到：{pt.get('desc')}，预计 {pt.get('time', 5)}s")
+                self.dm.key_press_char("F1")
                 self._interruptible_wait(gt)
                 try:
                     self.war3.move_to_minimap_point(
-                        pt.get("mini_coords"), pt.get("coords"),
+                        pt.get("mini_coords"),
+                        pt.get("coords"),
                         mode=pt.get("walk_mode", 1),
                         wait_time=pt.get("time", 5),
                         stop_event=combined_event,
@@ -179,11 +190,12 @@ class AtomicTaskBase:
             # （移动可能被 complete_event 中断，英雄未必已到达末点）
             if points:
                 last_pt = points[-1]
-                logger.info(f'任务完成，返回NPC附近提交：{last_pt.get("desc")}')
-                self.dm.key_press_char('F1')
+                logger.info(f"任务完成，返回NPC附近提交：{last_pt.get('desc')}")
+                self.dm.key_press_char("F1")
                 self._interruptible_wait(gt)
                 self.war3.move_to_minimap_point(
-                    last_pt.get("mini_coords"), last_pt.get("coords"),
+                    last_pt.get("mini_coords"),
+                    last_pt.get("coords"),
                     mode=last_pt.get("walk_mode", 1),
                     wait_time=last_pt.get("time", 5),
                     stop_event=self._stop_event,

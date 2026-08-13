@@ -6,6 +6,7 @@
 - PatrolLootTask._parse_item_targets / _match_desired / _all_items_satisfied
 - PatrolLootTask._pickup_loop / _pickup_one / _handle_unclickable（mock 依赖）
 """
+
 import sys
 import time
 import unittest
@@ -14,8 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Mock win32com 等大漠依赖，使 3.12 环境能导入 patrol_loot 模块
-for _mod in ("win32com", "win32com.client", "pythoncom", "winreg",
-             "win32gui", "win32con", "win32api"):
+for _mod in ("win32com", "win32com.client", "pythoncom", "winreg", "win32gui", "win32con", "win32api"):
     if _mod not in sys.modules:
         sys.modules[_mod] = MagicMock()
 
@@ -42,8 +42,8 @@ HERO_CFG = {
     ],
 }
 
-class TestGetInventoryHotkey(unittest.TestCase):
 
+class TestGetInventoryHotkey(unittest.TestCase):
     def test_found(self):
         self.assertEqual(get_inventory_hotkey(HERO_CFG, 1), "1")
         self.assertEqual(get_inventory_hotkey(HERO_CFG, 9), "5")
@@ -87,12 +87,14 @@ class TestGetInventoryHotkeys(unittest.TestCase):
 
 
 class TestCombatHelperFeedPet(unittest.TestCase):
-
     def setUp(self):
         self.mock_war3 = MagicMock()
         self.combat = CombatHelper(
-            dm=MagicMock(), war3_cfg={}, hero_cfg=HERO_CFG,
-            cfg={"pet": {"feeding_interval": 8.5}}, war3=self.mock_war3,
+            dm=MagicMock(),
+            war3_cfg={},
+            hero_cfg=HERO_CFG,
+            cfg={"pet": {"feeding_interval": 8.5}},
+            war3=self.mock_war3,
         )
 
     def test_feed_when_interval_passed(self):
@@ -109,8 +111,11 @@ class TestCombatHelperFeedPet(unittest.TestCase):
 
     def test_skip_when_no_pet_food_hotkey(self):
         combat = CombatHelper(
-            dm=MagicMock(), war3_cfg={}, hero_cfg={"inventory": []},
-            cfg={"pet": {"feeding_interval": 1}}, war3=self.mock_war3,
+            dm=MagicMock(),
+            war3_cfg={},
+            hero_cfg={"inventory": []},
+            cfg={"pet": {"feeding_interval": 1}},
+            war3=self.mock_war3,
         )
         task = MagicMock()
         task.pet_feed_time = time.time() - 999
@@ -126,8 +131,11 @@ class TestCombatHelperFeedPet(unittest.TestCase):
             ],
         }
         combat = CombatHelper(
-            dm=MagicMock(), war3_cfg={}, hero_cfg=multi_hero_cfg,
-            cfg={"pet": {"feeding_interval": 1}}, war3=self.mock_war3,
+            dm=MagicMock(),
+            war3_cfg={},
+            hero_cfg=multi_hero_cfg,
+            cfg={"pet": {"feeding_interval": 1}},
+            war3=self.mock_war3,
         )
         task = MagicMock()
         task.pet_feed_time = time.time() - 999
@@ -139,9 +147,9 @@ class TestCombatHelperFeedPet(unittest.TestCase):
 
 
 class TestPatrolLootItemLogic(unittest.TestCase):
-
     def test_parse_new_format(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         items = [{"name": "屠戮者", "count": 3}, {"name": "魔龙之角", "count": 1}]
         targets = PatrolLootTask._parse_item_targets(items)
         self.assertEqual(targets["屠戮者"]["target"], 3)
@@ -149,69 +157,88 @@ class TestPatrolLootItemLogic(unittest.TestCase):
 
     def test_parse_old_format(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         targets = PatrolLootTask._parse_item_targets(["屠戮者", "魔龙之角"])
         self.assertEqual(targets["屠戮者"]["target"], 1)
 
     def test_match_desired_hit(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         targets = PatrolLootTask._parse_item_targets(["屠戮者"])
         # _match_desired 是实例方法，用 unbound 方式调用
         result = PatrolLootTask._match_desired(
-            type('Obj', (), {'item_targets': targets, 'item_text_cfg': {}})(), "【屠戮者】Lv.5")
+            type("Obj", (), {"item_targets": targets, "item_text_cfg": {}})(), "【屠戮者】Lv.5"
+        )
         self.assertEqual(result, "屠戮者")
 
     def test_match_desired_miss(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         targets = PatrolLootTask._parse_item_targets(["屠戮者"])
         result = PatrolLootTask._match_desired(
-            type('Obj', (), {'item_targets': targets, 'item_text_cfg': {}})(), "魔龙之角")
+            type("Obj", (), {"item_targets": targets, "item_text_cfg": {}})(), "魔龙之角"
+        )
         self.assertIsNone(result)
 
     def test_match_desired_already_satisfied(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         targets = PatrolLootTask._parse_item_targets([{"name": "屠戮者", "count": 2}])
         targets["屠戮者"]["picked"] = 2
         result = PatrolLootTask._match_desired(
-            type('Obj', (), {'item_targets': targets, 'item_text_cfg': {}})(), "屠戮者")
+            type("Obj", (), {"item_targets": targets, "item_text_cfg": {}})(), "屠戮者"
+        )
         self.assertIsNone(result)
 
     def test_all_items_satisfied_true(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         targets = PatrolLootTask._parse_item_targets([{"name": "A", "count": 2}, {"name": "B", "count": 1}])
         targets["A"]["picked"] = 2
         targets["B"]["picked"] = 1
-        obj = type('Obj', (), {'item_targets': targets})()
+        obj = type("Obj", (), {"item_targets": targets})()
         self.assertTrue(PatrolLootTask._all_items_satisfied(obj))
 
     def test_all_items_satisfied_false(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         targets = PatrolLootTask._parse_item_targets([{"name": "A", "count": 2}])
         targets["A"]["picked"] = 1
-        obj = type('Obj', (), {'item_targets': targets})()
+        obj = type("Obj", (), {"item_targets": targets})()
         self.assertFalse(PatrolLootTask._all_items_satisfied(obj))
 
     def test_all_items_satisfied_empty(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
-        obj = type('Obj', (), {'item_targets': {}})()
+
+        obj = type("Obj", (), {"item_targets": {}})()
         self.assertFalse(PatrolLootTask._all_items_satisfied(obj))
 
     def test_match_desired_with_char_fixes(self):
         """char_fixes 纠错后再匹配目标物品。"""
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         targets = PatrolLootTask._parse_item_targets(["白眼魔盔"])
-        obj = type('Obj', (), {
-            'item_targets': targets,
-            'item_text_cfg': {'char_fixes': {'廣': '魔', '磨': '魔'}},
-        })()
+        obj = type(
+            "Obj",
+            (),
+            {
+                "item_targets": targets,
+                "item_text_cfg": {"char_fixes": {"廣": "魔", "磨": "魔"}},
+            },
+        )()
         # OCR 误识别 "魔" 为 "廣"，纠错后应匹配
         self.assertEqual(PatrolLootTask._match_desired(obj, "白眼廣盔"), "白眼魔盔")
         # 正确识别也应匹配
         self.assertEqual(PatrolLootTask._match_desired(obj, "白眼魔盔"), "白眼魔盔")
         # 无 char_fixes 时不纠错
-        obj_no_fix = type('Obj', (), {
-            'item_targets': targets,
-            'item_text_cfg': {},
-        })()
+        obj_no_fix = type(
+            "Obj",
+            (),
+            {
+                "item_targets": targets,
+                "item_text_cfg": {},
+            },
+        )()
         self.assertIsNone(PatrolLootTask._match_desired(obj_no_fix, "白眼廣盔"))
 
 
@@ -221,10 +248,14 @@ class TestPatrolLootConfigDefaults(unittest.TestCase):
     def _make_task(self, cfg_override=None, chest_override=None):
         """构造一个最小可用的 PatrolLootTask 实例（不触发 DmClient 初始化）。"""
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         cfg = {
             "war3": {"jiubing2": {"tasks": {"others": {"patrol_loot": {}}}}},
-            "hero": {}, "chest": {}, "item_text": {},
-            "pickup": {}, "combat_status": {},
+            "hero": {},
+            "chest": {},
+            "item_text": {},
+            "pickup": {},
+            "combat_status": {},
         }
         if cfg_override:
             cfg["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"].update(cfg_override)
@@ -243,13 +274,12 @@ class TestPatrolLootConfigDefaults(unittest.TestCase):
         task.combat_cfg = cfg["combat_status"]
         task.hwnd = None
         task.pet_feed_time = time.time()
-        task.item_targets = PatrolLootTask._parse_item_targets(
-            task.cfg.get('desired_items', []))
+        task.item_targets = PatrolLootTask._parse_item_targets(task.cfg.get("desired_items", []))
         task.storage_full = False
-        task.hover_wait_time = task.chest_cfg.get('hover_wait_time', 1.5)
-        task.mouse_avoid_pos = task.cfg.get('mouse_avoid_pos', [200, 200])
-        task.feed_only_interval = task.cfg.get('feed_only_interval', 10)
-        task.combat_timeout = task.cfg.get('combat_timeout', 120)
+        task.hover_wait_time = task.chest_cfg.get("hover_wait_time", 1.5)
+        task.mouse_avoid_pos = task.cfg.get("mouse_avoid_pos", [200, 200])
+        task.feed_only_interval = task.cfg.get("feed_only_interval", 10)
+        task.combat_timeout = task.cfg.get("combat_timeout", 120)
         return task
 
     def test_defaults(self):
@@ -260,11 +290,14 @@ class TestPatrolLootConfigDefaults(unittest.TestCase):
         self.assertEqual(task.combat_timeout, 120)
 
     def test_custom_values(self):
-        task = self._make_task({
-            "mouse_avoid_pos": [100, 100],
-            "feed_only_interval": 30,
-            "combat_timeout": 60,
-        }, chest_override={"hover_wait_time": 2.0})
+        task = self._make_task(
+            {
+                "mouse_avoid_pos": [100, 100],
+                "feed_only_interval": 30,
+                "combat_timeout": 60,
+            },
+            chest_override={"hover_wait_time": 2.0},
+        )
         self.assertEqual(task.hover_wait_time, 2.0)
         self.assertEqual(task.mouse_avoid_pos, [100, 100])
         self.assertEqual(task.feed_only_interval, 30)
@@ -274,8 +307,8 @@ class TestPatrolLootConfigDefaults(unittest.TestCase):
         """_read_item_name 的默认 offset_y/area_height 应与 jiubing2.toml 一致。"""
         task = self._make_task()
         # item_text_cfg 为空时，应使用与 jiubing2.toml [item_text] 一致的默认值
-        self.assertEqual(task.item_text_cfg.get('offset_y', 50), 50)
-        self.assertEqual(task.item_text_cfg.get('area_height', 60), 60)
+        self.assertEqual(task.item_text_cfg.get("offset_y", 50), 50)
+        self.assertEqual(task.item_text_cfg.get("area_height", 60), 60)
 
 
 class TestPatrolLootPickupLoop(unittest.TestCase):
@@ -283,10 +316,14 @@ class TestPatrolLootPickupLoop(unittest.TestCase):
 
     def _make_task(self, desired_items=None):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         cfg = {
             "war3": {"jiubing2": {"tasks": {"others": {"patrol_loot": {}}}}, "key_time": 0.1},
             "hero": {"inventory": [{"id": 0, "hotkey": "6"}]},
-            "chest": {}, "item_text": {}, "pickup": {}, "combat_status": {},
+            "chest": {},
+            "item_text": {},
+            "pickup": {},
+            "combat_status": {},
             "command": {"clear_nearby": "-clear"},
         }
         if desired_items:
@@ -303,8 +340,7 @@ class TestPatrolLootPickupLoop(unittest.TestCase):
         task.combat_cfg = cfg["combat_status"]
         task.hwnd = None
         task.pet_feed_time = time.time()
-        task.item_targets = PatrolLootTask._parse_item_targets(
-            task.cfg.get('desired_items', []))
+        task.item_targets = PatrolLootTask._parse_item_targets(task.cfg.get("desired_items", []))
         task.storage_full = False
         task.hover_wait_time = 0
         task.mouse_avoid_pos = [200, 200]
@@ -314,9 +350,14 @@ class TestPatrolLootPickupLoop(unittest.TestCase):
         task.war3 = MagicMock()
         task.combat = MagicMock()
         task._stats = {
-            'start_time': 0, 'rounds_completed': 0, 'chests_detected': 0,
-            'items_picked': {}, 'items_skipped': 0, 'non_target_names': [],
-            'combat_wait_total': 0, 'feed_count': 0,
+            "start_time": 0,
+            "rounds_completed": 0,
+            "chests_detected": 0,
+            "items_picked": {},
+            "items_skipped": 0,
+            "non_target_names": [],
+            "combat_wait_total": 0,
+            "feed_count": 0,
         }
         task._progress_lines_callback = None
         return task
@@ -327,7 +368,7 @@ class TestPatrolLootPickupLoop(unittest.TestCase):
         task._find_all_chests = MagicMock(return_value=[])
         task._wait_non_combat = MagicMock()
         task._pickup_loop(MagicMock())
-        self.assertEqual(task._stats['chests_detected'], 0)
+        self.assertEqual(task._stats["chests_detected"], 0)
 
     def test_all_items_satisfied_skips_loop(self):
         """所有物品已满足时跳过拾取。"""
@@ -347,7 +388,7 @@ class TestPatrolLootPickupLoop(unittest.TestCase):
         task._wait_non_combat = MagicMock()
         task._pickup_loop(MagicMock())
         self.assertEqual(task.item_targets["屠戮者"]["picked"], 1)
-        self.assertEqual(task._stats['items_picked']["屠戮者"], 1)
+        self.assertEqual(task._stats["items_picked"]["屠戮者"], 1)
 
     def test_non_target_item_skipped(self):
         """非目标物品加入 checked 列表，items_skipped+1。"""
@@ -358,7 +399,7 @@ class TestPatrolLootPickupLoop(unittest.TestCase):
         task._wait_non_combat = MagicMock()
         task._pickup_loop(MagicMock())
         task._pickup_one.assert_not_called()
-        self.assertEqual(task._stats['items_skipped'], 1)
+        self.assertEqual(task._stats["items_skipped"], 1)
 
     def test_storage_full_stops_loop(self):
         """储物箱满时设置 storage_full 并退出。"""
@@ -405,7 +446,7 @@ class TestPatrolLootPickupLoop(unittest.TestCase):
         task._wait_non_combat = MagicMock()
         task._pickup_loop(MagicMock())
         task._pickup_one.assert_not_called()
-        self.assertEqual(task._stats['items_skipped'], 1)
+        self.assertEqual(task._stats["items_skipped"], 1)
 
 
 class TestPatrolLootPickupOne(unittest.TestCase):
@@ -413,6 +454,7 @@ class TestPatrolLootPickupOne(unittest.TestCase):
 
     def _make_task(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         cfg = {
             "war3": {"jiubing2": {"tasks": {"others": {"patrol_loot": {}}}}, "key_time": 0.1},
             "hero": {"inventory": [{"id": 0, "hotkey": "6"}]},
@@ -467,6 +509,7 @@ class TestPatrolLootHandleUnclickable(unittest.TestCase):
 
     def _make_task(self, max_retries=3, retry_interval=0):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         cfg = {
             "war3": {"jiubing2": {"tasks": {"others": {"patrol_loot": {}}}}},
             "hero": {},
@@ -519,10 +562,13 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
 
     def _make_task(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         cfg = {
             "war3": {"jiubing2": {"tasks": {"others": {"patrol_loot": {}}}}, "key_time": 0.1},
             "hero": {},
-            "chest": {}, "item_text": {"char_fixes": {"廣": "魔"}}, "pickup": {},
+            "chest": {},
+            "item_text": {"char_fixes": {"廣": "魔"}},
+            "pickup": {},
         }
         task = PatrolLootTask.__new__(PatrolLootTask)
         task.task_cfg = cfg
@@ -539,7 +585,9 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
         task.item_targets = PatrolLootTask._parse_item_targets([{"name": "白眼魔盔", "count": 2}])
         task.dm = MagicMock()
         task._stats = {
-            'items_picked': {}, 'items_skipped': 0, 'non_target_names': [],
+            "items_picked": {},
+            "items_skipped": 0,
+            "non_target_names": [],
         }
         task._progress_lines_callback = None
         return task
@@ -552,7 +600,7 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
         task._pickup_one = MagicMock()
         result = task._try_pickup_chest(0, 100, 200, 0.9, MagicMock())
         self.assertIsNone(result)
-        self.assertEqual(task._stats['items_skipped'], 1)
+        self.assertEqual(task._stats["items_skipped"], 1)
         task._pickup_one.assert_not_called()
 
     @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
@@ -562,7 +610,7 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
         task._read_item_name = MagicMock(return_value="")
         result = task._try_pickup_chest(0, 100, 200, 0.9, MagicMock())
         self.assertIsNone(result)
-        self.assertEqual(task._stats['items_skipped'], 1)
+        self.assertEqual(task._stats["items_skipped"], 1)
 
     @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
     def test_picked_success(self, mock_sleep):
@@ -573,7 +621,7 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
         result = task._try_pickup_chest(0, 100, 200, 0.9, MagicMock())
         self.assertTrue(result)
         self.assertEqual(task.item_targets["白眼魔盔"]["picked"], 1)
-        self.assertEqual(task._stats['items_picked']["白眼魔盔"], 1)
+        self.assertEqual(task._stats["items_picked"]["白眼魔盔"], 1)
 
     @patch("GameBot.runner.tasks.war3.jiubing2.others.patrol_loot.time.sleep")
     def test_storage_full_sets_flag(self, mock_sleep):
@@ -615,41 +663,43 @@ class TestPatrolLootTryPickupChest(unittest.TestCase):
         task._pickup_one = MagicMock(return_value="picked")
         result = task._try_pickup_chest(0, 100, 200, 0.9, MagicMock())
         self.assertTrue(result)
-        self.assertEqual(task._stats['items_picked']["白眼魔盔"], 1)
+        self.assertEqual(task._stats["items_picked"]["白眼魔盔"], 1)
 
 
 class TestPatrolLootMarkPicked(unittest.TestCase):
-
     def test_mark_picked_updates_count_and_stats(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         task = PatrolLootTask.__new__(PatrolLootTask)
-        task.item_targets = {"A": {'target': 3, 'picked': 1}}
-        task._stats = {'items_picked': {}, 'items_skipped': 0}
+        task.item_targets = {"A": {"target": 3, "picked": 1}}
+        task._stats = {"items_picked": {}, "items_skipped": 0}
         task._progress_lines_callback = None
         task._mark_picked("A", "A")
         self.assertEqual(task.item_targets["A"]["picked"], 2)
-        self.assertEqual(task._stats['items_picked']["A"], 1)
+        self.assertEqual(task._stats["items_picked"]["A"], 1)
 
     def test_mark_picked_accumulates_stats(self):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         task = PatrolLootTask.__new__(PatrolLootTask)
-        task.item_targets = {"A": {'target': 3, 'picked': 0}}
-        task._stats = {'items_picked': {"A": 1}, 'items_skipped': 0}
+        task.item_targets = {"A": {"target": 3, "picked": 0}}
+        task._stats = {"items_picked": {"A": 1}, "items_skipped": 0}
         task._progress_lines_callback = None
         task._mark_picked("A", "A")
-        self.assertEqual(task._stats['items_picked']["A"], 2)
+        self.assertEqual(task._stats["items_picked"]["A"], 2)
 
     def test_mark_picked_uses_matched_item_for_stats(self):
         """stats key 应使用 matched_item（目标名）而非原始 OCR 文本。"""
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         task = PatrolLootTask.__new__(PatrolLootTask)
-        task.item_targets = {"白眼魔盔": {'target': 2, 'picked': 0}}
-        task._stats = {'items_picked': {}, 'items_skipped': 0}
+        task.item_targets = {"白眼魔盔": {"target": 2, "picked": 0}}
+        task._stats = {"items_picked": {}, "items_skipped": 0}
         task._progress_lines_callback = None
         # OCR 返回 "白眼廣盔"，但 matched_item 为 "白眼魔盔"
         task._mark_picked("白眼魔盔", "白眼廣盔")
-        self.assertEqual(task._stats['items_picked']["白眼魔盔"], 1)
-        self.assertNotIn("白眼廣盔", task._stats['items_picked'])
+        self.assertEqual(task._stats["items_picked"]["白眼魔盔"], 1)
+        self.assertNotIn("白眼廣盔", task._stats["items_picked"])
 
 
 if __name__ == "__main__":

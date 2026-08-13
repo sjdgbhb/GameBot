@@ -2,6 +2,7 @@
 
 供 tests/unit/ 下所有配置相关测试复用，减少重复代码。
 """
+
 import json
 import shutil
 import tempfile
@@ -32,16 +33,23 @@ def make_test_config_dir() -> Path:
     tmp = Path(tempfile.mkdtemp(prefix="jiubing2_test_cfg_"))
 
     # base.toml — 基础配置，无依赖
-    write_toml(tmp, "base.toml", """
+    write_toml(
+        tmp,
+        "base.toml",
+        """
 [paths]
 log_path = "logs"
 
 [dm]
 version = "3.1233"
-""")
+""",
+    )
 
     # war3/war3.toml — 依赖 base
-    write_toml(tmp, "war3/war3.toml", """
+    write_toml(
+        tmp,
+        "war3/war3.toml",
+        """
 dependencies = ["base"]
 
 [war3]
@@ -50,10 +58,14 @@ window_title = "Warcraft III"
 client_size = [1902, 1033]
 key_time = 0.05
 general_time = 0.3
-""")
+""",
+    )
 
     # war3/jiubing2/base.toml — 依赖 war3
-    write_toml(tmp, "war3/jiubing2/base.toml", """
+    write_toml(
+        tmp,
+        "war3/jiubing2/base.toml",
+        """
 dependencies = ["war3"]
 
 [game]
@@ -64,63 +76,92 @@ clear_nearby = "-delh"
 
 [hero]
 inventory = ["A", "B", "C"]
-""")
+""",
+    )
 
     # war3/jiubing2/heroes/mk.toml — 英雄配置
-    write_toml(tmp, "war3/jiubing2/heroes/mk.toml", """
+    write_toml(
+        tmp,
+        "war3/jiubing2/heroes/mk.toml",
+        """
 [hero]
 inventory = ["D", "E", "F"]
 attack = 100
-""")
+""",
+    )
 
     # war3/jiubing2/heroes/lancer.toml — 另一个英雄
-    write_toml(tmp, "war3/jiubing2/heroes/lancer.toml", """
+    write_toml(
+        tmp,
+        "war3/jiubing2/heroes/lancer.toml",
+        """
 [hero]
 inventory = ["G", "H", "I"]
 attack = 80
 defense = 50
-""")
+""",
+    )
 
     # war3/jiubing2/tasks/others/fishing.toml
-    write_toml(tmp, "war3/jiubing2/tasks/others/fishing.toml", """
+    write_toml(
+        tmp,
+        "war3/jiubing2/tasks/others/fishing.toml",
+        """
 dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
 [war3.jiubing2.tasks.others.fishing]
 name = "钓鱼"
 task_times = 5
 loop_interval_time = 2.0
-""")
+""",
+    )
 
     # war3/jiubing2/tasks/others/patrol_loot.toml
-    write_toml(tmp, "war3/jiubing2/tasks/others/patrol_loot.toml", """
+    write_toml(
+        tmp,
+        "war3/jiubing2/tasks/others/patrol_loot.toml",
+        """
 dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]
 
 [war3.jiubing2.tasks.others.patrol_loot]
 name = "巡逻拾取"
 task_times = 3
 patrol_rounds = 10
-""")
+""",
+    )
 
     # war3/jiubing2/tasks/endless/endless_single.toml
-    write_toml(tmp, "war3/jiubing2/tasks/endless/endless_single.toml", """
+    write_toml(
+        tmp,
+        "war3/jiubing2/tasks/endless/endless_single.toml",
+        """
 dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
 [war3.jiubing2.tasks.endless.endless_single]
 name = "单局无尽"
 task_times = 1
-""")
+""",
+    )
 
     # 循环依赖测试文件
-    write_toml(tmp, "circular_a.toml", """
+    write_toml(
+        tmp,
+        "circular_a.toml",
+        """
 dependencies = ["circular_b"]
 [x]
 val = 1
-""")
-    write_toml(tmp, "circular_b.toml", """
+""",
+    )
+    write_toml(
+        tmp,
+        "circular_b.toml",
+        """
 dependencies = ["circular_a"]
 [y]
 val = 2
-""")
+""",
+    )
 
     return tmp
 

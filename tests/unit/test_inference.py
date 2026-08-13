@@ -6,11 +6,12 @@
 - client: InferenceClient 请求/响应/重连逻辑（mock 子进程）
 - ocr_compat: OCR 兼容层
 """
+
 import unittest
 from unittest.mock import MagicMock, patch
 
-import pytest
 import numpy as np
+import pytest
 from PIL import Image
 
 pytestmark = [pytest.mark.unit, pytest.mark.inference]
@@ -22,6 +23,7 @@ class TestChestDetectorLetterbox(unittest.TestCase):
     def test_letterbox_square(self):
         """正方形图片无需填充，直接缩放。"""
         from GameBot.inference.chest_detector import _letterbox
+
         img = Image.new("RGB", (100, 100))
         result, scale, pad_x, pad_y = _letterbox(img, 200)
         self.assertEqual(result.size, (200, 200))
@@ -32,6 +34,7 @@ class TestChestDetectorLetterbox(unittest.TestCase):
     def test_letterbox_landscape(self):
         """宽图应上下填充灰色。"""
         from GameBot.inference.chest_detector import _letterbox
+
         img = Image.new("RGB", (200, 100))
         result, scale, pad_x, pad_y = _letterbox(img, 100)
         self.assertEqual(result.size, (100, 100))
@@ -42,6 +45,7 @@ class TestChestDetectorLetterbox(unittest.TestCase):
     def test_letterbox_portrait(self):
         """高图应左右填充灰色。"""
         from GameBot.inference.chest_detector import _letterbox
+
         img = Image.new("RGB", (100, 200))
         result, scale, pad_x, pad_y = _letterbox(img, 100)
         self.assertEqual(result.size, (100, 100))
@@ -52,6 +56,7 @@ class TestChestDetectorLetterbox(unittest.TestCase):
     def test_letterbox_pad_color(self):
         """填充区域应为灰色 (114, 114, 114)。"""
         from GameBot.inference.chest_detector import PAD_COLOR, _letterbox
+
         img = Image.new("RGB", (200, 100), (255, 0, 0))
         result, scale, pad_x, pad_y = _letterbox(img, 100)
         # 检查填充区域颜色
@@ -61,6 +66,7 @@ class TestChestDetectorLetterbox(unittest.TestCase):
     def test_letterbox_no_upscale_needed(self):
         """图片恰好等于目标尺寸时无需缩放。"""
         from GameBot.inference.chest_detector import _letterbox
+
         img = Image.new("RGB", (1280, 1280))
         result, scale, pad_x, pad_y = _letterbox(img, 1280)
         self.assertEqual(result.size, (1280, 1280))
@@ -75,6 +81,7 @@ class TestChestDetectorNMS(unittest.TestCase):
     def test_nms_empty(self):
         """空输入应返回空列表。"""
         from GameBot.inference.chest_detector import _nms
+
         boxes = np.array([]).reshape(0, 4)
         scores = np.array([])
         result = _nms(boxes, scores, 0.5)
@@ -83,6 +90,7 @@ class TestChestDetectorNMS(unittest.TestCase):
     def test_nms_single_box(self):
         """单个框应直接保留。"""
         from GameBot.inference.chest_detector import _nms
+
         boxes = np.array([[10, 10, 50, 50]])
         scores = np.array([0.9])
         result = _nms(boxes, scores, 0.5)
@@ -91,11 +99,14 @@ class TestChestDetectorNMS(unittest.TestCase):
     def test_nms_no_overlap(self):
         """不重叠的框应全部保留。"""
         from GameBot.inference.chest_detector import _nms
-        boxes = np.array([
-            [0, 0, 10, 10],
-            [100, 100, 110, 110],
-            [200, 200, 210, 210],
-        ])
+
+        boxes = np.array(
+            [
+                [0, 0, 10, 10],
+                [100, 100, 110, 110],
+                [200, 200, 210, 210],
+            ]
+        )
         scores = np.array([0.9, 0.8, 0.7])
         result = _nms(boxes, scores, 0.5)
         self.assertEqual(len(result), 3)
@@ -103,10 +114,13 @@ class TestChestDetectorNMS(unittest.TestCase):
     def test_nms_high_overlap_suppressed(self):
         """高重叠低分框应被抑制。"""
         from GameBot.inference.chest_detector import _nms
-        boxes = np.array([
-            [10, 10, 50, 50],
-            [12, 12, 52, 52],  # 与第一个框高度重叠
-        ])
+
+        boxes = np.array(
+            [
+                [10, 10, 50, 50],
+                [12, 12, 52, 52],  # 与第一个框高度重叠
+            ]
+        )
         scores = np.array([0.9, 0.8])
         result = _nms(boxes, scores, 0.3)
         self.assertEqual(len(result), 1)
@@ -115,10 +129,13 @@ class TestChestDetectorNMS(unittest.TestCase):
     def test_nms_low_threshold_keeps_all(self):
         """IoU 阈值很低时重叠框也被保留。"""
         from GameBot.inference.chest_detector import _nms
-        boxes = np.array([
-            [10, 10, 50, 50],
-            [12, 12, 52, 52],
-        ])
+
+        boxes = np.array(
+            [
+                [10, 10, 50, 50],
+                [12, 12, 52, 52],
+            ]
+        )
         scores = np.array([0.9, 0.8])
         result = _nms(boxes, scores, 0.95)  # IoU < 0.95，都保留
         self.assertEqual(len(result), 2)
@@ -126,11 +143,14 @@ class TestChestDetectorNMS(unittest.TestCase):
     def test_nms_keeps_highest_score(self):
         """NMS 应优先保留得分最高的框。"""
         from GameBot.inference.chest_detector import _nms
-        boxes = np.array([
-            [10, 10, 50, 50],
-            [12, 12, 52, 52],
-            [100, 100, 140, 140],
-        ])
+
+        boxes = np.array(
+            [
+                [10, 10, 50, 50],
+                [12, 12, 52, 52],
+                [100, 100, 140, 140],
+            ]
+        )
         scores = np.array([0.7, 0.95, 0.8])  # 第二个框得分最高
         result = _nms(boxes, scores, 0.3)
         # 前两个框高度重叠，保留得分更高的第二个
@@ -159,6 +179,7 @@ class TestChestDetectorDetect(unittest.TestCase):
         mock_session.return_value = self._make_mock_session(np.zeros((1, 5, 1), dtype=np.float32))
 
         from GameBot.inference.chest_detector import detect_chests
+
         img = Image.new("RGB", (800, 600))
         result = detect_chests(img)
         self.assertEqual(result, [])
@@ -174,6 +195,7 @@ class TestChestDetectorDetect(unittest.TestCase):
         mock_session.return_value = self._make_mock_session(fake_output)
 
         from GameBot.inference.chest_detector import detect_chests
+
         img = Image.new("RGB", (800, 600))
         result = detect_chests(img)
         self.assertEqual(len(result), 1)
@@ -196,6 +218,7 @@ class TestChestDetectorDetect(unittest.TestCase):
         mock_session.return_value = self._make_mock_session(fake_output)
 
         from GameBot.inference.chest_detector import detect_chests
+
         img = Image.new("RGB", (800, 600))
         result = detect_chests(img)
         self.assertEqual(result, [])
@@ -217,6 +240,7 @@ class TestCombatDetector(unittest.TestCase):
         """战斗中（prob > threshold）应返回 True。"""
         mock_session.return_value = self._make_combat_session(np.array([0.9]))
         from GameBot.inference.combat_detector import predict_combat
+
         img = Image.new("RGB", (87, 61))
         self.assertTrue(predict_combat(img))
 
@@ -227,6 +251,7 @@ class TestCombatDetector(unittest.TestCase):
         """非战斗（prob <= threshold）应返回 False。"""
         mock_session.return_value = self._make_combat_session(np.array([0.3]))
         from GameBot.inference.combat_detector import predict_combat
+
         img = Image.new("RGB", (87, 61))
         self.assertFalse(predict_combat(img))
 
@@ -237,6 +262,7 @@ class TestCombatDetector(unittest.TestCase):
         """prob 恰好等于阈值时应返回 False（> 而非 >=）。"""
         mock_session.return_value = self._make_combat_session(np.array([0.5]))
         from GameBot.inference.combat_detector import predict_combat
+
         img = Image.new("RGB", (87, 61))
         self.assertFalse(predict_combat(img))
 
@@ -246,6 +272,7 @@ class TestCombatDetector(unittest.TestCase):
     def test_predict_combat_batch_empty(self, mock_thresh, mock_size, mock_session):
         """空列表应直接返回空列表，不调用模型。"""
         from GameBot.inference.combat_detector import predict_combat_batch
+
         self.assertEqual(predict_combat_batch([]), [])
         mock_session.assert_not_called()
 
@@ -256,6 +283,7 @@ class TestCombatDetector(unittest.TestCase):
         """批量预测应返回与输入数量相同的结果。"""
         mock_session.return_value = self._make_combat_session(np.array([[0.9], [0.1], [0.8]]))
         from GameBot.inference.combat_detector import predict_combat_batch
+
         imgs = [Image.new("RGB", (87, 61)) for _ in range(3)]
         result = predict_combat_batch(imgs)
         self.assertEqual(len(result), 3)
@@ -270,6 +298,7 @@ class TestInferenceClient(unittest.TestCase):
     def test_ocr_screen_success(self):
         """OCR 请求应正确发送 cmd 并解析响应。"""
         from GameBot.inference.client import InferenceClient
+
         client = InferenceClient()
         client._proc = MagicMock()
         client._proc.poll.return_value = None  # 进程存活
@@ -282,6 +311,7 @@ class TestInferenceClient(unittest.TestCase):
         # 验证发送的 payload
         sent = client._proc.stdin.write.call_args[0][0]
         import json
+
         payload = json.loads(sent)
         self.assertEqual(payload["cmd"], "ocr")
         self.assertEqual(payload["bbox"], [0, 0, 100, 100])
@@ -289,6 +319,7 @@ class TestInferenceClient(unittest.TestCase):
     def test_ocr_screen_error_response(self):
         """OCR 返回 error 时应返回空字符串。"""
         from GameBot.inference.client import InferenceClient
+
         client = InferenceClient()
         client._proc = MagicMock()
         client._proc.poll.return_value = None
@@ -301,12 +332,11 @@ class TestInferenceClient(unittest.TestCase):
     def test_detect_chests_success(self):
         """宝箱检测应返回坐标元组列表。"""
         from GameBot.inference.client import InferenceClient
+
         client = InferenceClient()
         client._proc = MagicMock()
         client._proc.poll.return_value = None
-        client._proc.stdout.readline.return_value = (
-            '{"chests": [[10, 20, 30, 40, 0.9], [50, 60, 70, 80, 0.8]]}\n'
-        )
+        client._proc.stdout.readline.return_value = '{"chests": [[10, 20, 30, 40, 0.9], [50, 60, 70, 80, 0.8]]}\n'
 
         with patch.object(client, "start"):
             result = client.detect_chests("/tmp/test.bmp")
@@ -317,6 +347,7 @@ class TestInferenceClient(unittest.TestCase):
     def test_detect_chests_error_returns_empty(self):
         """宝箱检测返回 error 时应返回空列表。"""
         from GameBot.inference.client import InferenceClient
+
         client = InferenceClient()
         client._proc = MagicMock()
         client._proc.poll.return_value = None
@@ -329,6 +360,7 @@ class TestInferenceClient(unittest.TestCase):
     def test_predict_combat_batch_empty_input(self):
         """空输入列表应直接返回空列表。"""
         from GameBot.inference.client import InferenceClient
+
         client = InferenceClient()
         result = client.predict_combat_batch([])
         self.assertEqual(result, [])
@@ -336,6 +368,7 @@ class TestInferenceClient(unittest.TestCase):
     def test_predict_combat_batch_success(self):
         """批量战斗检测应返回布尔列表。"""
         from GameBot.inference.client import InferenceClient
+
         client = InferenceClient()
         client._proc = MagicMock()
         client._proc.poll.return_value = None
@@ -348,6 +381,7 @@ class TestInferenceClient(unittest.TestCase):
     def test_predict_combat_batch_error_returns_false(self):
         """战斗检测返回 error 时应全部返回 False。"""
         from GameBot.inference.client import InferenceClient
+
         client = InferenceClient()
         client._proc = MagicMock()
         client._proc.poll.return_value = None
@@ -360,6 +394,7 @@ class TestInferenceClient(unittest.TestCase):
     def test_ocr_lines_success(self):
         """ocr_lines 应返回逐行结果列表。"""
         from GameBot.inference.client import InferenceClient
+
         client = InferenceClient()
         client._proc = MagicMock()
         client._proc.poll.return_value = None
@@ -376,6 +411,7 @@ class TestInferenceClient(unittest.TestCase):
     def test_request_retry_on_broken_pipe(self):
         """管道断裂时应自动重启并重试一次。"""
         from GameBot.inference.client import InferenceClient
+
         client = InferenceClient()
         client._proc = MagicMock()
         client._proc.poll.return_value = None
@@ -391,6 +427,7 @@ class TestInferenceClient(unittest.TestCase):
     def test_request_retry_on_empty_response(self):
         """子进程无响应时应自动重启并重试一次。"""
         from GameBot.inference.client import InferenceClient
+
         client = InferenceClient()
         client._proc = MagicMock()
         client._proc.poll.return_value = None
@@ -405,6 +442,7 @@ class TestInferenceClient(unittest.TestCase):
     def test_request_fails_after_retry(self):
         """重试后仍失败应抛出 RuntimeError。"""
         from GameBot.inference.client import InferenceClient
+
         client = InferenceClient()
         client._proc = MagicMock()
         client._proc.poll.return_value = None
@@ -418,6 +456,7 @@ class TestInferenceClient(unittest.TestCase):
     def test_close_sends_quit_command(self):
         """close 应发送 quit 命令并等待子进程退出。"""
         from GameBot.inference.client import InferenceClient
+
         client = InferenceClient()
         proc = MagicMock()
         client._proc = proc
@@ -428,12 +467,14 @@ class TestInferenceClient(unittest.TestCase):
         # 验证发送了 quit 命令
         sent = proc.stdin.write.call_args[0][0]
         import json
+
         payload = json.loads(sent)
         self.assertEqual(payload["cmd"], "quit")
 
     def test_close_kills_on_timeout(self):
         """close 超时应 kill 子进程。"""
         from GameBot.inference.client import InferenceClient
+
         client = InferenceClient()
         proc = MagicMock()
         client._proc = proc
@@ -454,6 +495,7 @@ class TestInferenceClientBuildConfig(unittest.TestCase):
         mock_config.project_root = "/fake/project"
 
         from GameBot.inference.client import _build_worker_config
+
         cfg = _build_worker_config(load_chest=True, load_combat=True)
         self.assertTrue(cfg["load_chest"])
         self.assertTrue(cfg["load_combat"])
@@ -470,6 +512,7 @@ class TestInferenceClientBuildConfig(unittest.TestCase):
         mock_config.project_root = "/fake/project"
 
         from GameBot.inference.client import _build_worker_config
+
         cfg = _build_worker_config(load_chest=False, load_combat=False)
         self.assertFalse(cfg["load_chest"])
         self.assertFalse(cfg["load_combat"])

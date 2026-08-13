@@ -1,7 +1,8 @@
-﻿"""
+"""
 测试 NPC 坐标准确性：点击小地图 → 鼠标移动到 coords → 观察是否到达目标位置。
 用法：.venv-dm/Scripts/python.exe tests/test_npc_coords.py
 """
+
 import time
 
 from GameBot.config import config
@@ -11,8 +12,8 @@ from GameBot.runner.business.war3 import War3Business
 
 def main():
     # 要测试的坐标
-    mini_coords = [150,897]
-    coords = [957,399]
+    mini_coords = [150, 897]
+    coords = [957, 399]
 
     print(f"测试坐标：mini_coords={mini_coords}, coords={coords}")
     print("3 秒后开始，请切换到魔兽窗口...")

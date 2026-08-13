@@ -11,6 +11,7 @@
 - GET /api/running
 - services 层辅助函数
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -25,20 +26,28 @@ class TestInitEndpoint:
 
     def test_init_returns_all_data(self, web_client, monkeypatch):
         """init 接口应返回任务、英雄、物品、可刷物品、指令、用户配置。"""
-        monkeypatch.setattr(services, "load_tasks", lambda: [
-            {
-                "id": "others.fishing",
-                "name": "钓鱼",
-                "short_id": "fishing",
-                "category": "others",
-                "icon": "🎣",
-                "description": "",
-                "configurable": False,
-            },
-        ])
-        monkeypatch.setattr(services, "load_heroes", lambda: [
-            {"id": "paladin", "name": "圣骑士", "floor_key": "P", "inventory": [], "skills": []},
-        ])
+        monkeypatch.setattr(
+            services,
+            "load_tasks",
+            lambda: [
+                {
+                    "id": "others.fishing",
+                    "name": "钓鱼",
+                    "short_id": "fishing",
+                    "category": "others",
+                    "icon": "🎣",
+                    "description": "",
+                    "configurable": False,
+                },
+            ],
+        )
+        monkeypatch.setattr(
+            services,
+            "load_heroes",
+            lambda: [
+                {"id": "paladin", "name": "圣骑士", "floor_key": "P", "inventory": [], "skills": []},
+            ],
+        )
         monkeypatch.setattr(services, "load_items", lambda: [{"id": 1, "name": "铁剑"}])
         monkeypatch.setattr(services, "load_farmable_items", lambda: ["铁剑", "银甲"])
         monkeypatch.setattr(services, "load_commands", lambda: [{"key": "attack", "cmd": "a"}])
@@ -59,8 +68,7 @@ class TestInitEndpoint:
 
     def test_init_empty_data(self, web_client, monkeypatch):
         """空数据时 init 应返回空列表/空字典，不报错。"""
-        for name in ("load_tasks", "load_heroes", "load_items",
-                     "load_farmable_items", "load_commands"):
+        for name in ("load_tasks", "load_heroes", "load_items", "load_farmable_items", "load_commands"):
             monkeypatch.setattr(services, name, lambda: [])
         monkeypatch.setattr(services, "load_user_configs", lambda: {})
 
@@ -94,6 +102,7 @@ class TestSaveConfigEndpoint:
 
     def test_save_config_failure(self, web_client, monkeypatch):
         """保存失败应返回 ok=False 和错误信息。"""
+
         def _raise(_):
             raise IOError("磁盘已满")
 
@@ -111,13 +120,17 @@ class TestSchemaEndpoint:
 
     def test_schema_found(self, web_client, monkeypatch):
         """存在的任务 schema 应返回完整结构。"""
-        monkeypatch.setattr(services, "get_task_schema", lambda _: {
-            "id": "patrol_loot",
-            "name": "刷装备",
-            "description": "巡逻刷装备",
-            "sections": [{"key": "hero", "title": "选择英雄", "fields": []}],
-            "defaults": {"hero": "paladin"},
-        })
+        monkeypatch.setattr(
+            services,
+            "get_task_schema",
+            lambda _: {
+                "id": "patrol_loot",
+                "name": "刷装备",
+                "description": "巡逻刷装备",
+                "sections": [{"key": "hero", "title": "选择英雄", "fields": []}],
+                "defaults": {"hero": "paladin"},
+            },
+        )
 
         resp = web_client.get("/api/schema/patrol_loot")
         assert resp.status_code == 200
@@ -141,7 +154,9 @@ class TestHeroExportEndpoint:
 
     def test_export_hero_success(self, web_client, monkeypatch):
         """正常导出英雄配置应返回 TOML 文本。"""
-        monkeypatch.setattr(services, "export_hero_config", lambda _: '[[hero.inventory]]\nslot = 0\nid = 1\nhotkey = "1"\n')
+        monkeypatch.setattr(
+            services, "export_hero_config", lambda _: '[[hero.inventory]]\nslot = 0\nid = 1\nhotkey = "1"\n'
+        )
 
         resp = web_client.get("/api/hero_export/paladin")
         assert resp.status_code == 200
@@ -150,6 +165,7 @@ class TestHeroExportEndpoint:
 
     def test_export_hero_invalid_id(self, web_client, monkeypatch):
         """非法英雄 ID 应返回 400。"""
+
         def _raise(_):
             raise ValueError("非法 ID")
 
@@ -160,6 +176,7 @@ class TestHeroExportEndpoint:
 
     def test_export_hero_not_found(self, web_client, monkeypatch):
         """不存在的英雄应返回 404。"""
+
         def _raise(_):
             raise FileNotFoundError("不存在")
 
@@ -181,24 +198,31 @@ class TestSaveHeroInventoryEndpoint:
 
         monkeypatch.setattr(services, "save_hero_inventory", _fake_save)
 
-        resp = web_client.post("/api/save_hero_inventory", json={
-            "hero_id": "paladin",
-            "inventory": [{"slot": 0, "id": 1, "hotkey": "1"}],
-        })
+        resp = web_client.post(
+            "/api/save_hero_inventory",
+            json={
+                "hero_id": "paladin",
+                "inventory": [{"slot": 0, "id": 1, "hotkey": "1"}],
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
 
     def test_save_inventory_failure(self, web_client, monkeypatch):
         """保存失败应返回 ok=False。"""
+
         def _raise(_, __):
             raise ValueError("非法 ID")
 
         monkeypatch.setattr(services, "save_hero_inventory", _raise)
 
-        resp = web_client.post("/api/save_hero_inventory", json={
-            "hero_id": "bad/id",
-            "inventory": [],
-        })
+        resp = web_client.post(
+            "/api/save_hero_inventory",
+            json={
+                "hero_id": "bad/id",
+                "inventory": [],
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is False
 
@@ -208,17 +232,24 @@ class TestHeroImportBatchEndpoint:
 
     def test_import_batch_success(self, web_client, monkeypatch):
         """批量导入全部成功应返回 ok=True。"""
-        monkeypatch.setattr(services, "import_hero_batch", lambda _: {
-            "saved": ["hero_a", "hero_b"],
-            "errors": [],
-        })
+        monkeypatch.setattr(
+            services,
+            "import_hero_batch",
+            lambda _: {
+                "saved": ["hero_a", "hero_b"],
+                "errors": [],
+            },
+        )
 
-        resp = web_client.post("/api/hero_import_batch", json={
-            "heroes": [
-                {"hero_id": "hero_a", "content": "[hero]\nname = 'A'\n"},
-                {"hero_id": "hero_b", "content": "[hero]\nname = 'B'\n"},
-            ],
-        })
+        resp = web_client.post(
+            "/api/hero_import_batch",
+            json={
+                "heroes": [
+                    {"hero_id": "hero_a", "content": "[hero]\nname = 'A'\n"},
+                    {"hero_id": "hero_b", "content": "[hero]\nname = 'B'\n"},
+                ],
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["ok"] is True
@@ -227,17 +258,24 @@ class TestHeroImportBatchEndpoint:
 
     def test_import_batch_partial_failure(self, web_client, monkeypatch):
         """部分导入失败应返回 ok=False 和错误列表。"""
-        monkeypatch.setattr(services, "import_hero_batch", lambda _: {
-            "saved": ["hero_a"],
-            "errors": ["hero_b: TOML 格式错误"],
-        })
+        monkeypatch.setattr(
+            services,
+            "import_hero_batch",
+            lambda _: {
+                "saved": ["hero_a"],
+                "errors": ["hero_b: TOML 格式错误"],
+            },
+        )
 
-        resp = web_client.post("/api/hero_import_batch", json={
-            "heroes": [
-                {"hero_id": "hero_a", "content": "[hero]\nname = 'A'\n"},
-                {"hero_id": "hero_b", "content": "invalid toml"},
-            ],
-        })
+        resp = web_client.post(
+            "/api/hero_import_batch",
+            json={
+                "heroes": [
+                    {"hero_id": "hero_a", "content": "[hero]\nname = 'A'\n"},
+                    {"hero_id": "hero_b", "content": "invalid toml"},
+                ],
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["ok"] is False
@@ -267,6 +305,7 @@ class TestTaskStartEndpoint:
 
     def test_start_task_not_found(self, web_client, monkeypatch):
         """不存在的任务应返回 404。"""
+
         def _raise(_):
             raise FileNotFoundError("未找到")
 
@@ -277,6 +316,7 @@ class TestTaskStartEndpoint:
 
     def test_start_task_error(self, web_client, monkeypatch):
         """启动异常应返回 ok=False 和错误信息。"""
+
         def _raise(_):
             raise RuntimeError("启动失败")
 

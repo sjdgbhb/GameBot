@@ -1,6 +1,7 @@
-﻿'''
+"""
 统一管理图片、字体等资源路径，支持临时安装字体
-'''
+"""
+
 import ctypes
 from pathlib import Path
 

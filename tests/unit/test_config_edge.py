@@ -9,6 +9,7 @@
 - _apply_user_overrides 边界：combat_mode 写入、route_scheme 写入、blackstone/forest_points
 - get_path 方法：相对路径解析、绝对路径、空值回退
 """
+
 import json
 import shutil
 import tempfile
@@ -28,19 +29,30 @@ def _make_edge_config_dir() -> Path:
     """创建边界测试用的临时 config 目录。"""
     tmp = Path(tempfile.mkdtemp(prefix="jiubing2_edge_"))
 
-    _write_toml(tmp, "base.toml", """
+    _write_toml(
+        tmp,
+        "base.toml",
+        """
 [paths]
 log_path = "logs"
-""")
+""",
+    )
 
-    _write_toml(tmp, "war3/war3.toml", """
+    _write_toml(
+        tmp,
+        "war3/war3.toml",
+        """
 dependencies = ["base"]
 
 [war3]
 window_class = "War3Class"
-""")
+""",
+    )
 
-    _write_toml(tmp, "war3/jiubing2/base.toml", """
+    _write_toml(
+        tmp,
+        "war3/jiubing2/base.toml",
+        """
 dependencies = ["war3"]
 
 [game]
@@ -48,96 +60,153 @@ load_war3_time = 33
 
 [hero]
 inventory = ["A", "B", "C"]
-""")
+""",
+    )
 
-    _write_toml(tmp, "war3/jiubing2/heroes/mk.toml", """
+    _write_toml(
+        tmp,
+        "war3/jiubing2/heroes/mk.toml",
+        """
 [hero]
 inventory = ["D", "E", "F"]
 attack = 100
-""")
+""",
+    )
 
-    _write_toml(tmp, "war3/jiubing2/heroes/lancer.toml", """
+    _write_toml(
+        tmp,
+        "war3/jiubing2/heroes/lancer.toml",
+        """
 [hero]
 inventory = ["G", "H", "I"]
 attack = 80
 defense = 50
-""")
+""",
+    )
 
-    _write_toml(tmp, "war3/jiubing2/tasks/others/fishing.toml", """
+    _write_toml(
+        tmp,
+        "war3/jiubing2/tasks/others/fishing.toml",
+        """
 dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
 [war3.jiubing2.tasks.others.fishing]
 name = "钓鱼"
 task_times = 5
-""")
+""",
+    )
 
-    _write_toml(tmp, "war3/jiubing2/tasks/others/patrol_loot.toml", """
+    _write_toml(
+        tmp,
+        "war3/jiubing2/tasks/others/patrol_loot.toml",
+        """
 dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]
 
 [war3.jiubing2.tasks.others.patrol_loot]
 name = "巡逻拾取"
 task_times = 3
-""")
+""",
+    )
 
     # 自依赖测试文件
-    _write_toml(tmp, "self_circular.toml", """
+    _write_toml(
+        tmp,
+        "self_circular.toml",
+        """
 dependencies = ["self_circular"]
 [x]
 val = 1
-""")
+""",
+    )
 
     # 菱形依赖：diamond_d → diamond_a, diamond_b → diamond_c → diamond_a, diamond_b
-    _write_toml(tmp, "diamond_a.toml", """
+    _write_toml(
+        tmp,
+        "diamond_a.toml",
+        """
 [a]
 val = 1
-""")
-    _write_toml(tmp, "diamond_b.toml", """
+""",
+    )
+    _write_toml(
+        tmp,
+        "diamond_b.toml",
+        """
 dependencies = ["diamond_a"]
 [b]
 val = 2
-""")
-    _write_toml(tmp, "diamond_c.toml", """
+""",
+    )
+    _write_toml(
+        tmp,
+        "diamond_c.toml",
+        """
 dependencies = ["diamond_a", "diamond_b"]
 [c]
 val = 3
-""")
-    _write_toml(tmp, "diamond_d.toml", """
+""",
+    )
+    _write_toml(
+        tmp,
+        "diamond_d.toml",
+        """
 dependencies = ["diamond_c"]
 [d]
 val = 4
-""")
+""",
+    )
 
     # 空依赖文件
-    _write_toml(tmp, "empty_deps.toml", """
+    _write_toml(
+        tmp,
+        "empty_deps.toml",
+        """
 dependencies = []
 [e]
 val = 5
-""")
+""",
+    )
 
     # 仅含控制键的文件
-    _write_toml(tmp, "control_only.toml", """
+    _write_toml(
+        tmp,
+        "control_only.toml",
+        """
 dependencies = ["base"]
-""")
+""",
+    )
 
     # 全部命名空间节点（无可继承节点）
-    _write_toml(tmp, "war3/jiubing2/tasks/atomic/test_atomic.toml", """
+    _write_toml(
+        tmp,
+        "war3/jiubing2/tasks/atomic/test_atomic.toml",
+        """
 dependencies = ["war3.jiubing2"]
 
 [war3.jiubing2.tasks.atomic.test_atomic]
 name = "测试原子任务"
-""")
+""",
+    )
 
     # 同名目录文件布局：dir_same/dir_same.toml
-    _write_toml(tmp, "dir_same/dir_same.toml", """
+    _write_toml(
+        tmp,
+        "dir_same/dir_same.toml",
+        """
 [same]
 val = 10
-""")
+""",
+    )
 
     # base.toml 回退布局：dir_base/base.toml
-    _write_toml(tmp, "dir_base/base.toml", """
+    _write_toml(
+        tmp,
+        "dir_base/base.toml",
+        """
 [base_fallback]
 val = 20
-""")
+""",
+    )
 
     return tmp
 
@@ -322,9 +391,7 @@ class TestLoadTaskCacheEdge(TestEdgeBase):
 
             # 写入 user_configs.json 覆盖 inventory
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                "inventory": ["X", "Y", "Z"]
-            }), encoding="utf-8")
+            user_cfg_path.write_text(json.dumps({"inventory": ["X", "Y", "Z"]}), encoding="utf-8")
 
             # 第二次加载应检测到 mtime 变化，缓存失效
             result2 = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
@@ -361,9 +428,7 @@ class TestApplyUserOverridesEdge(TestEdgeBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                "combat_mode": "cast_skills"
-            }), encoding="utf-8")
+            user_cfg_path.write_text(json.dumps({"combat_mode": "cast_skills"}), encoding="utf-8")
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
             task_cfg = result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]
@@ -381,9 +446,7 @@ class TestApplyUserOverridesEdge(TestEdgeBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                "route_scheme": "custom_route"
-            }), encoding="utf-8")
+            user_cfg_path.write_text(json.dumps({"route_scheme": "custom_route"}), encoding="utf-8")
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
             task_cfg = result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]
@@ -401,11 +464,9 @@ class TestApplyUserOverridesEdge(TestEdgeBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                "patrol_loot": {
-                    "blackstone_points": [[10, 20], [30, 40]]
-                }
-            }), encoding="utf-8")
+            user_cfg_path.write_text(
+                json.dumps({"patrol_loot": {"blackstone_points": [[10, 20], [30, 40]]}}), encoding="utf-8"
+            )
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
             bs_cfg = result["war3"]["jiubing2"]["tasks"]["atomic"]["blackstone_gate_harassment"]
@@ -423,11 +484,9 @@ class TestApplyUserOverridesEdge(TestEdgeBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                "patrol_loot": {
-                    "forest_points": [[50, 60], [70, 80]]
-                }
-            }), encoding="utf-8")
+            user_cfg_path.write_text(
+                json.dumps({"patrol_loot": {"forest_points": [[50, 60], [70, 80]]}}), encoding="utf-8"
+            )
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
             swift_cfg = result["war3"]["jiubing2"]["tasks"]["atomic"]["swift_beast"]
@@ -445,12 +504,9 @@ class TestApplyUserOverridesEdge(TestEdgeBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                "patrol_loot": {
-                    "custom_field": 42,
-                    "custom_list": [1, 2, 3]
-                }
-            }), encoding="utf-8")
+            user_cfg_path.write_text(
+                json.dumps({"patrol_loot": {"custom_field": 42, "custom_list": [1, 2, 3]}}), encoding="utf-8"
+            )
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
             task_cfg = result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]
@@ -470,9 +526,7 @@ class TestApplyUserOverridesEdge(TestEdgeBase):
 
             # 写入旧格式 user_config.json（非 user_configs.json）
             old_path = fake_root / "user_config.json"
-            old_path.write_text(json.dumps({
-                "inventory": ["OLD", "FORMAT"]
-            }), encoding="utf-8")
+            old_path.write_text(json.dumps({"inventory": ["OLD", "FORMAT"]}), encoding="utf-8")
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
             self.assertEqual(result["hero"]["inventory"], ["OLD", "FORMAT"])
@@ -510,7 +564,10 @@ class TestHeroShallowMerge(TestEdgeBase):
     def test_hero_shallow_merge_preserves_other_keys(self):
         """任务配置只写 inventory 时不应丢失英雄的 skills 等属性。"""
         # 在 fishing 任务中添加 hero.inventory 覆盖
-        _write_toml(self.config_dir, "war3/jiubing2/tasks/others/fishing.toml", """
+        _write_toml(
+            self.config_dir,
+            "war3/jiubing2/tasks/others/fishing.toml",
+            """
 dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
 [war3.jiubing2.tasks.others.fishing]
@@ -519,7 +576,8 @@ task_times = 5
 
 [hero]
 inventory = ["CUSTOM", "ITEM"]
-""")
+""",
+        )
 
         result = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
         # inventory 应被覆盖

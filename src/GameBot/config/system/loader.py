@@ -3,6 +3,7 @@
 包含 Config 的文件 I/O mixin：配置名到文件路径映射、TOML 加载缓存、
 命名空间根集合发现、可继承/命名空间节点拆分。
 """
+
 import sys
 
 if sys.version_info >= (3, 11):

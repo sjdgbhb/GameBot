@@ -3,6 +3,7 @@
 
 class ConfigurationError(Exception):
     """配置系统异常 — 文件缺失、循环依赖、格式错误等。"""
+
     pass
 
 

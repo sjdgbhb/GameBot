@@ -3,6 +3,7 @@
 包含 War3Business 的窗口管理 mixin：窗口尺寸设置/验证、窗口刷新、
 窗口查找、进出游戏判断等。
 """
+
 import time
 from typing import Optional
 
@@ -15,7 +16,7 @@ class WindowManagerMixin:
     依赖 self.dm（DmClient）和 self.war3_cfg（dict）。
     """
 
-    def set_client_size(self, hwnd, width: Optional[int]=None, height: Optional[int]=None):
+    def set_client_size(self, hwnd, width: Optional[int] = None, height: Optional[int] = None):
         width = self.war3_cfg.get("client_size", [1902, 1033])[0] if width is None else width
         height = self.war3_cfg.get("client_size", [1902, 1033])[1] if height is None else height
         self.dm.set_client_size(hwnd, width, height)
@@ -49,7 +50,7 @@ class WindowManagerMixin:
             logger.warning(f"客户区尺寸验证异常: {e}")
             return False
 
-    def refresh_war3_window(self, hwnd: int, width: Optional[int]=None, height: Optional[int]=None):
+    def refresh_war3_window(self, hwnd: int, width: Optional[int] = None, height: Optional[int] = None):
         """利用大漠刷新窗口（替代手动最大化/还原）"""
         # 请根据你已有的找窗口方法获取最新句柄（因为句柄可能变化）
         hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
@@ -106,16 +107,16 @@ class WindowManagerMixin:
         :raises WindowLostError: War3 窗口消失（掉线）
         :raises TimeoutError: 等待进入游戏超时（卡在加载界面）
         """
-        detect_cfg = self.war3_cfg.get('in_game_detect', {})
-        timeout = detect_cfg.get('timeout', 120)
-        method = detect_cfg.get('method', 'image')
-        interval = self.war3_cfg.get('check_interval_time', 2)
+        detect_cfg = self.war3_cfg.get("in_game_detect", {})
+        timeout = detect_cfg.get("timeout", 120)
+        method = detect_cfg.get("method", "image")
+        interval = self.war3_cfg.get("check_interval_time", 2)
 
         start = time.time()
         while time.time() - start < timeout:
-            if method == 'image' and self.is_in_game():
+            if method == "image" and self.is_in_game():
                 task.game_start_time = task.pet_feed_time = time.time()
-                logger.info('已进入游戏')
+                logger.info("已进入游戏")
                 return
             # 检查 War3 窗口是否还在
             hwnd = self.dm.get_active_window(
@@ -131,37 +132,37 @@ class WindowManagerMixin:
         raise TimeoutError(f"等待进入游戏超时（{timeout}s），可能卡在加载界面")
 
     def is_in_game(self):
-        '''
+        """
         是否处于游戏内
         :return:
-        '''
+        """
         index, x, y = self.dm.find_pic(
             *self.war3_cfg["mini_map_signal_area_coords"],
-            self.war3_cfg['mini_map_signal_img'],
-            self.war3_cfg['mini_map_signal_sim'],
-            self.war3_cfg['mini_map_signal_delta_color']
+            self.war3_cfg["mini_map_signal_img"],
+            self.war3_cfg["mini_map_signal_sim"],
+            self.war3_cfg["mini_map_signal_delta_color"],
         )
         return index > -1
 
     def quit_game(self):
         """退出游戏回到房间（Alt+F4 或菜单退出）"""
         # 简单实现：按 F10 -> E -> Q
-        logger.info('退出游戏')
-        small_window_response_time = self.war3_cfg['small_window_response_time']
+        logger.info("退出游戏")
+        small_window_response_time = self.war3_cfg["small_window_response_time"]
         self.dm.key_press_char("F10")
         time.sleep(small_window_response_time)
         self.dm.key_press_char("E")
         time.sleep(small_window_response_time)
         self.dm.key_press_char("Q")
-        quit_war3_time = self.war3_cfg['quit_war3_time']
+        quit_war3_time = self.war3_cfg["quit_war3_time"]
         time.sleep(quit_war3_time)
         # 判断是否出现结尾资源统计画面，如果出现则需关闭该画面
         index, x, y = self.dm.find_pic(
             *self.war3_cfg["end_statistics_area_coords"],
-            self.war3_cfg['end_statistics_img'],
-            self.war3_cfg['end_statistics_sim'],
-            self.war3_cfg['end_statistics_delta_color']
+            self.war3_cfg["end_statistics_img"],
+            self.war3_cfg["end_statistics_sim"],
+            self.war3_cfg["end_statistics_delta_color"],
         )
         if index > -1:
-            self.dm.key_press_char('enter')
+            self.dm.key_press_char("enter")
         time.sleep(quit_war3_time)

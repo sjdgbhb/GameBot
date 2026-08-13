@@ -1,4 +1,5 @@
 """用户配置覆盖 — 加载 user_configs.json / user_config.json、应用用户覆盖到配置字典。"""
+
 import copy
 import json
 
@@ -47,7 +48,7 @@ class ConfigUserMixin:
         if task_name:
             for prefix in ("war3.jiubing2.tasks.", "tasks."):
                 if task_name.startswith(prefix):
-                    full_name = task_name[len(prefix):]
+                    full_name = task_name[len(prefix) :]
                     break
 
         if isinstance(user_cfg, dict):
@@ -56,8 +57,19 @@ class ConfigUserMixin:
             if short_name and short_name in user_cfg and isinstance(user_cfg[short_name], dict):
                 return copy.deepcopy(user_cfg[short_name])
             # 兼容旧版平铺：根级别存在通用覆盖字段时直接返回
-            if any(k in user_cfg for k in ("hero", "inventory", "desired_items", "patrol_rounds", "points", "chest",
-                                           "combat_mode", "route_scheme")):
+            if any(
+                k in user_cfg
+                for k in (
+                    "hero",
+                    "inventory",
+                    "desired_items",
+                    "patrol_rounds",
+                    "points",
+                    "chest",
+                    "combat_mode",
+                    "route_scheme",
+                )
+            ):
                 return copy.deepcopy(user_cfg)
 
         return {}
@@ -81,7 +93,7 @@ class ConfigUserMixin:
             name = task_name
             for prefix in ("war3.jiubing2.tasks.", "tasks."):
                 if name.startswith(prefix):
-                    name = name[len(prefix):]
+                    name = name[len(prefix) :]
                     break
             task_path = [p for p in name.split(".") if p]
 
@@ -95,9 +107,7 @@ class ConfigUserMixin:
         # hero_configs → 施法模式下按英雄隔离的 points/inventory
         hero_cfgs = user_cfg.get("hero_configs")
         current_hero = user_cfg.get("hero")
-        has_hero_config = (
-            hero_cfgs and current_hero and current_hero in hero_cfgs
-        )
+        has_hero_config = hero_cfgs and current_hero and current_hero in hero_cfgs
 
         if has_hero_config:
             hc = hero_cfgs[current_hero]
@@ -107,10 +117,22 @@ class ConfigUserMixin:
                 if isinstance(hc_points, dict):
                     # 每日声望：{blackstone_points: [...], forest_points: [...]}
                     if "blackstone_points" in hc_points:
-                        cfg = config.setdefault("war3", {}).setdefault("jiubing2", {}).setdefault("tasks", {}).setdefault("atomic", {}).setdefault("blackstone_gate_harassment", {})
+                        cfg = (
+                            config.setdefault("war3", {})
+                            .setdefault("jiubing2", {})
+                            .setdefault("tasks", {})
+                            .setdefault("atomic", {})
+                            .setdefault("blackstone_gate_harassment", {})
+                        )
                         cfg["points"] = copy.deepcopy(hc_points["blackstone_points"])
                     if "forest_points" in hc_points:
-                        cfg = config.setdefault("war3", {}).setdefault("jiubing2", {}).setdefault("tasks", {}).setdefault("atomic", {}).setdefault("swift_beast", {})
+                        cfg = (
+                            config.setdefault("war3", {})
+                            .setdefault("jiubing2", {})
+                            .setdefault("tasks", {})
+                            .setdefault("atomic", {})
+                            .setdefault("swift_beast", {})
+                        )
                         cfg["points"] = copy.deepcopy(hc_points["forest_points"])
                 else:
                     ensure_task_cfg()["points"] = copy.deepcopy(hc_points)
@@ -153,7 +175,13 @@ class ConfigUserMixin:
         if "combat_mode" in user_cfg:
             ensure_task_cfg()["combat_mode"] = user_cfg["combat_mode"]
             # daily_reputation 的子任务各自读自己的 cfg，需同步写入
-            daily_cfg = config.setdefault("war3", {}).setdefault("jiubing2", {}).setdefault("tasks", {}).setdefault("reputation", {}).setdefault("daily_reputation", {})
+            daily_cfg = (
+                config.setdefault("war3", {})
+                .setdefault("jiubing2", {})
+                .setdefault("tasks", {})
+                .setdefault("reputation", {})
+                .setdefault("daily_reputation", {})
+            )
             for _sub in ("blackstone", "forest"):
                 if _sub in daily_cfg:
                     daily_cfg[_sub]["combat_mode"] = user_cfg["combat_mode"]
@@ -164,20 +192,42 @@ class ConfigUserMixin:
 
         # blackstone_points → 写入 war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points
         if "blackstone_points" in user_cfg:
-            cfg = config.setdefault("war3", {}).setdefault("jiubing2", {}).setdefault("tasks", {}).setdefault("atomic", {}).setdefault("blackstone_gate_harassment", {})
+            cfg = (
+                config.setdefault("war3", {})
+                .setdefault("jiubing2", {})
+                .setdefault("tasks", {})
+                .setdefault("atomic", {})
+                .setdefault("blackstone_gate_harassment", {})
+            )
             cfg["points"] = copy.deepcopy(user_cfg["blackstone_points"])
 
         # forest_points → 写入 war3.jiubing2.tasks.atomic.swift_beast.points
         if "forest_points" in user_cfg:
-            cfg = config.setdefault("war3", {}).setdefault("jiubing2", {}).setdefault("tasks", {}).setdefault("atomic", {}).setdefault("swift_beast", {})
+            cfg = (
+                config.setdefault("war3", {})
+                .setdefault("jiubing2", {})
+                .setdefault("tasks", {})
+                .setdefault("atomic", {})
+                .setdefault("swift_beast", {})
+            )
             cfg["points"] = copy.deepcopy(user_cfg["forest_points"])
 
         # 其余字段 → 合并到任务命名空间（跳过已处理的特殊键）
         if task_path:
             task_cfg = ensure_task_cfg()
             for key, value in user_cfg.items():
-                if key in {"hero", "hero_configs", "inventory", "desired_items", "patrol_rounds",
-                           "chest", "points", "combat_mode", "route_scheme",
-                           "blackstone_points", "forest_points"}:
+                if key in {
+                    "hero",
+                    "hero_configs",
+                    "inventory",
+                    "desired_items",
+                    "patrol_rounds",
+                    "chest",
+                    "points",
+                    "combat_mode",
+                    "route_scheme",
+                    "blackstone_points",
+                    "forest_points",
+                }:
                     continue
                 task_cfg[key] = copy.deepcopy(value) if isinstance(value, (dict, list)) else value

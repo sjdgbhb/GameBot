@@ -1,4 +1,4 @@
-﻿"""
+"""
 宝箱检测 AI 模块
 
 使用 YOLOv8 ONNX 模型对全屏截图进行宝箱目标检测。
@@ -6,6 +6,7 @@
 
 推理在主进程（32位）中用 onnxruntime CPU 执行，与 combat_detector.py 同模式。
 """
+
 import os
 
 import numpy as np
@@ -35,6 +36,7 @@ def _get_conf_threshold():
 def _get_iou_threshold():
     """从 jiubing2.toml [chest] 读取 NMS IoU 阈值。"""
     return float(config.get("chest.ai_iou", 0.5))
+
 
 _session = None
 
@@ -111,8 +113,7 @@ def _nms(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float) -> list:
     return keep
 
 
-def detect_chests(img: Image.Image, conf_threshold: float = None,
-                  iou_threshold: float = None) -> list:
+def detect_chests(img: Image.Image, conf_threshold: float = None, iou_threshold: float = None) -> list:
     """对全屏截图进行宝箱检测。
 
     Args:
@@ -162,7 +163,9 @@ def detect_chests(img: Image.Image, conf_threshold: float = None,
     if len(filtered) > 1:
         logger.debug(f"宝箱检测 NMS前: {len(filtered)} 个候选框, iou阈值={iou_threshold}")
         for i in range(len(filtered)):
-            logger.debug(f"  候选#{i} box=[{boxes[i,0]:.0f},{boxes[i,1]:.0f},{boxes[i,2]:.0f},{boxes[i,3]:.0f}] conf={confs[i]:.3f}")
+            logger.debug(
+                f"  候选#{i} box=[{boxes[i, 0]:.0f},{boxes[i, 1]:.0f},{boxes[i, 2]:.0f},{boxes[i, 3]:.0f}] conf={confs[i]:.3f}"
+            )
     keep_idx = _nms(boxes, confs, iou_threshold)
 
     # 坐标变换：模型输入坐标 → 原图坐标

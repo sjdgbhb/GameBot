@@ -7,6 +7,7 @@
 - 英雄 TOML 的 inventory 格式合法
 - base.toml 含 items 定义和 command 段
 """
+
 import sys
 from pathlib import Path
 
@@ -98,7 +99,7 @@ class TestTomlValidity:
                     tomllib.load(f)
             except Exception as e:
                 errors.append(f"{toml_path.relative_to(_CONFIG_DIR)}: {e}")
-        assert not errors, f"以下 TOML 文件解析失败:\n" + "\n".join(errors)
+        assert not errors, "以下 TOML 文件解析失败:\n" + "\n".join(errors)
 
     def test_base_toml_exists(self):
         """jiubing2/base.toml 应存在且可解析。"""
@@ -170,7 +171,7 @@ class TestTaskTomlStructure:
                 if resolved is None:
                     rel = toml_path.relative_to(_TASKS_DIR)
                     missing.append(f"{rel} -> {dep} (未找到对应文件)")
-        assert not missing, f"以下依赖路径未找到对应文件:\n" + "\n".join(missing)
+        assert not missing, "以下依赖路径未找到对应文件:\n" + "\n".join(missing)
 
     def test_task_toml_ids_match_file_paths(self):
         """任务 TOML 的相对路径应与 task_id 一致。"""
@@ -185,10 +186,7 @@ class TestTaskTomlStructure:
             # 逐层深入验证路径
             current = tasks_ns
             for part in task_id.split("."):
-                assert part in current, (
-                    f"{toml_path.name}: 命名空间路径中缺少 '{part}'"
-                    f"（task_id={task_id}）"
-                )
+                assert part in current, f"{toml_path.name}: 命名空间路径中缺少 '{part}'（task_id={task_id}）"
                 current = current[part]
 
 
@@ -253,7 +251,7 @@ class TestHeroTomlStructure:
                     invalid.append(f"{toml_path.name}: inventory 项非 dict")
                 elif "id" not in item or "hotkey" not in item:
                     invalid.append(f"{toml_path.name}: inventory 项缺少 id 或 hotkey")
-        assert not invalid, f"以下英雄 inventory 格式不合法:\n" + "\n".join(invalid)
+        assert not invalid, "以下英雄 inventory 格式不合法:\n" + "\n".join(invalid)
 
     def test_hero_dependencies_include_jiubing2(self):
         """每个英雄应声明 dependencies 含 war3.jiubing2。"""

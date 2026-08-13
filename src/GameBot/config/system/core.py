@@ -24,6 +24,7 @@
 - user.py     — 用户配置覆盖
 - core.py     — Config 类 + 单例 + load_task + 访问方法（本文件）
 """
+
 import os
 import threading
 from pathlib import Path
@@ -47,15 +48,16 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
 
     本类自身保留：单例控制、load_task 编排、配置访问方法（get/get_section/[]）。
     """
+
     _EXCLUSIVE_NAMESPACES = EXCLUSIVE_NAMESPACES
     _CONTROL_KEYS = CONTROL_KEYS
 
-    _instance: Optional['Config'] = None
+    _instance: Optional["Config"] = None
     _instance_lock = threading.Lock()  # 单例创建锁，保证多线程下只创建一个实例
-    _config: dict                     # 全局合并后的配置字典
-    _loaded_files: Dict[str, dict]    # 配置名 -> 原始 TOML 解析结果（缓存）
+    _config: dict  # 全局合并后的配置字典
+    _loaded_files: Dict[str, dict]  # 配置名 -> 原始 TOML 解析结果（缓存）
     _task_configs: Dict[str, Tuple[dict, float]]  # 任务名 -> (合并后配置, user_configs.json 的 mtime)
-    _load_order: List[str]            # 全局加载顺序（跨多次 load_task 累积）
+    _load_order: List[str]  # 全局加载顺序（跨多次 load_task 累积）
     _initialized: bool
 
     def __new__(cls, config_path: Optional[str] = None):
@@ -77,7 +79,7 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
                         cls._instance.config_path = Path(config_path)
                     else:
                         # 默认指向 src/GameBot/config/data/
-                        cls._instance.config_path = Path(__file__).parent.parent / 'data'
+                        cls._instance.config_path = Path(__file__).parent.parent / "data"
         return cls._instance
 
     @property
@@ -95,7 +97,7 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
             return self._project_root_override
         return self.config_path.parent.parent.parent.parent
 
-    def get_path(self, key: str, default: str = '') -> Path:
+    def get_path(self, key: str, default: str = "") -> Path:
         """获取配置中的路径值并返回绝对路径。
 
         配置中的相对路径以 project_root 为基准解析为绝对路径。
@@ -146,10 +148,7 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
             hero_path = self._file_path_for(hero_config_name)
             if hero_path.exists():
                 # 将加载顺序中所有 war3.jiubing2.heroes.* 替换为用户指定的英雄
-                order = [
-                    hero_config_name if name.startswith("war3.jiubing2.heroes.") else name
-                    for name in order
-                ]
+                order = [hero_config_name if name.startswith("war3.jiubing2.heroes.") else name for name in order]
                 # 预加载用户英雄配置到缓存
                 if hero_config_name not in self._loaded_files:
                     self._load_file(hero_config_name)
@@ -216,6 +215,7 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
         """延迟初始化 ResourceManager（避免循环导入）。"""
         if self._resource_manager is None:
             from GameBot.runner.resource_manager import ResourceManager
+
             self._resource_manager = ResourceManager()
         return self._resource_manager
 

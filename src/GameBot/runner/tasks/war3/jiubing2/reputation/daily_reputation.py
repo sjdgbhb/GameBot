@@ -1,4 +1,4 @@
-﻿"""
+"""
 每日声望任务 — 获取黑石城、森之城声望各 150 点。
 流程：黑石城声望（城门骚扰 x N）→ 森之城声望（内部自动转场 + 迅猛野兽 x N）。
 转场逻辑封装在 ForestReputationTask._travel_to_forest_city。
@@ -6,6 +6,7 @@
 依赖闭包含 tasks.atomic.blackstone_gate_harassment / tasks.atomic.swift_beast /
 scenes.menethil / heroes.paladin，并注入到子任务与业务对象。
 """
+
 from GameBot.config import config
 from GameBot.runner.tasks.war3.jiubing2.reputation.blackstone_reputation import BlackstoneReputationTask
 from GameBot.runner.tasks.war3.jiubing2.reputation.forest_reputation import ForestReputationTask
@@ -76,8 +77,7 @@ def main():
     def task_wrapper(stop_event, progress_callback=None, progress_lines_callback=None):
         DailyReputationTask(cfg).run(stop_event=stop_event, progress_lines_callback=progress_lines_callback)
 
-    run_with_float_window("每日声望", task_wrapper, countdown_seconds=5,
-                          float_cfg=cfg.get("float_window", {}))
+    run_with_float_window("每日声望", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
 
 
 if __name__ == "__main__":

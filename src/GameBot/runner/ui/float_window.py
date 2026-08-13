@@ -14,6 +14,7 @@
 
   run_with_float_window("钓鱼", task_func)
 """
+
 import ctypes
 import inspect
 import threading
@@ -88,6 +89,7 @@ def run_with_float_window(
                 break
             prev = cur
             time.sleep(0.05)
+
     stop_key_thread = threading.Thread(target=_poll_stop_key, daemon=True, name="StopKeyListener")
     stop_key_thread.start()
 
@@ -102,7 +104,7 @@ def run_with_float_window(
             return
         try:
             sig = inspect.signature(task_func)
-            if 'progress_lines_callback' in sig.parameters or any(
+            if "progress_lines_callback" in sig.parameters or any(
                 p.kind == p.VAR_KEYWORD for p in sig.parameters.values()
             ):
                 task_func(stop_event, progress_callback, progress_lines_callback=progress_lines_callback)
@@ -142,22 +144,34 @@ def run_with_float_window(
     title_bar = tk.Frame(inner, bg=_GOLD, height=20)
     title_bar.pack(fill=tk.X)
     title_label = tk.Label(
-        title_bar, text=f"{title}  停止按Num-", font=("Microsoft YaHei", 9, "bold"),
-        bg=_GOLD, fg=_BG, anchor="w",
+        title_bar,
+        text=f"{title}  停止按Num-",
+        font=("Microsoft YaHei", 9, "bold"),
+        bg=_GOLD,
+        fg=_BG,
+        anchor="w",
     )
     title_label.pack(side=tk.LEFT, padx=6)
 
     # 标题栏右侧停止提示（按 Num- 后显示）
     stop_hint = tk.Label(
-        title_bar, text="", font=("Microsoft YaHei", 9, "bold"),
-        bg=_GOLD, fg=_DANGER, anchor="e",
+        title_bar,
+        text="",
+        font=("Microsoft YaHei", 9, "bold"),
+        bg=_GOLD,
+        fg=_DANGER,
+        anchor="e",
     )
     stop_hint.pack(side=tk.RIGHT, padx=6)
 
     # 上行：时间 + 进度（左对齐，金色）
     top_label = tk.Label(
-        inner, text=f"{countdown_seconds}s  {initial_progress}", font=("Microsoft YaHei", 10),
-        bg=_BG, fg=_GOLD, anchor="w",
+        inner,
+        text=f"{countdown_seconds}s  {initial_progress}",
+        font=("Microsoft YaHei", 10),
+        bg=_BG,
+        fg=_GOLD,
+        anchor="w",
     )
     top_label.pack(fill=tk.X, padx=10, pady=(6, 4))
 
@@ -173,12 +187,16 @@ def run_with_float_window(
             lines_data = list(progress_lines["value"])
         # 超出最大行数时截断，末行显示 "..."
         if len(lines_data) > max_lines:
-            lines_data = lines_data[:max_lines - 1] + ["..."]
+            lines_data = lines_data[: max_lines - 1] + ["..."]
         # 调整 Label 数量
         while len(line_labels) < len(lines_data):
             lbl = tk.Label(
-                lines_frame, text="", font=("Microsoft YaHei", 10),
-                bg=_BG, fg=_GOLD, anchor="w",
+                lines_frame,
+                text="",
+                font=("Microsoft YaHei", 10),
+                bg=_BG,
+                fg=_GOLD,
+                anchor="w",
             )
             lbl.pack(fill=tk.X)
             line_labels.append(lbl)

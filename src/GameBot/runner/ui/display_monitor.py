@@ -36,9 +36,7 @@ class DisplayChangeMonitor:
         class_atom = win32gui.RegisterClass(self.wc)
 
         # 创建隐藏窗口
-        self.hwnd_listener = win32gui.CreateWindow(
-            class_atom, "", 0, 0, 0, 0, 0, 0, 0, self.wc.hInstance, None
-        )
+        self.hwnd_listener = win32gui.CreateWindow(class_atom, "", 0, 0, 0, 0, 0, 0, 0, self.wc.hInstance, None)
 
         # 消息循环
         while self.running:

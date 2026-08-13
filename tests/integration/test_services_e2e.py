@@ -4,8 +4,6 @@
 不 mock 文件系统，验证 load_tasks / load_heroes / load_items / load_commands
 等函数返回非空且结构合法。
 """
-import sys
-from pathlib import Path
 
 import pytest
 
@@ -13,9 +11,6 @@ pytestmark = [pytest.mark.integration]
 
 # services.py 导入时读取真实配置文件，无需 mock
 from GameBot.web.api.services import (
-    TASK_SCHEMAS,
-    _find_task_section,
-    is_runnable_task,
     load_commands,
     load_farmable_items,
     load_heroes,

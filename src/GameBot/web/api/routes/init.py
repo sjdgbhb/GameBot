@@ -1,4 +1,5 @@
 """初始化接口 — GET /api/init。"""
+
 from fastapi import APIRouter
 
 from .. import services

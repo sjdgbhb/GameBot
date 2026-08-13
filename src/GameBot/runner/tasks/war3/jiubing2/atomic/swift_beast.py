@@ -1,8 +1,9 @@
-﻿"""
+"""
 迅猛野兽原子任务（森之城）
 流程：走到狄安娜 → 点技能格接任务 → 沿路线过去 → OCR 检测完成 → 回 NPC 交任务。
 后台 OCR 线程实时监测任务进度，检测到完成立即中断移动。
 """
+
 from GameBot.config import config
 from GameBot.inference import get_ocr_client
 from GameBot.runner import DmClient
@@ -31,10 +32,11 @@ class SwiftBeastTask(AtomicTaskBase):
         """到达路线点后执行 actions。"""
         if complete_event.is_set():
             return
-        self.combat.execute_actions(pt, pt.get('coords'), stop_event=self._stop_event)
+        self.combat.execute_actions(pt, pt.get("coords"), stop_event=self._stop_event)
 
 
 # ── 独立运行入口 ──────────────────────────────────────────
+
 
 def main():
     setup_global_exception_hook()

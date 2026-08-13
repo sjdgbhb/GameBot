@@ -5,15 +5,16 @@
 - TASK_SCHEMAS 中每个 task_id 对应的 runner 脚本文件存在（is_runnable_task）
 - 真实配置目录中的可配置任务都在 TASK_SCHEMAS 中有对应 schema
 """
+
 import sys
 from pathlib import Path
 
 import pytest
 
 if sys.version_info >= (3, 11):
-    import tomllib
+    pass
 else:
-    import tomli as tomllib
+    pass
 
 pytestmark = [pytest.mark.integration]
 
@@ -73,9 +74,7 @@ class TestTaskSchemaConsistency:
             full_id = _resolve_full_task_id(task_id) or task_id
             if not is_runnable_task(full_id):
                 not_runnable.append(task_id)
-        assert not not_runnable, (
-            f"TASK_SCHEMAS 中以下 task_id 不可执行: {not_runnable}"
-        )
+        assert not not_runnable, f"TASK_SCHEMAS 中以下 task_id 不可执行: {not_runnable}"
 
     def test_schema_has_required_top_level_fields(self):
         """每个 schema 应含 id, name, description, sections 字段。"""
@@ -94,9 +93,7 @@ class TestTaskSchemaConsistency:
     def test_schema_ids_match_dict_keys(self):
         """schema 内部 id 应与 TASK_SCHEMAS 的 key 一致。"""
         for task_id, schema in TASK_SCHEMAS.items():
-            assert schema.get("id") == task_id, (
-                f"schema key='{task_id}' 但内部 id='{schema.get('id')}'"
-            )
+            assert schema.get("id") == task_id, f"schema key='{task_id}' 但内部 id='{schema.get('id')}'"
 
     def test_configurable_tasks_have_schemas(self):
         """load_tasks() 中标记为 configurable=True 的任务应在 TASK_SCHEMAS 中有 schema。"""
@@ -109,6 +106,4 @@ class TestTaskSchemaConsistency:
         for tid in configurable_ids:
             if tid not in schema_ids and tid.split(".")[-1] not in schema_short_ids:
                 missing.append(tid)
-        assert not missing, (
-            f"以下 configurable 任务缺少 TASK_SCHEMAS: {missing}"
-        )
+        assert not missing, f"以下 configurable 任务缺少 TASK_SCHEMAS: {missing}"

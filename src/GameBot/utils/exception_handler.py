@@ -64,15 +64,11 @@ def retry(
                     last_exc = e
                     if attempt < max_attempts:
                         if logger is not None:
-                            logger.warning(
-                                f"{func.__name__} 第 {attempt}/{max_attempts} 次失败: {e}，{delay}s 后重试"
-                            )
+                            logger.warning(f"{func.__name__} 第 {attempt}/{max_attempts} 次失败: {e}，{delay}s 后重试")
                         time.sleep(delay)
                     else:
                         if logger is not None:
-                            logger.error(
-                                f"{func.__name__} {max_attempts} 次尝试均失败: {e}"
-                            )
+                            logger.error(f"{func.__name__} {max_attempts} 次尝试均失败: {e}")
             raise last_exc
 
         return wrapper

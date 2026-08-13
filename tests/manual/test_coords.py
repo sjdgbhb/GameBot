@@ -9,6 +9,7 @@
   3. 框选指定区域文本，暂停供肉眼核对
   4. 循环执行，按 Num- 停止
 """
+
 import time
 
 from GameBot.config import config
@@ -17,7 +18,7 @@ from GameBot.runner.dm_client import DmClient
 from GameBot.runner.ui import run_with_float_window
 
 # 框选区域 [x1, y1, x2, y2]（客户区坐标，基于 1902x1033）
-BOX_COORDS = [779,753,863,779]
+BOX_COORDS = [779, 753, 863, 779]
 # 每次框选后停留时间（秒），供观察
 HOLD_TIME = 5
 # 两次框选间隔（秒）

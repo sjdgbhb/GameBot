@@ -7,8 +7,8 @@
 - AtomicLoopTask 弹窗关闭（右上角 X 模式）
 - EndlessTask do_kk
 """
+
 import sys
-import time
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -19,8 +19,14 @@ pytestmark = [pytest.mark.unit]
 
 # Mock Windows COM 依赖
 _DM_MODULES = (
-    "win32com", "win32com.client", "pythoncom", "pywintypes",
-    "winreg", "win32gui", "win32con", "win32api",
+    "win32com",
+    "win32com.client",
+    "pythoncom",
+    "pywintypes",
+    "winreg",
+    "win32gui",
+    "win32con",
+    "win32api",
 )
 
 
@@ -42,6 +48,7 @@ def _restore_dm_modules(originals):
 def _make_dm_client():
     """通过 __new__ 构造 DmClient 实例，跳过 __init__ 并手动设置 _com。"""
     from GameBot.runner.dm_client import DmClient
+
     dm = DmClient.__new__(DmClient)
     dm._com = MagicMock()
     return dm
@@ -53,11 +60,13 @@ class TestDmClientScreenshot(unittest.TestCase):
     def setUp(self):
         self._orig = _mock_dm_modules()
         from GameBot.runner.dm_client import DmClient
+
         DmClient._last_screenshot_time = 0
 
     def tearDown(self):
         _restore_dm_modules(self._orig)
         from GameBot.runner.dm_client import DmClient
+
         DmClient._last_screenshot_time = 0
 
     @patch("GameBot.runner.dm_client.DmClient._screenshot_dir")
@@ -264,6 +273,7 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
 
     def _make_kk(self, kk_cfg=None):
         from GameBot.runner.business.kk import KKBusiness
+
         dm = MagicMock()
         if kk_cfg is None:
             kk_cfg = {
@@ -376,7 +386,7 @@ class TestWindowManagerMixin(unittest.TestCase):
 
     def _make_war3(self, war3_cfg=None, dm=None):
         from GameBot.runner.business.war3.core import War3Business
-        from GameBot.runner.dm_client import DmClient
+
         if dm is None:
             dm = MagicMock()
         if war3_cfg is None:
@@ -395,9 +405,11 @@ class TestWindowManagerMixin(unittest.TestCase):
 
         with patch("GameBot.runner.business.war3.window_manager.time") as mock_time:
             start = [0]
+
             def fake_time():
                 start[0] += 0.5
                 return start[0]
+
             mock_time.time.side_effect = fake_time
 
             result = war3.wait_for_game_window(timeout=1)
@@ -441,6 +453,7 @@ class TestAtomicLoopTaskClosePopup(unittest.TestCase):
 
     def _make_task(self, full_cfg):
         from GameBot.runner.tasks.war3.jiubing2.base import MultiAtomicLoopTask
+
         task = MultiAtomicLoopTask.__new__(MultiAtomicLoopTask)
         task.war3_cfg = {"general_time": 0.1}
         task.full_cfg = full_cfg
@@ -449,13 +462,15 @@ class TestAtomicLoopTaskClosePopup(unittest.TestCase):
 
     def test_close_popup_by_x(self):
         """task_popup.close_by_x=true 时点击 area_coords 右上角偏移。"""
-        task = self._make_task({
-            "task_popup": {
-                "close_by_x": True,
-                "area_coords": [600, 200, 1300, 600],
-                "close_offset": [15, 15],
-            },
-        })
+        task = self._make_task(
+            {
+                "task_popup": {
+                    "close_by_x": True,
+                    "area_coords": [600, 200, 1300, 600],
+                    "close_offset": [15, 15],
+                },
+            }
+        )
 
         task._close_popup(None)
 
@@ -465,9 +480,11 @@ class TestAtomicLoopTaskClosePopup(unittest.TestCase):
 
     def test_close_popup_by_coords(self):
         """close_by_x=false 时点击 close_coords。"""
-        task = self._make_task({
-            "task_popup": {"close_by_x": False},
-        })
+        task = self._make_task(
+            {
+                "task_popup": {"close_by_x": False},
+            }
+        )
 
         task._close_popup((100, 200))
 
@@ -477,13 +494,15 @@ class TestAtomicLoopTaskClosePopup(unittest.TestCase):
 
     def test_close_popup_escape_fallback(self):
         """close_by_x=false 且 close_coords 无效时按 Escape。"""
-        task = self._make_task({
-            "task_popup": {"close_by_x": False},
-        })
+        task = self._make_task(
+            {
+                "task_popup": {"close_by_x": False},
+            }
+        )
 
         task._close_popup((0, 0))
 
-        task.dm.key_press_char.assert_called_once_with('Escape')
+        task.dm.key_press_char.assert_called_once_with("Escape")
 
 
 class TestEndlessTaskDoKK(unittest.TestCase):
@@ -497,6 +516,7 @@ class TestEndlessTaskDoKK(unittest.TestCase):
 
     def _make_task(self):
         from GameBot.runner.tasks.war3.jiubing2.endless.endless import EndlessTask
+
         task = EndlessTask.__new__(EndlessTask)
         task.dm = MagicMock()
         task.kk = MagicMock()

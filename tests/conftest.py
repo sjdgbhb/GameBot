@@ -4,15 +4,14 @@
 - 在缺失大漠环境时忽略 tests/manual 目录，避免 3.12 主环境收集失败
 - 提供 Config 测试通用固件（委托给 tests/common/config_helpers.py）
 """
+
 import shutil
 from pathlib import Path
 
 import pytest
 
 from GameBot.config import Config
-from tests.common.config_helpers import make_test_config_dir as _make_test_config_dir
 from tests.common.config_helpers import write_toml as _write_toml_helper
-
 
 # 自定义标记说明（与 pyproject.toml 保持一致，防止 --strict-markers 报错）
 _MARKERS = {
@@ -36,7 +35,6 @@ def pytest_configure(config):
 # 检测大漠环境：在 .venv-dm 中 pythoncom 可导入，在主环境 3.12 中会失败
 _DM_AVAILABLE = False
 try:
-    import pythoncom  # type: ignore
     _DM_AVAILABLE = True
 except Exception:  # noqa: S110
     pass
@@ -124,15 +122,22 @@ def _populate_standard_config(config_dir: Path) -> Path:
     内容与 config_helpers.make_test_config_dir 完全一致，
     但写入指定目录而非临时随机目录。
     """
-    _write_toml_helper(config_dir, "base.toml", """
+    _write_toml_helper(
+        config_dir,
+        "base.toml",
+        """
 [paths]
 log_path = "logs"
 
 [dm]
 version = "3.1233"
-""")
+""",
+    )
 
-    _write_toml_helper(config_dir, "war3/war3.toml", """
+    _write_toml_helper(
+        config_dir,
+        "war3/war3.toml",
+        """
 dependencies = ["base"]
 
 [war3]
@@ -141,9 +146,13 @@ window_title = "Warcraft III"
 client_size = [1902, 1033]
 key_time = 0.05
 general_time = 0.3
-""")
+""",
+    )
 
-    _write_toml_helper(config_dir, "war3/jiubing2/base.toml", """
+    _write_toml_helper(
+        config_dir,
+        "war3/jiubing2/base.toml",
+        """
 dependencies = ["war3"]
 
 [game]
@@ -154,58 +163,87 @@ clear_nearby = "-delh"
 
 [hero]
 inventory = ["A", "B", "C"]
-""")
+""",
+    )
 
-    _write_toml_helper(config_dir, "war3/jiubing2/heroes/mk.toml", """
+    _write_toml_helper(
+        config_dir,
+        "war3/jiubing2/heroes/mk.toml",
+        """
 [hero]
 inventory = ["D", "E", "F"]
 attack = 100
-""")
+""",
+    )
 
-    _write_toml_helper(config_dir, "war3/jiubing2/heroes/lancer.toml", """
+    _write_toml_helper(
+        config_dir,
+        "war3/jiubing2/heroes/lancer.toml",
+        """
 [hero]
 inventory = ["G", "H", "I"]
 attack = 80
 defense = 50
-""")
+""",
+    )
 
-    _write_toml_helper(config_dir, "war3/jiubing2/tasks/others/fishing.toml", """
+    _write_toml_helper(
+        config_dir,
+        "war3/jiubing2/tasks/others/fishing.toml",
+        """
 dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
 [war3.jiubing2.tasks.others.fishing]
 name = "钓鱼"
 task_times = 5
 loop_interval_time = 2.0
-""")
+""",
+    )
 
-    _write_toml_helper(config_dir, "war3/jiubing2/tasks/others/patrol_loot.toml", """
+    _write_toml_helper(
+        config_dir,
+        "war3/jiubing2/tasks/others/patrol_loot.toml",
+        """
 dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]
 
 [war3.jiubing2.tasks.others.patrol_loot]
 name = "巡逻拾取"
 task_times = 3
 patrol_rounds = 10
-""")
+""",
+    )
 
-    _write_toml_helper(config_dir, "war3/jiubing2/tasks/endless/endless_single.toml", """
+    _write_toml_helper(
+        config_dir,
+        "war3/jiubing2/tasks/endless/endless_single.toml",
+        """
 dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
 [war3.jiubing2.tasks.endless.endless_single]
 name = "单局无尽"
 task_times = 1
-""")
+""",
+    )
 
     # 循环依赖测试文件
-    _write_toml_helper(config_dir, "circular_a.toml", """
+    _write_toml_helper(
+        config_dir,
+        "circular_a.toml",
+        """
 dependencies = ["circular_b"]
 [x]
 val = 1
-""")
+""",
+    )
 
-    _write_toml_helper(config_dir, "circular_b.toml", """
+    _write_toml_helper(
+        config_dir,
+        "circular_b.toml",
+        """
 dependencies = ["circular_a"]
 [y]
 val = 2
-""")
+""",
+    )
 
     return config_dir

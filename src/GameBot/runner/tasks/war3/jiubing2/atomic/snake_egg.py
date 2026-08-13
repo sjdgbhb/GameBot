@@ -3,6 +3,7 @@
 流程：走到村民杰菲特 → 点技能格接任务 → 沿路线过去 → OCR 检测完成 → 回 NPC 交任务。
 后台 OCR 线程实时监测任务进度，检测到完成立即中断移动。
 """
+
 from GameBot.config import config as config
 from GameBot.inference import get_ocr_client
 from GameBot.runner import DmClient

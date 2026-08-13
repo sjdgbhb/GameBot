@@ -5,6 +5,7 @@ ReputationTask._effective_times / _report_progress / _build_atomic_cfg、
 AtomicTaskBase._interruptible_wait / run、
 _CombinedEvent 等不依赖大漠 COM 的纯逻辑方法。
 """
+
 import sys
 import threading
 import unittest
@@ -16,8 +17,14 @@ pytestmark = [pytest.mark.unit]
 
 # Mock Windows COM 依赖，使主环境 3.12 可导入 runner 模块
 _DM_MODULES = (
-    "win32com", "win32com.client", "pythoncom", "pywintypes",
-    "winreg", "win32gui", "win32con", "win32api",
+    "win32com",
+    "win32com.client",
+    "pythoncom",
+    "pywintypes",
+    "winreg",
+    "win32gui",
+    "win32con",
+    "win32api",
 )
 
 
@@ -50,34 +57,40 @@ class TestGetNested(unittest.TestCase):
     def test_get_nested_simple_path(self):
         """单层路径应正确提取。"""
         from GameBot.runner.tasks.war3.jiubing2.base import AtomicLoopTask
+
         cfg = {"a": {"b": {"c": 42}}}
         self.assertEqual(AtomicLoopTask._get_nested(cfg, ("a",)), {"b": {"c": 42}})
 
     def test_get_nested_deep_path(self):
         """多层路径应正确提取。"""
         from GameBot.runner.tasks.war3.jiubing2.base import AtomicLoopTask
+
         cfg = {"a": {"b": {"c": 42}}}
         self.assertEqual(AtomicLoopTask._get_nested(cfg, ("a", "b", "c")), 42)
 
     def test_get_nested_missing_key(self):
         """缺失的键应返回空字典（不抛异常）。"""
         from GameBot.runner.tasks.war3.jiubing2.base import AtomicLoopTask
+
         cfg = {"a": {"b": 1}}
         self.assertEqual(AtomicLoopTask._get_nested(cfg, ("a", "x", "y")), {})
 
     def test_get_nested_none_path(self):
         """path 为 None 应返回空字典。"""
         from GameBot.runner.tasks.war3.jiubing2.base import AtomicLoopTask
+
         self.assertEqual(AtomicLoopTask._get_nested({"a": 1}, None), {})
 
     def test_get_nested_empty_dict(self):
         """空字典应返回空字典。"""
         from GameBot.runner.tasks.war3.jiubing2.base import AtomicLoopTask
+
         self.assertEqual(AtomicLoopTask._get_nested({}, ("a", "b")), {})
 
     def test_get_nested_empty_path(self):
         """空路径元组应返回原字典。"""
         from GameBot.runner.tasks.war3.jiubing2.base import AtomicLoopTask
+
         cfg = {"a": 1}
         self.assertEqual(AtomicLoopTask._get_nested(cfg, ()), cfg)
 
@@ -94,6 +107,7 @@ class TestInterruptibleSleep(unittest.TestCase):
     def _make_task(self):
         """构造一个不触发 __init__ 的 AtomicLoopTask 实例。"""
         from GameBot.runner.tasks.war3.jiubing2.base import AtomicLoopTask
+
         task = AtomicLoopTask.__new__(AtomicLoopTask)
         return task
 
@@ -118,6 +132,7 @@ class TestInterruptibleSleep(unittest.TestCase):
     def test_sleep_with_stop_event_set(self):
         """stop_event 已设置时应抛出 StopTaskError。"""
         from GameBot.utils.exception_handler import StopTaskError
+
         task = self._make_task()
         stop_event = MagicMock(spec=threading.Event)
         stop_event.wait.return_value = True  # 被 set
@@ -139,6 +154,7 @@ class TestRunLoop(unittest.TestCase):
     def _make_task(self, cfg=None):
         """构造一个不触发 __init__ 的 AtomicLoopTask 实例。"""
         from GameBot.runner.tasks.war3.jiubing2.base import AtomicLoopTask
+
         task = AtomicLoopTask.__new__(AtomicLoopTask)
         task.cfg = cfg or {}
         task.atomic_name = "测试"
@@ -177,6 +193,7 @@ class TestRunLoop(unittest.TestCase):
     def test_run_loop_stops_on_stop_task_error(self):
         """StopTaskError 应中断循环。"""
         from GameBot.utils.exception_handler import StopTaskError
+
         task = self._make_task()
         task._run_one_atomic = MagicMock(side_effect=StopTaskError("stop"))
         task._interruptible_sleep = MagicMock()
@@ -217,7 +234,7 @@ class TestRunLoop(unittest.TestCase):
         task._run_loop(3, 0.01)
         calls = task._run_one_atomic.call_args_list
         self.assertFalse(calls[0].kwargs["at_npc"])
-        self.assertTrue(calls[1].kwargs["at_npc"])   # 第 1 次成功
+        self.assertTrue(calls[1].kwargs["at_npc"])  # 第 1 次成功
         self.assertFalse(calls[2].kwargs["at_npc"])  # 第 2 次失败
 
 
@@ -232,6 +249,7 @@ class TestReputationEffectiveTimes(unittest.TestCase):
 
     def _make_task(self, cfg):
         from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
+
         task = ReputationTask.__new__(ReputationTask)
         task.cfg = cfg
         task.atomic_name = "测试"
@@ -246,6 +264,7 @@ class TestReputationEffectiveTimes(unittest.TestCase):
         """非整除时应向上取整。"""
         task = self._make_task({"target_reputation": 150, "reputation_per_run": 7})
         import math
+
         self.assertEqual(task._effective_times(), math.ceil(150 / 7))
 
     def test_default_values(self):
@@ -270,6 +289,7 @@ class TestReputationReportProgress(unittest.TestCase):
 
     def _make_task(self, cfg):
         from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
+
         task = ReputationTask.__new__(ReputationTask)
         task.cfg = cfg
         task.atomic_name = "测试"
@@ -279,6 +299,7 @@ class TestReputationReportProgress(unittest.TestCase):
     def test_report_progress_no_callback(self):
         """无回调函数时应直接返回。"""
         from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
+
         task = ReputationTask.__new__(ReputationTask)
         task.cfg = {}
         task._progress_lines = None
@@ -288,7 +309,7 @@ class TestReputationReportProgress(unittest.TestCase):
     def test_report_progress_without_state(self):
         """无共享状态时应直接发送单行进度。"""
         task = self._make_task({"reputation_per_run": 5, "target_reputation": 150})
-        task._progress_lines([f"测试：25/150"])
+        task._progress_lines(["测试：25/150"])
 
         task._progress_lines.assert_called_once()
         args = task._progress_lines.call_args[0][0]
@@ -296,11 +317,13 @@ class TestReputationReportProgress(unittest.TestCase):
 
     def test_report_progress_with_state(self):
         """有共享状态时应更新对应行并发送所有行。"""
-        task = self._make_task({
-            "reputation_per_run": 5,
-            "target_reputation": 150,
-            "progress_label": "黑石城",
-        })
+        task = self._make_task(
+            {
+                "reputation_per_run": 5,
+                "target_reputation": 150,
+                "progress_label": "黑石城",
+            }
+        )
         task._progress_lines = MagicMock()
         state = {"黑石城": "黑石城：0/150", "森之城": "森之城：50/150"}
         task._progress_state = state
@@ -327,11 +350,13 @@ class TestReputationReportProgress(unittest.TestCase):
 
     def test_report_progress_custom_label(self):
         """自定义 progress_label 应在进度行中使用。"""
-        task = self._make_task({
-            "reputation_per_run": 10,
-            "target_reputation": 150,
-            "progress_label": "自定义标签",
-        })
+        task = self._make_task(
+            {
+                "reputation_per_run": 10,
+                "target_reputation": 150,
+                "progress_label": "自定义标签",
+            }
+        )
         task._progress_lines = MagicMock()
 
         task._report_progress(5, 15)
@@ -351,6 +376,7 @@ class TestBuildAtomicCfg(unittest.TestCase):
 
     def _make_task(self, cfg, atomic_cfg):
         from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
+
         task = ReputationTask.__new__(ReputationTask)
         task.cfg = cfg
         task.atomic_cfg = atomic_cfg
@@ -413,12 +439,14 @@ class TestCombinedEvent(unittest.TestCase):
     def test_no_events(self):
         """无事件时 is_set 应返回 False。"""
         from GameBot.runner.tasks.war3.jiubing2.atomic.base import _CombinedEvent
+
         ce = _CombinedEvent()
         self.assertFalse(ce.is_set())
 
     def test_none_events_filtered(self):
         """None 事件应被过滤。"""
         from GameBot.runner.tasks.war3.jiubing2.atomic.base import _CombinedEvent
+
         ev1 = self._make_event(is_set=True)
         ce = _CombinedEvent(None, ev1, None)
         self.assertTrue(ce.is_set())
@@ -426,6 +454,7 @@ class TestCombinedEvent(unittest.TestCase):
     def test_any_set_returns_true(self):
         """任一事件被 set 时应返回 True。"""
         from GameBot.runner.tasks.war3.jiubing2.atomic.base import _CombinedEvent
+
         ev1 = self._make_event(is_set=False)
         ev2 = self._make_event(is_set=True)
         ce = _CombinedEvent(ev1, ev2)
@@ -434,6 +463,7 @@ class TestCombinedEvent(unittest.TestCase):
     def test_all_not_set_returns_false(self):
         """所有事件都未 set 时应返回 False。"""
         from GameBot.runner.tasks.war3.jiubing2.atomic.base import _CombinedEvent
+
         ev1 = self._make_event(is_set=False)
         ev2 = self._make_event(is_set=False)
         ce = _CombinedEvent(ev1, ev2)
@@ -442,6 +472,7 @@ class TestCombinedEvent(unittest.TestCase):
     def test_wait_no_events_with_timeout(self):
         """无事件且有 timeout 时应 sleep 后返回 False。"""
         from GameBot.runner.tasks.war3.jiubing2.atomic.base import _CombinedEvent
+
         ce = _CombinedEvent()
         with patch("GameBot.runner.tasks.war3.jiubing2.atomic.base.time") as mock_time:
             result = ce.wait(1.0)
@@ -451,6 +482,7 @@ class TestCombinedEvent(unittest.TestCase):
     def test_wait_no_events_no_timeout(self):
         """无事件且无 timeout 时应直接返回 False。"""
         from GameBot.runner.tasks.war3.jiubing2.atomic.base import _CombinedEvent
+
         ce = _CombinedEvent()
         with patch("GameBot.runner.tasks.war3.jiubing2.atomic.base.time"):
             result = ce.wait()
@@ -459,6 +491,7 @@ class TestCombinedEvent(unittest.TestCase):
     def test_wait_event_already_set(self):
         """事件已 set 时 wait 应立即返回 True。"""
         from GameBot.runner.tasks.war3.jiubing2.atomic.base import _CombinedEvent
+
         ev = self._make_event(is_set=True)
         ce = _CombinedEvent(ev)
         result = ce.wait(5.0)
@@ -467,6 +500,7 @@ class TestCombinedEvent(unittest.TestCase):
     def test_wait_timeout_expires(self):
         """超时后应返回 False。"""
         from GameBot.runner.tasks.war3.jiubing2.atomic.base import _CombinedEvent
+
         ev = self._make_event(is_set=False)
         ce = _CombinedEvent(ev)
 
@@ -480,6 +514,7 @@ class TestCombinedEvent(unittest.TestCase):
     def test_wait_event_set_during_wait(self):
         """等待期间事件被 set 时应返回 True。"""
         from GameBot.runner.tasks.war3.jiubing2.atomic.base import _CombinedEvent
+
         ev = MagicMock()
         # 第一次 is_set=False，第二次 is_set=True
         ev.is_set.side_effect = [False, True]
@@ -503,6 +538,7 @@ class TestAtomicTaskBaseInterruptibleWait(unittest.TestCase):
 
     def _make_task(self):
         from GameBot.runner.tasks.war3.jiubing2.atomic.base import AtomicTaskBase
+
         task = AtomicTaskBase.__new__(AtomicTaskBase)
         return task
 
@@ -527,6 +563,7 @@ class TestAtomicTaskBaseInterruptibleWait(unittest.TestCase):
     def test_wait_with_stop_event_set(self):
         """stop_event 已设置时应抛出 StopTaskError。"""
         from GameBot.utils.exception_handler import StopTaskError
+
         task = self._make_task()
         stop_event = MagicMock(spec=threading.Event)
         stop_event.wait.return_value = True
@@ -547,6 +584,7 @@ class TestAtomicTaskBaseRun(unittest.TestCase):
 
     def _make_task(self):
         from GameBot.runner.tasks.war3.jiubing2.atomic.base import AtomicTaskBase
+
         task = AtomicTaskBase.__new__(AtomicTaskBase)
         task._stop_event = None
         return task
@@ -585,6 +623,7 @@ class TestAtomicTaskBaseRun(unittest.TestCase):
     def test_run_stop_task_error_propagates(self):
         """StopTaskError 应向上传播。"""
         from GameBot.utils.exception_handler import StopTaskError
+
         task = self._make_task()
         task._task_label = "测试"
         task._accept = MagicMock(side_effect=StopTaskError("stop"))
@@ -618,6 +657,7 @@ class TestAtomicTaskBaseNpcProperty(unittest.TestCase):
     def test_npc_raises_not_implemented(self):
         """基类 _npc 属性应抛出 NotImplementedError。"""
         from GameBot.runner.tasks.war3.jiubing2.atomic.base import AtomicTaskBase
+
         task = AtomicTaskBase.__new__(AtomicTaskBase)
         with self.assertRaises(NotImplementedError):
             _ = task._npc
@@ -635,6 +675,7 @@ class TestAtomicTaskBaseOnPointArrival(unittest.TestCase):
     def test_default_noop(self):
         """默认 _on_point_arrival 应为空操作（不抛异常）。"""
         from GameBot.runner.tasks.war3.jiubing2.atomic.base import AtomicTaskBase
+
         task = AtomicTaskBase.__new__(AtomicTaskBase)
         # 不应抛异常
         task._on_point_arrival({"x": 1}, MagicMock())

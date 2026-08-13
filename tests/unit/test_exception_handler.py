@@ -7,6 +7,7 @@
   无 logger 时使用默认 logger
 - 异常类继承关系
 """
+
 import logging
 import unittest
 from unittest.mock import MagicMock, patch
@@ -250,21 +251,24 @@ class TestSetupGlobalExceptionHook(unittest.TestCase):
     def setUp(self):
         """保存原始 threading.excepthook 以便恢复。"""
         import threading
+
         self._original_hook = threading.excepthook
 
     def tearDown(self):
         """恢复原始 threading.excepthook。"""
         import threading
+
         threading.excepthook = self._original_hook
 
     def test_stop_task_error_logs_info(self):
         """StopTaskError 应记录 info 级别日志。"""
-        from GameBot.utils.exception_handler import setup_global_exception_hook, StopTaskError
+        from GameBot.utils.exception_handler import StopTaskError, setup_global_exception_hook
 
         mock_logger = MagicMock(spec=logging.Logger)
         setup_global_exception_hook(mock_logger)
 
         import threading
+
         args = MagicMock()
         args.exc_type = StopTaskError
         args.exc_value = StopTaskError("stop")
@@ -282,6 +286,7 @@ class TestSetupGlobalExceptionHook(unittest.TestCase):
         setup_global_exception_hook(mock_logger)
 
         import threading
+
         args = MagicMock()
         args.exc_type = RuntimeError
         args.exc_value = RuntimeError("crash")
@@ -298,6 +303,7 @@ class TestSetupGlobalExceptionHook(unittest.TestCase):
         setup_global_exception_hook(None)
 
         import threading
+
         args = MagicMock()
         args.exc_type = RuntimeError
         args.exc_value = RuntimeError("crash")
@@ -321,13 +327,14 @@ class TestExceptionHierarchy(unittest.TestCase):
             TaskTimeoutError,
             WindowLostError,
         )
-        for exc_cls in [DmError, ConfigError, ResourceNotFoundError,
-                        TaskTimeoutError, StopTaskError, WindowLostError]:
+
+        for exc_cls in [DmError, ConfigError, ResourceNotFoundError, TaskTimeoutError, StopTaskError, WindowLostError]:
             self.assertTrue(issubclass(exc_cls, GameBotError))
 
     def test_gamebot_error_inherits_exception(self):
         """GameBotError 应继承 Exception。"""
         from GameBot.utils.exception_handler import GameBotError
+
         self.assertTrue(issubclass(GameBotError, Exception))
 
 

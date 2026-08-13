@@ -1,5 +1,5 @@
 """Web API services 层边界测试 — 补充 services.py 未覆盖的分支。"""
-import json
+
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -29,9 +29,11 @@ class TestLoadHeroesEdge:
 
     def test_load_heroes_name_from_parentheses_pattern(self, services_config_dir):
         """无 name 字段时，应从 `# 英雄配置: xxx (中文名)` 注释中提取名称。"""
-        _write_hero(services_config_dir, "test_hero.toml",
-                    '# 英雄配置: mk（山丘之王）\n[hero]\nfloor_key = "P"\n'
-                    'inventory = []\n')
+        _write_hero(
+            services_config_dir,
+            "test_hero.toml",
+            '# 英雄配置: mk（山丘之王）\n[hero]\nfloor_key = "P"\ninventory = []\n',
+        )
 
         result = services.load_heroes()
         hero = next(h for h in result if h["id"] == "test_hero")
@@ -39,9 +41,9 @@ class TestLoadHeroesEdge:
 
     def test_load_heroes_name_from_plain_pattern(self, services_config_dir):
         """无 name 字段时，应从 `# 英雄配置: 中文名` 注释中提取名称。"""
-        _write_hero(services_config_dir, "test_hero.toml",
-                    '# 英雄配置：  风暴之灵  \n[hero]\nfloor_key = "P"\n'
-                    'inventory = []\n')
+        _write_hero(
+            services_config_dir, "test_hero.toml", '# 英雄配置：  风暴之灵  \n[hero]\nfloor_key = "P"\ninventory = []\n'
+        )
 
         result = services.load_heroes()
         hero = next(h for h in result if h["id"] == "test_hero")
@@ -62,12 +64,14 @@ class TestSaveHeroInventoryEdge:
 
     def test_save_inventory_appends_newline_when_missing(self, services_config_dir):
         """原文件末尾无换行时，追加物品栏块前应先补换行。"""
-        _write_hero(services_config_dir, "no_newline.toml",
-                    '[hero]\nname = "测试"\nfloor_key = "P"')
+        _write_hero(services_config_dir, "no_newline.toml", '[hero]\nname = "测试"\nfloor_key = "P"')
 
-        services.save_hero_inventory("no_newline", [
-            {"id": 1, "hotkey": "1"},
-        ])
+        services.save_hero_inventory(
+            "no_newline",
+            [
+                {"id": 1, "hotkey": "1"},
+            ],
+        )
 
         content = (services_config_dir / "war3" / "jiubing2" / "heroes" / "no_newline.toml").read_text(encoding="utf-8")
         assert "[[hero.inventory]]" in content
@@ -75,32 +79,36 @@ class TestSaveHeroInventoryEdge:
 
     def test_save_inventory_stops_at_section_header(self, services_config_dir):
         """替换 inventory 块时应在下一个普通 section 前停止。"""
-        original = (
-            '[[hero.inventory]]\nslot = 0\nid = 1\nhotkey = "1"\n\n'
-            '[hero]\nname = "测试"\nfloor_key = "P"\n'
-        )
+        original = '[[hero.inventory]]\nslot = 0\nid = 1\nhotkey = "1"\n\n[hero]\nname = "测试"\nfloor_key = "P"\n'
         _write_hero(services_config_dir, "section_stop.toml", original)
 
-        services.save_hero_inventory("section_stop", [
-            {"id": 5, "hotkey": "1"},
-        ])
+        services.save_hero_inventory(
+            "section_stop",
+            [
+                {"id": 5, "hotkey": "1"},
+            ],
+        )
 
-        content = (services_config_dir / "war3" / "jiubing2" / "heroes" / "section_stop.toml").read_text(encoding="utf-8")
+        content = (services_config_dir / "war3" / "jiubing2" / "heroes" / "section_stop.toml").read_text(
+            encoding="utf-8"
+        )
         assert "id = 5" in content
         assert "id = 1" not in content
         assert '[hero]\nname = "测试"' in content
 
     def test_save_inventory_filters_non_dict_items(self, services_config_dir):
         """非 dict 类型的物品项应被过滤。"""
-        _write_hero(services_config_dir, "filter_inv.toml",
-                    '[hero]\nname = "测试"\nfloor_key = "P"\n')
+        _write_hero(services_config_dir, "filter_inv.toml", '[hero]\nname = "测试"\nfloor_key = "P"\n')
 
-        services.save_hero_inventory("filter_inv", [
-            {"id": 1, "hotkey": "1"},
-            "invalid string item",
-            123,
-            None,
-        ])
+        services.save_hero_inventory(
+            "filter_inv",
+            [
+                {"id": 1, "hotkey": "1"},
+                "invalid string item",
+                123,
+                None,
+            ],
+        )
 
         content = (services_config_dir / "war3" / "jiubing2" / "heroes" / "filter_inv.toml").read_text(encoding="utf-8")
         assert "id = 1" in content
@@ -109,13 +117,11 @@ class TestSaveHeroInventoryEdge:
 class TestStartTaskEdge:
     """start_task 边界测试。"""
 
-    def test_start_task_reads_python_path_from_base_toml(self, services_config_dir,
-                                                          services_project_root,
-                                                          services_web_config,
-                                                          monkeypatch):
+    def test_start_task_reads_python_path_from_base_toml(
+        self, services_config_dir, services_project_root, services_web_config, monkeypatch
+    ):
         """当 _WEB_CONFIG 未配置 dm_python_path 时，应从 base.toml [dm].python_path 读取。"""
-        _write_base(services_config_dir,
-                    '[dm]\npython_path = "custom/python.exe"\n')
+        _write_base(services_config_dir, '[dm]\npython_path = "custom/python.exe"\n')
 
         expected_path = str(services_project_root / "custom" / "python.exe")
 

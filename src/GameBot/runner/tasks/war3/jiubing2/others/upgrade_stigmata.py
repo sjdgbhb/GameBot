@@ -1,4 +1,4 @@
-﻿"""
+"""
 升级圣痕任务 — 每完成一次黑石城城门骚扰任务获得一次圣痕升级机会，机会不可叠加，
 故采用"城门骚扰(获取机会) → 走到圣痕NPC → 升级一次 → 返回守卫队长"交替循环，直至所有待升级词条达标。
 
@@ -6,6 +6,7 @@
 配置通过 config.load_task("war3.jiubing2.tasks.others.upgrade_stigmata") 加载，
 其依赖 tasks.atomic.blackstone_gate_harassment（复用 prompt_text 检测区域与城门骚扰配置）。
 """
+
 import copy
 import re
 import time
@@ -43,8 +44,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
     @property
     def _npc(self) -> dict:
         """圣痕升级 NPC 配置（来自依赖闭包的 blackstone_city 场景）。"""
-        return (self.full_cfg.get("scenes", {}).get("blackstone_city", {})
-                .get("npcs", {}).get("stigmata", {}))
+        return self.full_cfg.get("scenes", {}).get("blackstone_city", {}).get("npcs", {}).get("stigmata", {})
 
     @property
     def _board(self) -> dict:
@@ -77,11 +77,12 @@ class UpgradeStigmataTask(AtomicLoopTask):
         desc = pt.get("desc", "未知路线点")
         wait_time = pt.get("time", 5)
         logger.info(f"走到：{desc}，预计 {wait_time} 秒）")
-        gt = self.war3_cfg['general_time']
-        self.dm.key_press_char('F1')
+        gt = self.war3_cfg["general_time"]
+        self.dm.key_press_char("F1")
         self._interruptible_wait(gt)
         self.war3.move_to_minimap_point(
-            pt["mini_coords"], pt["coords"],
+            pt["mini_coords"],
+            pt["coords"],
             mode=pt.get("walk_mode", 1),
             wait_time=wait_time,
             stop_event=self._stop_event,
@@ -91,13 +92,17 @@ class UpgradeStigmataTask(AtomicLoopTask):
         """构建城门骚扰原子任务的有效配置（使用原子任务自身的路线点）。"""
         return copy.deepcopy(self.atomic_cfg)
 
-    def _run_one_atomic(self, at_npc: bool = False,
-                        walk_time=None, monitor=None) -> bool:
+    def _run_one_atomic(self, at_npc: bool = False, walk_time=None, monitor=None) -> bool:
         """执行一次城门骚扰原子任务，返回是否成功。"""
         task = self.atomic_task_cls(
-            self.dm, self.war3, self.ui, self.combat,
+            self.dm,
+            self.war3,
+            self.ui,
+            self.combat,
             self._build_atomic_cfg(),
-            at_npc=at_npc, walk_time=walk_time, monitor=monitor,
+            at_npc=at_npc,
+            walk_time=walk_time,
+            monitor=monitor,
             nearby_cleaner=self.nearby_cleaner,
         )
         try:
@@ -129,14 +134,13 @@ class UpgradeStigmataTask(AtomicLoopTask):
         logger.info(f"{self.task_name}开始：词条上限配置 {term_limit}")
 
         # 若配置了技能 action 但未选择英雄，后续 resolve_point_skills 会自然失败，这里仅记录
-        if any(any(a.get('type') == 'skill' for a in (pt.get("actions") or []))
-               for pt in self.cfg.get("points", [])) and not self.hero_cfg.get("skills"):
+        if any(
+            any(a.get("type") == "skill" for a in (pt.get("actions") or [])) for pt in self.cfg.get("points", [])
+        ) and not self.hero_cfg.get("skills"):
             logger.error("路线点配置了技能但未选择有技能的英雄")
             return
 
-        hwnd = self.dm.get_active_window(
-            self.war3_cfg["window_class"], self.war3_cfg["window_title"]
-        )
+        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
@@ -166,18 +170,13 @@ class UpgradeStigmataTask(AtomicLoopTask):
                     pos, idx, term_name, current_val, limit_val = target
                     attempts += 1
                     logger.info(
-                        f"===== 第 {attempts} 次升级循环：{pos} {term_name} "
-                        f"当前 {current_val}/{limit_val} ====="
+                        f"===== 第 {attempts} 次升级循环：{pos} {term_name} 当前 {current_val}/{limit_val} ====="
                     )
 
                     # 2) 完成一次城门骚扰以获得升级机会（机会不可叠加，故每次必先做任务）
                     #    首轮英雄不在守卫队长旁，需行走；
                     #    后续轮英雄已在守卫队长旁（上轮升级后走回），at_npc=True 跳过行走。
-                    if not self._run_one_atomic(
-                        at_npc=at_guard_captain,
-                        walk_time=None,
-                        monitor=monitor
-                    ):
+                    if not self._run_one_atomic(at_npc=at_guard_captain, walk_time=None, monitor=monitor):
                         logger.warning("城门骚扰未完成，未获得升级机会，重试")
                         self._interruptible_sleep(loop_interval)
                         continue
@@ -209,16 +208,15 @@ class UpgradeStigmataTask(AtomicLoopTask):
 
     # ── 圣痕升级 ──────────────────────────────────────────
 
-    def _upgrade_once(self, pos: str, idx: int,
-                      success_text: str, fail_text: str, monitor=None) -> bool:
+    def _upgrade_once(self, pos: str, idx: int, success_text: str, fail_text: str, monitor=None) -> bool:
         """选中圣痕NPC → (下位需翻页) → 点击对应技能格 → 检测成功/失败。
 
         行走步骤由调用方通过 _walk_to_point(walk_to_stigmata) 完成，本方法仅处理 NPC 交互。
         """
-        gt = self.combat.war3_cfg['general_time']
-        swt = self.combat.war3_cfg['small_window_response_time']
+        gt = self.combat.war3_cfg["general_time"]
+        swt = self.combat.war3_cfg["small_window_response_time"]
         npc = self._npc
-        coords = npc['coords']
+        coords = npc["coords"]
 
         # 点击圣痕NPC选中（选中后技能板翻页重置为第1页）
         self.dm.move_to(*coords)
@@ -249,11 +247,13 @@ class UpgradeStigmataTask(AtomicLoopTask):
         result_timeout = self.upgrade_cfg.get("result_timeout", 8)
         if monitor is not None:
             matched = monitor.wait_for_any(
-                [success_text, fail_text], timeout=result_timeout,
+                [success_text, fail_text],
+                timeout=result_timeout,
             )
         else:
             matched = self.war3.wait_for_any_text(
-                self._ocr_cfg, [success_text, fail_text],
+                self._ocr_cfg,
+                [success_text, fail_text],
                 timeout=result_timeout,
                 interval=self.upgrade_cfg.get("result_check_interval", 0.5),
             )
@@ -292,7 +292,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
         pos_keywords = {"上位": "upper", "核心": "core", "中位": "middle", "下位": "lower"}
         result = {}
 
-        segments = re.split(r'(上位|核心|中位|下位)', full_text)
+        segments = re.split(r"(上位|核心|中位|下位)", full_text)
         current_pos = None
         for seg in segments:
             seg = seg.strip()
@@ -309,8 +309,8 @@ class UpgradeStigmataTask(AtomicLoopTask):
             for term_name in term_limit:
                 pos_in_seg = seg.find(term_name)
                 if pos_in_seg >= 0:
-                    after = seg[pos_in_seg + len(term_name):]
-                    m = re.search(r'(\d+\.?\d*)', after)
+                    after = seg[pos_in_seg + len(term_name) :]
+                    m = re.search(r"(\d+\.?\d*)", after)
                     if m:
                         found.append((pos_in_seg, term_name, float(m.group(1))))
             found.sort(key=lambda x: x[0])
@@ -336,12 +336,11 @@ class UpgradeStigmataTask(AtomicLoopTask):
 
         # 客户区坐标转屏幕坐标（OCR 子进程用 ImageGrab.grab 是屏幕坐标）
         cx, cy, _, _ = self.dm.get_client_rect(hwnd)
-        screen_bbox = [cx + num_coords[0], cy + num_coords[1],
-                       cx + num_coords[2], cy + num_coords[3]]
+        screen_bbox = [cx + num_coords[0], cy + num_coords[1], cx + num_coords[2], cy + num_coords[3]]
 
         # 按 F2 打开圣痕面板
         self.dm.key_press_char(hotkey)
-        self._interruptible_wait(self.war3_cfg.get('small_window_response_time', 0.5))
+        self._interruptible_wait(self.war3_cfg.get("small_window_response_time", 0.5))
 
         # OCR 读取圣痕词条区域
         client = get_ocr_client()
@@ -361,8 +360,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
             # 合并去重：按 y 坐标排序，跳过与已有行 y 坐标接近的
             all_lines = list(lines)
             for ll in lower_lines:
-                if not any(abs(ll.get("y_center", 0) - el.get("y_center", 0)) < 20
-                           for el in all_lines):
+                if not any(abs(ll.get("y_center", 0) - el.get("y_center", 0)) < 20 for el in all_lines):
                     all_lines.append(ll)
             all_lines.sort(key=lambda l: l.get("y_center", 0))
             lines = all_lines
@@ -370,7 +368,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
 
         # 关闭圣痕面板
         self.dm.key_press_char(hotkey)
-        self._interruptible_wait(self.war3_cfg.get('general_time', 0.3))
+        self._interruptible_wait(self.war3_cfg.get("general_time", 0.3))
 
         # 合并所有 OCR 文本
         full_text = "\n".join(line.get("text", "") for line in lines)
@@ -417,7 +415,9 @@ def main():
         task.run(stop_event=stop_event, progress_lines_callback=progress_lines_callback)
 
     run_with_float_window(
-        "升级圣痕", task_wrapper, countdown_seconds=5,
+        "升级圣痕",
+        task_wrapper,
+        countdown_seconds=5,
         float_cfg=task_cfg.get("float_window", {}),
     )
 

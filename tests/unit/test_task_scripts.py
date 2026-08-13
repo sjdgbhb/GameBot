@@ -9,9 +9,10 @@ daily_reputation 编排开关、personal 类属性继承等。
 - PatrolLootTask._report_progress: 有/无回调 / target=0 跳过
 - PersonalAchievementTask: 类属性继承正确性
 """
+
 import sys
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -19,8 +20,14 @@ pytestmark = [pytest.mark.unit]
 
 # Mock Windows COM 依赖
 _DM_MODULES = (
-    "win32com", "win32com.client", "pythoncom", "pywintypes",
-    "winreg", "win32gui", "win32con", "win32api",
+    "win32com",
+    "win32com.client",
+    "pythoncom",
+    "pywintypes",
+    "winreg",
+    "win32gui",
+    "win32con",
+    "win32api",
 )
 
 
@@ -51,6 +58,7 @@ class TestResolvePoints(unittest.TestCase):
     def _make_task(self, cfg=None, route_scheme="", route_presets=None):
         """用 __new__ 构造 PatrolLootTask 实例，跳过 __init__ 中的 DmClient 等。"""
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         task = PatrolLootTask.__new__(PatrolLootTask)
         task.cfg = cfg or {}
         task.route_scheme = route_scheme
@@ -126,6 +134,7 @@ class TestParseItemTargets(unittest.TestCase):
     def setUp(self):
         self._orig = _mock_dm_modules()
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         self.PatrolLootTask = PatrolLootTask
 
     def tearDown(self):
@@ -133,10 +142,12 @@ class TestParseItemTargets(unittest.TestCase):
 
     def test_new_format_with_count(self):
         """新格式 dict 含 name 和 count。"""
-        result = self.PatrolLootTask._parse_item_targets([
-            {"name": "铁剑", "count": 3},
-            {"name": "木盾", "count": 1},
-        ])
+        result = self.PatrolLootTask._parse_item_targets(
+            [
+                {"name": "铁剑", "count": 3},
+                {"name": "木盾", "count": 1},
+            ]
+        )
         self.assertEqual(result["铁剑"]["target"], 3)
         self.assertEqual(result["铁剑"]["picked"], 0)
         self.assertEqual(result["木盾"]["target"], 1)
@@ -144,9 +155,11 @@ class TestParseItemTargets(unittest.TestCase):
 
     def test_new_format_default_count(self):
         """新格式 dict 缺省 count 时默认 1。"""
-        result = self.PatrolLootTask._parse_item_targets([
-            {"name": "铁剑"},
-        ])
+        result = self.PatrolLootTask._parse_item_targets(
+            [
+                {"name": "铁剑"},
+            ]
+        )
         self.assertEqual(result["铁剑"]["target"], 1)
 
     def test_old_format_string(self):
@@ -157,10 +170,12 @@ class TestParseItemTargets(unittest.TestCase):
 
     def test_mixed_format(self):
         """新旧格式混合。"""
-        result = self.PatrolLootTask._parse_item_targets([
-            "铁剑",
-            {"name": "木盾", "count": 5},
-        ])
+        result = self.PatrolLootTask._parse_item_targets(
+            [
+                "铁剑",
+                {"name": "木盾", "count": 5},
+            ]
+        )
         self.assertEqual(result["铁剑"]["target"], 1)
         self.assertEqual(result["木盾"]["target"], 5)
 
@@ -170,35 +185,43 @@ class TestParseItemTargets(unittest.TestCase):
 
     def test_dict_without_name_skipped(self):
         """dict 无 name 字段时应跳过。"""
-        result = self.PatrolLootTask._parse_item_targets([
-            {"count": 3},
-            {"name": "铁剑", "count": 1},
-        ])
+        result = self.PatrolLootTask._parse_item_targets(
+            [
+                {"count": 3},
+                {"name": "铁剑", "count": 1},
+            ]
+        )
         self.assertEqual(len(result), 1)
         self.assertIn("铁剑", result)
 
     def test_empty_name_skipped(self):
         """name 为空字符串时应跳过。"""
-        result = self.PatrolLootTask._parse_item_targets([
-            {"name": "", "count": 3},
-            {"name": "铁剑", "count": 1},
-        ])
+        result = self.PatrolLootTask._parse_item_targets(
+            [
+                {"name": "", "count": 3},
+                {"name": "铁剑", "count": 1},
+            ]
+        )
         self.assertEqual(len(result), 1)
         self.assertIn("铁剑", result)
 
     def test_duplicate_name_overwrites(self):
         """同名物品后一个覆盖前一个。"""
-        result = self.PatrolLootTask._parse_item_targets([
-            {"name": "铁剑", "count": 1},
-            {"name": "铁剑", "count": 5},
-        ])
+        result = self.PatrolLootTask._parse_item_targets(
+            [
+                {"name": "铁剑", "count": 1},
+                {"name": "铁剑", "count": 5},
+            ]
+        )
         self.assertEqual(result["铁剑"]["target"], 5)
 
     def test_count_zero(self):
         """count=0 时仍应记录（target=0）。"""
-        result = self.PatrolLootTask._parse_item_targets([
-            {"name": "铁剑", "count": 0},
-        ])
+        result = self.PatrolLootTask._parse_item_targets(
+            [
+                {"name": "铁剑", "count": 0},
+            ]
+        )
         self.assertEqual(result["铁剑"]["target"], 0)
 
 
@@ -213,24 +236,29 @@ class TestAllItemsSatisfied(unittest.TestCase):
 
     def _make_task(self, item_targets=None):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         task = PatrolLootTask.__new__(PatrolLootTask)
         task.item_targets = item_targets or {}
         return task
 
     def test_all_satisfied(self):
         """所有物品 picked >= target 时返回 True。"""
-        task = self._make_task({
-            "铁剑": {"target": 2, "picked": 2},
-            "木盾": {"target": 1, "picked": 3},
-        })
+        task = self._make_task(
+            {
+                "铁剑": {"target": 2, "picked": 2},
+                "木盾": {"target": 1, "picked": 3},
+            }
+        )
         self.assertTrue(task._all_items_satisfied())
 
     def test_not_all_satisfied(self):
         """任一物品 picked < target 时返回 False。"""
-        task = self._make_task({
-            "铁剑": {"target": 2, "picked": 1},
-            "木盾": {"target": 1, "picked": 1},
-        })
+        task = self._make_task(
+            {
+                "铁剑": {"target": 2, "picked": 1},
+                "木盾": {"target": 1, "picked": 1},
+            }
+        )
         self.assertFalse(task._all_items_satisfied())
 
     def test_empty_targets_returns_false(self):
@@ -240,9 +268,11 @@ class TestAllItemsSatisfied(unittest.TestCase):
 
     def test_target_zero_satisfied(self):
         """target=0 时 picked=0 即满足。"""
-        task = self._make_task({
-            "铁剑": {"target": 0, "picked": 0},
-        })
+        task = self._make_task(
+            {
+                "铁剑": {"target": 0, "picked": 0},
+            }
+        )
         self.assertTrue(task._all_items_satisfied())
 
 
@@ -257,6 +287,7 @@ class TestMatchDesired(unittest.TestCase):
 
     def _make_task(self, item_targets=None, item_text_cfg=None):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         task = PatrolLootTask.__new__(PatrolLootTask)
         task.item_targets = item_targets or {}
         task.item_text_cfg = item_text_cfg or {}
@@ -315,19 +346,23 @@ class TestMatchDesired(unittest.TestCase):
 
     def test_multiple_targets_first_match(self):
         """多个目标时返回第一个匹配的。"""
-        task = self._make_task({
-            "铁剑": {"target": 1, "picked": 0},
-            "铁甲": {"target": 1, "picked": 0},
-        })
+        task = self._make_task(
+            {
+                "铁剑": {"target": 1, "picked": 0},
+                "铁甲": {"target": 1, "picked": 0},
+            }
+        )
         result = task._match_desired("铁剑")
         self.assertEqual(result, "铁剑")
 
     def test_partial_target_remaining(self):
         """部分物品已达目标，未达的仍可匹配。"""
-        task = self._make_task({
-            "铁剑": {"target": 2, "picked": 2},
-            "木盾": {"target": 1, "picked": 0},
-        })
+        task = self._make_task(
+            {
+                "铁剑": {"target": 2, "picked": 2},
+                "木盾": {"target": 1, "picked": 0},
+            }
+        )
         self.assertEqual(task._match_desired("木盾"), "木盾")
         self.assertIsNone(task._match_desired("铁剑"))
 
@@ -343,6 +378,7 @@ class TestReportProgress(unittest.TestCase):
 
     def _make_task(self, item_targets=None, callback=None):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
+
         task = PatrolLootTask.__new__(PatrolLootTask)
         task.item_targets = item_targets or {}
         task._progress_lines_callback = callback
@@ -409,16 +445,19 @@ class TestPersonalAchievementTask(unittest.TestCase):
         """应继承 MultiAtomicLoopTask。"""
         from GameBot.runner.tasks.war3.jiubing2.achievements.personal import PersonalAchievementTask
         from GameBot.runner.tasks.war3.jiubing2.base import MultiAtomicLoopTask
+
         self.assertTrue(issubclass(PersonalAchievementTask, MultiAtomicLoopTask))
 
     def test_atomic_name(self):
         """atomic_name 应为 '个人任务'。"""
         from GameBot.runner.tasks.war3.jiubing2.achievements.personal import PersonalAchievementTask
+
         self.assertEqual(PersonalAchievementTask.atomic_name, "个人任务")
 
     def test_task_config_path(self):
         """task_config_path 应指向 achievements.personal。"""
         from GameBot.runner.tasks.war3.jiubing2.achievements.personal import PersonalAchievementTask
+
         self.assertEqual(
             PersonalAchievementTask.task_config_path,
             ("war3", "jiubing2", "tasks", "achievements", "personal"),
@@ -427,6 +466,7 @@ class TestPersonalAchievementTask(unittest.TestCase):
     def test_atomic_config_path(self):
         """atomic_config_path 应指向 atomic.venomous_snake。"""
         from GameBot.runner.tasks.war3.jiubing2.achievements.personal import PersonalAchievementTask
+
         self.assertEqual(
             PersonalAchievementTask.atomic_config_path,
             ("war3", "jiubing2", "tasks", "atomic", "venomous_snake"),
@@ -444,18 +484,21 @@ class TestBlackstoneReputationTask(unittest.TestCase):
 
     def test_inherits_reputation_task(self):
         """应继承 ReputationTask。"""
-        from GameBot.runner.tasks.war3.jiubing2.reputation.blackstone_reputation import BlackstoneReputationTask
         from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
+        from GameBot.runner.tasks.war3.jiubing2.reputation.blackstone_reputation import BlackstoneReputationTask
+
         self.assertTrue(issubclass(BlackstoneReputationTask, ReputationTask))
 
     def test_atomic_name(self):
         """atomic_name 应为 '城门骚扰'。"""
         from GameBot.runner.tasks.war3.jiubing2.reputation.blackstone_reputation import BlackstoneReputationTask
+
         self.assertEqual(BlackstoneReputationTask.atomic_name, "城门骚扰")
 
     def test_task_config_path(self):
         """task_config_path 应指向 daily_reputation.blackstone。"""
         from GameBot.runner.tasks.war3.jiubing2.reputation.blackstone_reputation import BlackstoneReputationTask
+
         self.assertEqual(
             BlackstoneReputationTask.task_config_path,
             ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "blackstone"),
@@ -473,18 +516,21 @@ class TestForestReputationTask(unittest.TestCase):
 
     def test_inherits_reputation_task(self):
         """应继承 ReputationTask。"""
-        from GameBot.runner.tasks.war3.jiubing2.reputation.forest_reputation import ForestReputationTask
         from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
+        from GameBot.runner.tasks.war3.jiubing2.reputation.forest_reputation import ForestReputationTask
+
         self.assertTrue(issubclass(ForestReputationTask, ReputationTask))
 
     def test_atomic_name(self):
         """atomic_name 应为 '迅猛野兽'。"""
         from GameBot.runner.tasks.war3.jiubing2.reputation.forest_reputation import ForestReputationTask
+
         self.assertEqual(ForestReputationTask.atomic_name, "迅猛野兽")
 
     def test_task_config_path(self):
         """task_config_path 应指向 daily_reputation.forest。"""
         from GameBot.runner.tasks.war3.jiubing2.reputation.forest_reputation import ForestReputationTask
+
         self.assertEqual(
             ForestReputationTask.task_config_path,
             ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "forest"),

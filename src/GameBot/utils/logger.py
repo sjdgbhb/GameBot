@@ -36,26 +36,30 @@ log_dir.mkdir(parents=True, exist_ok=True)
 _default_file_sinks = []
 
 # 默认文件输出：自动按天轮转，保留30天
-_default_file_sinks.append(logger.add(
-    log_dir / "{time:YYYY-MM-DD}.log",
-    format=log_format,
-    level="INFO",
-    rotation="1 day",
-    retention="30 days",
-    encoding="utf-8",
-    enqueue=True,
-))
+_default_file_sinks.append(
+    logger.add(
+        log_dir / "{time:YYYY-MM-DD}.log",
+        format=log_format,
+        level="INFO",
+        rotation="1 day",
+        retention="30 days",
+        encoding="utf-8",
+        enqueue=True,
+    )
+)
 
 # 默认错误日志文件（只记录 ERROR 及以上）
-_default_file_sinks.append(logger.add(
-    log_dir / "error_{time:YYYY-MM-DD}.log",
-    format=log_format,
-    level="ERROR",
-    rotation="1 day",
-    retention="30 days",
-    encoding="utf-8",
-    enqueue=True,
-))
+_default_file_sinks.append(
+    logger.add(
+        log_dir / "error_{time:YYYY-MM-DD}.log",
+        format=log_format,
+        level="ERROR",
+        rotation="1 day",
+        retention="30 days",
+        encoding="utf-8",
+        enqueue=True,
+    )
+)
 
 
 def setup_log_file(script_name: str):
@@ -99,6 +103,7 @@ def get_logger(name: str = None):
     if name is None:
         return logger
     return logger.bind(name=name)
+
 
 # 直接导出 logger 实例，其他模块可 from utils.logger import logger
 __all__ = ["logger", "get_logger", "setup_log_file"]

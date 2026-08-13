@@ -2,6 +2,7 @@
 
 启动命令：uv run python -m GameBot.web.server
 """
+
 from pathlib import Path
 
 import uvicorn

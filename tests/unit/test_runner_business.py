@@ -7,6 +7,7 @@
 - KKBusiness: 掉线弹窗检测（尺寸匹配/不匹配/无窗口/异常回退）
 - Base: sleep / is_dm_valid
 """
+
 import sys
 import unittest
 from pathlib import Path
@@ -18,8 +19,14 @@ pytestmark = [pytest.mark.unit]
 
 # Mock Windows COM 依赖
 _DM_MODULES = (
-    "win32com", "win32com.client", "pythoncom", "pywintypes",
-    "winreg", "win32gui", "win32con", "win32api",
+    "win32com",
+    "win32com.client",
+    "pythoncom",
+    "pywintypes",
+    "winreg",
+    "win32gui",
+    "win32con",
+    "win32api",
 )
 
 
@@ -49,11 +56,11 @@ class TestNearbyCleaner(unittest.TestCase):
 
     def _make_cleaner(self, probability=0.0, use_endless_cmd=False, cmd_cfg=None):
         from GameBot.runner.business.war3.jiubing2.nearby_cleaner import NearbyCleaner
+
         war3 = MagicMock()
         if cmd_cfg is None:
             cmd_cfg = {"clear_nearby": "-delh", "clear_endless": "-clear"}
-        return NearbyCleaner(war3, cmd_cfg, probability=probability,
-                             use_endless_cmd=use_endless_cmd)
+        return NearbyCleaner(war3, cmd_cfg, probability=probability, use_endless_cmd=use_endless_cmd)
 
     def test_disabled_probability_zero(self):
         """probability=0 时 tick 应直接返回，不调用 send_msg。"""
@@ -103,9 +110,7 @@ class TestNearbyCleaner(unittest.TestCase):
     def test_fallback_endless_cmd_when_missing(self, mock_random):
         """配置中缺少 clear_endless 时应回退到默认 -delh。"""
         mock_random.random.return_value = 0.1
-        cleaner = self._make_cleaner(
-            probability=0.5, use_endless_cmd=True, cmd_cfg={}
-        )
+        cleaner = self._make_cleaner(probability=0.5, use_endless_cmd=True, cmd_cfg={})
         cleaner.tick()
         cleaner._war3.send_msg.assert_called_once_with("-delh")
 
@@ -151,6 +156,7 @@ class TestResourceManager(unittest.TestCase):
     def _make_mgr(self, tmp_path):
         """创建一个 ResourceManager 实例，mock config.get_path 返回 tmp_path。"""
         from GameBot.runner.resource_manager import ResourceManager
+
         mgr = ResourceManager()
         with patch("GameBot.runner.resource_manager.config") as mock_config:
             mock_config.get_path.return_value = tmp_path
@@ -159,21 +165,23 @@ class TestResourceManager(unittest.TestCase):
 
     def test_images_dir_created(self):
         """_ensure_initialized 应创建 images 目录。"""
-        mgr = self._make_mgr(Path("__nonexistent__"))
         # 用 tmp_path 更好
         import tempfile
+
         tmp = Path(tempfile.mkdtemp())
         try:
-            mgr = self._make_mgr(tmp)
+            self._make_mgr(tmp)
             self.assertTrue((tmp / "images").exists())
             self.assertTrue((tmp / "fonts").exists())
         finally:
             import shutil
+
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_get_image_path_existing(self):
         """存在的图片应返回绝对路径。"""
         import tempfile
+
         tmp = Path(tempfile.mkdtemp())
         try:
             mgr = self._make_mgr(tmp)
@@ -183,11 +191,13 @@ class TestResourceManager(unittest.TestCase):
             self.assertEqual(result, str(img_file))
         finally:
             import shutil
+
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_get_image_path_cached(self):
         """第二次调用应返回缓存值，不检查文件是否存在。"""
         import tempfile
+
         tmp = Path(tempfile.mkdtemp())
         try:
             mgr = self._make_mgr(tmp)
@@ -201,24 +211,29 @@ class TestResourceManager(unittest.TestCase):
             self.assertEqual(first, second)
         finally:
             import shutil
+
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_get_image_path_not_found(self):
         """不存在的图片应抛出 ResourceNotFoundError。"""
         import tempfile
+
         tmp = Path(tempfile.mkdtemp())
         try:
             from GameBot.utils.exception_handler import ResourceNotFoundError
+
             mgr = self._make_mgr(tmp)
             with self.assertRaises(ResourceNotFoundError):
                 mgr.get_image_path("nonexistent.png")
         finally:
             import shutil
+
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_get_font_path_existing(self):
         """存在的字体应返回绝对路径。"""
         import tempfile
+
         tmp = Path(tempfile.mkdtemp())
         try:
             mgr = self._make_mgr(tmp)
@@ -228,24 +243,29 @@ class TestResourceManager(unittest.TestCase):
             self.assertEqual(result, str(font_file))
         finally:
             import shutil
+
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_get_font_path_not_found(self):
         """不存在的字体应抛出 ResourceNotFoundError。"""
         import tempfile
+
         tmp = Path(tempfile.mkdtemp())
         try:
             from GameBot.utils.exception_handler import ResourceNotFoundError
+
             mgr = self._make_mgr(tmp)
             with self.assertRaises(ResourceNotFoundError):
                 mgr.get_font_path("nonexistent.ttf")
         finally:
             import shutil
+
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_properties_return_paths(self):
         """resources_dir / images_dir / fonts_dir 应返回正确路径。"""
         import tempfile
+
         tmp = Path(tempfile.mkdtemp())
         try:
             mgr = self._make_mgr(tmp)
@@ -254,6 +274,7 @@ class TestResourceManager(unittest.TestCase):
             self.assertEqual(mgr.fonts_dir, tmp / "fonts")
         finally:
             import shutil
+
             shutil.rmtree(tmp, ignore_errors=True)
 
 
@@ -268,12 +289,16 @@ class TestEndlessRunnerOnArrive(unittest.TestCase):
 
     def _make_runner(self, endless_cfg=None):
         from GameBot.runner.business.war3.jiubing2.endless_runner import EndlessRunner
+
         dm = MagicMock()
         war3 = MagicMock()
         ui = MagicMock()
         combat = MagicMock()
         runner = EndlessRunner(
-            dm, war3, ui, combat,
+            dm,
+            war3,
+            ui,
+            combat,
             war3_cfg={"general_time": 0.3, "key_time": 0.05},
             hero_cfg={},
             cfg={"game": {}, "command": {}, "prompt_text": {}},
@@ -415,6 +440,7 @@ class TestKKBusiness(unittest.TestCase):
 
     def _make_kk(self, kk_cfg=None):
         from GameBot.runner.business.kk import KKBusiness
+
         dm = MagicMock()
         if kk_cfg is None:
             kk_cfg = {
@@ -509,30 +535,39 @@ class TestBaseBusiness(unittest.TestCase):
     def test_is_dm_valid_with_version(self):
         """dm.version 非空时 is_dm_valid 应返回 True。"""
         from GameBot.runner.business.base import Base
+
         dm = MagicMock()
         dm.version = "3.1233"
+
         # Base 是 ABC，需要通过子类实例化
         class ConcreteBase(Base):
             pass
+
         obj = ConcreteBase(dm)
         self.assertTrue(obj.is_dm_valid())
 
     def test_is_dm_valid_empty_version(self):
         """dm.version 为空时 is_dm_valid 应返回 False。"""
         from GameBot.runner.business.base import Base
+
         dm = MagicMock()
         dm.version = ""
+
         class ConcreteBase(Base):
             pass
+
         obj = ConcreteBase(dm)
         self.assertFalse(obj.is_dm_valid())
 
     def test_sleep_calls_time_sleep(self):
         """sleep 应委托给 time.sleep。"""
         from GameBot.runner.business.base import Base
+
         dm = MagicMock()
+
         class ConcreteBase(Base):
             pass
+
         obj = ConcreteBase(dm)
         with patch("GameBot.runner.business.base.time") as mock_time:
             obj.sleep(1.5)

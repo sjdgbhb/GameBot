@@ -1,4 +1,4 @@
-﻿"""配置系统单元测试 — 覆盖 config.py 的核心逻辑：
+"""配置系统单元测试 — 覆盖 config.py 的核心逻辑：
 
 - 依赖解析（DFS 后序展开、循环依赖检测）
 - 可继承/命名空间节点拆分
@@ -10,6 +10,7 @@
 - 配置文件不存在异常
 - user_config 覆盖（inventory / desired_items / patrol_rounds / chest / points）
 """
+
 import json
 import shutil
 import tempfile
@@ -243,6 +244,7 @@ class TestSingleton(TestConfigBase):
     def test_thread_safe_singleton(self):
         """多线程并发创建 Config，应返回同一实例。"""
         import threading
+
         Config.reset()
         results = []
         barrier = threading.Barrier(8)  # 8 个线程同时等待，最大化竞争窗口
@@ -303,9 +305,7 @@ class TestUserConfig(TestConfigBase):
 
             # 写入 user_configs.json
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                        "hero": "lancer"
-            }), encoding="utf-8")
+            user_cfg_path.write_text(json.dumps({"hero": "lancer"}), encoding="utf-8")
 
             # 加载 fishing（原本依赖 heroes.mk），应被替换为 heroes.lancer
             result = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
@@ -323,9 +323,7 @@ class TestUserConfig(TestConfigBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                        "inventory": ["X", "Y", "Z"]
-            }), encoding="utf-8")
+            user_cfg_path.write_text(json.dumps({"inventory": ["X", "Y", "Z"]}), encoding="utf-8")
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
             self.assertEqual(result["hero"]["inventory"], ["X", "Y", "Z"])
@@ -342,14 +340,11 @@ class TestUserConfig(TestConfigBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                        "desired_items": ["item1", "item2"]
-            }), encoding="utf-8")
+            user_cfg_path.write_text(json.dumps({"desired_items": ["item1", "item2"]}), encoding="utf-8")
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
             self.assertEqual(
-                result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]["desired_items"],
-                ["item1", "item2"]
+                result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]["desired_items"], ["item1", "item2"]
             )
         finally:
             shutil.rmtree(fake_root, ignore_errors=True)
@@ -364,9 +359,7 @@ class TestUserConfig(TestConfigBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                        "patrol_rounds": 20
-            }), encoding="utf-8")
+            user_cfg_path.write_text(json.dumps({"patrol_rounds": 20}), encoding="utf-8")
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
             self.assertEqual(result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]["patrol"]["rounds"], 20)
@@ -383,12 +376,7 @@ class TestUserConfig(TestConfigBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                        "chest": {
-                            "enable": True,
-                            "items": ["gem"]
-                        }
-            }), encoding="utf-8")
+            user_cfg_path.write_text(json.dumps({"chest": {"enable": True, "items": ["gem"]}}), encoding="utf-8")
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
             self.assertTrue(result["chest"]["enable"])
@@ -406,14 +394,11 @@ class TestUserConfig(TestConfigBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                        "points": [[100, 200], [300, 400]]
-            }), encoding="utf-8")
+            user_cfg_path.write_text(json.dumps({"points": [[100, 200], [300, 400]]}), encoding="utf-8")
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
             self.assertEqual(
-                result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]["points"],
-                [[100, 200], [300, 400]]
+                result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]["points"], [[100, 200], [300, 400]]
             )
         finally:
             shutil.rmtree(fake_root, ignore_errors=True)
@@ -428,11 +413,7 @@ class TestUserConfig(TestConfigBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                        "others.patrol_loot": {
-                            "patrol_rounds": 15
-                        }
-            }), encoding="utf-8")
+            user_cfg_path.write_text(json.dumps({"others.patrol_loot": {"patrol_rounds": 15}}), encoding="utf-8")
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
             self.assertEqual(result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]["patrol"]["rounds"], 15)
@@ -449,11 +430,7 @@ class TestUserConfig(TestConfigBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                        "patrol_loot": {
-                            "patrol_rounds": 8
-                        }
-            }), encoding="utf-8")
+            user_cfg_path.write_text(json.dumps({"patrol_loot": {"patrol_rounds": 8}}), encoding="utf-8")
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
             self.assertEqual(result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]["patrol"]["rounds"], 8)
@@ -470,23 +447,20 @@ class TestUserConfig(TestConfigBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                "combat_mode": "cast_skills",
-                "hero": "lancer",
-                "hero_configs": {
-                    "lancer": {
-                        "points": [[1, 2], [3, 4]],
-                        "inventory": ["U", "V", "W"]
+            user_cfg_path.write_text(
+                json.dumps(
+                    {
+                        "combat_mode": "cast_skills",
+                        "hero": "lancer",
+                        "hero_configs": {"lancer": {"points": [[1, 2], [3, 4]], "inventory": ["U", "V", "W"]}},
                     }
-                }
-            }), encoding="utf-8")
+                ),
+                encoding="utf-8",
+            )
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
             self.assertEqual(result["hero"]["inventory"], ["U", "V", "W"])
-            self.assertEqual(
-                result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]["points"],
-                [[1, 2], [3, 4]]
-            )
+            self.assertEqual(result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]["points"], [[1, 2], [3, 4]])
         finally:
             shutil.rmtree(fake_root, ignore_errors=True)
 
@@ -500,26 +474,24 @@ class TestUserConfig(TestConfigBase):
             self.cfg.config_path = fake_config_dir
 
             user_cfg_path = fake_root / "user_configs.json"
-            user_cfg_path.write_text(json.dumps({
-                "combat_mode": "cast_skills",
-                "hero": "lancer",
-                "hero_configs": {
-                    "mk": {
-                        "points": [[999, 999]],
-                        "inventory": ["X", "Y", "Z"]
+            user_cfg_path.write_text(
+                json.dumps(
+                    {
+                        "combat_mode": "cast_skills",
+                        "hero": "lancer",
+                        "hero_configs": {"mk": {"points": [[999, 999]], "inventory": ["X", "Y", "Z"]}},
+                        "points": [[111, 222]],
+                        "inventory": ["A", "B", "C"],
                     }
-                },
-                "points": [[111, 222]],
-                "inventory": ["A", "B", "C"]
-            }), encoding="utf-8")
+                ),
+                encoding="utf-8",
+            )
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
             # 应使用 lancer 默认物品栏，而不是顶层或 mk 的物品栏
             self.assertEqual(result["hero"]["inventory"], ["G", "H", "I"])
             # 顶层 points 不应回退到任务命名空间
-            self.assertIsNone(
-                result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"].get("points")
-            )
+            self.assertIsNone(result["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"].get("points"))
         finally:
             shutil.rmtree(fake_root, ignore_errors=True)
 
@@ -551,11 +523,11 @@ class TestNamespaceRoots(TestConfigBase):
     def test_roots_include_dirs_and_toml_files(self):
         """namespace_roots 应包含 config 目录下递归扫描的文件夹名和 .toml 文件名。"""
         roots = self.cfg.namespace_roots
-        self.assertIn("war3", roots)        # 文件夹
-        self.assertIn("jiubing2", roots)    # 文件夹
-        self.assertIn("tasks", roots)       # 文件夹
-        self.assertIn("heroes", roots)      # 文件夹
-        self.assertIn("base", roots)        # .toml 文件
+        self.assertIn("war3", roots)  # 文件夹
+        self.assertIn("jiubing2", roots)  # 文件夹
+        self.assertIn("tasks", roots)  # 文件夹
+        self.assertIn("heroes", roots)  # 文件夹
+        self.assertIn("base", roots)  # .toml 文件
 
 
 if __name__ == "__main__":

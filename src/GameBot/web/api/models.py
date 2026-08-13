@@ -1,9 +1,11 @@
 """Pydantic 请求/响应模型定义。"""
+
 from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 
 # ---- 基础数据模型 ----
+
 
 class TaskInfo(BaseModel):
     id: str
@@ -34,6 +36,7 @@ class RunningTaskInfo(BaseModel):
 
 
 # ---- API 响应模型 ----
+
 
 class CommandDef(BaseModel):
     key: str
@@ -81,6 +84,7 @@ class HeroImportBatchResponse(BaseModel):
 
 
 # ---- 请求模型 ----
+
 
 class SaveConfigRequest(BaseModel):
     # 动态键值对，不强制约束具体结构

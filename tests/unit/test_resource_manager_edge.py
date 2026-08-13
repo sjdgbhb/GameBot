@@ -1,4 +1,5 @@
 """ResourceManager 边界测试 — 覆盖字体安装/移除的 Windows API 分支。"""
+
 import sys
 import tempfile
 import unittest
@@ -14,8 +15,14 @@ pytestmark = [pytest.mark.unit]
 
 # Mock Windows COM 依赖
 _DM_MODULES = (
-    "win32com", "win32com.client", "pythoncom", "pywintypes",
-    "winreg", "win32gui", "win32con", "win32api",
+    "win32com",
+    "win32com.client",
+    "pythoncom",
+    "pywintypes",
+    "winreg",
+    "win32gui",
+    "win32con",
+    "win32api",
 )
 
 
@@ -46,6 +53,7 @@ class TestResourceManagerFontEdge(unittest.TestCase):
     def _make_mgr(self, tmp_path):
         """创建一个 ResourceManager 实例，mock config.get_path 返回 tmp_path。"""
         from GameBot.runner.resource_manager import ResourceManager
+
         mgr = ResourceManager()
         with patch("GameBot.runner.resource_manager.config") as mock_config:
             mock_config.get_path.return_value = tmp_path
@@ -56,6 +64,7 @@ class TestResourceManagerFontEdge(unittest.TestCase):
     def test_install_temp_font_success(self, mock_ctypes):
         """临时安装字体成功时应发送字体变更广播并返回路径。"""
         import shutil
+
         tmp = Path(tempfile.mkdtemp())
         try:
             mgr = self._make_mgr(tmp)
@@ -79,6 +88,7 @@ class TestResourceManagerFontEdge(unittest.TestCase):
     def test_install_font_permanent_warns_and_falls_back(self, mock_ctypes):
         """permanent=True 时应记录警告并仍然执行临时安装。"""
         import shutil
+
         tmp = Path(tempfile.mkdtemp())
         try:
             mgr = self._make_mgr(tmp)
@@ -100,6 +110,7 @@ class TestResourceManagerFontEdge(unittest.TestCase):
     def test_install_font_failure_raises(self, mock_ctypes):
         """AddFontResourceW 返回 0 时应抛出 RuntimeError。"""
         import shutil
+
         tmp = Path(tempfile.mkdtemp())
         try:
             mgr = self._make_mgr(tmp)
@@ -118,6 +129,7 @@ class TestResourceManagerFontEdge(unittest.TestCase):
     def test_install_font_not_found(self):
         """字体文件不存在时应抛出 ResourceNotFoundError。"""
         import shutil
+
         tmp = Path(tempfile.mkdtemp())
         try:
             mgr = self._make_mgr(tmp)
@@ -130,6 +142,7 @@ class TestResourceManagerFontEdge(unittest.TestCase):
     def test_remove_temp_font_calls_windows_api(self, mock_ctypes):
         """移除临时字体时应调用 RemoveFontResourceW 并广播。"""
         import shutil
+
         tmp = Path(tempfile.mkdtemp())
         try:
             mgr = self._make_mgr(tmp)

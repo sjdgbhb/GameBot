@@ -1,7 +1,8 @@
-﻿"""
+"""
 无尽循环编排器 — 准备阶段 → 进入无尽 → 循环刷怪。
 endless.py（完整流程）和 endless_single.py（已在无尽内）共用。
 """
+
 import time
 
 from GameBot.utils import logger
@@ -15,8 +16,7 @@ class EndlessRunner:
     endless.py 和 endless_single.py 共用此类：前者走完整流程，后者直接调用主循环。
     """
 
-    def __init__(self, dm, war3, ui, combat, war3_cfg: dict,
-                 hero_cfg: dict, cfg: dict):
+    def __init__(self, dm, war3, ui, combat, war3_cfg: dict, hero_cfg: dict, cfg: dict):
         """
         :param dm: DmClient
         :param war3: War3Business 实例（is_in_game / move_to_minimap_point / send_msg / use_inventory_item）
@@ -32,9 +32,9 @@ class EndlessRunner:
         self._combat = combat
         self.war3_cfg = war3_cfg
         self.hero_cfg = hero_cfg
-        self.game_cfg = cfg.get('game', {})
-        self.command_cfg = cfg.get('command', {})
-        self._prompt_text_cfg = cfg.get('prompt_text', {})
+        self.game_cfg = cfg.get("game", {})
+        self.command_cfg = cfg.get("command", {})
+        self._prompt_text_cfg = cfg.get("prompt_text", {})
 
     # ── 游戏进入 & 准备 ───────────────────────────────────
 
@@ -57,8 +57,8 @@ class EndlessRunner:
         :param stop_event: 停止事件，设置时中断等待
         """
         self._ui.select_difficulty(task_cfg)
-        logger.info(f'初始化...（等待 {self.game_cfg["init_game_time"]}s）')
-        self._war3.interruptible_wait(self.game_cfg['init_game_time'], stop_event)
+        logger.info(f"初始化...（等待 {self.game_cfg['init_game_time']}s）")
+        self._war3.interruptible_wait(self.game_cfg["init_game_time"], stop_event)
         self._ui.select_hero()
         self._ui.load_save()
         self._ui.load_stigmata()
@@ -68,8 +68,7 @@ class EndlessRunner:
 
     # ── 无尽入口 ──────────────────────────────────────────
 
-    def move_to_start(self, endless_cfg: dict, is_from_entrance: bool = False,
-                      stop_event=None):
+    def move_to_start(self, endless_cfg: dict, is_from_entrance: bool = False, stop_event=None):
         """F1 居中 → 通过小地图走到循环起始位置。
 
         从入口走来（is_from_entrance=True）和打完 BOSS 回来，等待时间不同，
@@ -79,13 +78,12 @@ class EndlessRunner:
         :param is_from_entrance: True=从入口走来（用 entrance_to_start_time），False=打完回来（用 time）
         :param stop_event: 停止事件，设置时中断等待
         """
-        self.dm.key_press_char('F1')
-        self._war3.interruptible_wait(self.war3_cfg['general_time'], stop_event)
-        section = endless_cfg['points'][-1]
-        wait = section['entrance_to_start_time'] if is_from_entrance else section['time']
-        logger.info(f'目标位置：{section["desc"]}，等待时间：{wait}s')
-        self._war3.move_to_minimap_point(section['mini_coords'], section['coords'], 2, wait,
-                                         stop_event=stop_event)
+        self.dm.key_press_char("F1")
+        self._war3.interruptible_wait(self.war3_cfg["general_time"], stop_event)
+        section = endless_cfg["points"][-1]
+        wait = section["entrance_to_start_time"] if is_from_entrance else section["time"]
+        logger.info(f"目标位置：{section['desc']}，等待时间：{wait}s")
+        self._war3.move_to_minimap_point(section["mini_coords"], section["coords"], 2, wait, stop_event=stop_event)
 
     def start_endless(self, task, game_idx: int, endless_cfg: dict):
         """无尽入口：回到起点 → 开始循环刷怪。
@@ -94,8 +92,8 @@ class EndlessRunner:
         :param game_idx: 当前局数编号（1-based）
         :param endless_cfg: 无尽配置
         """
-        logger.info('开始无尽')
-        stop_event = getattr(task, '_stop_event', None)
+        logger.info("开始无尽")
+        stop_event = getattr(task, "_stop_event", None)
         self.move_to_start(endless_cfg, is_from_entrance=True, stop_event=stop_event)
         self.clear_endless_monster_loop(task, game_idx, endless_cfg)
 
@@ -111,13 +109,13 @@ class EndlessRunner:
         :param game_idx: 当前局数
         :param endless_cfg: 无尽配置（min_level / max_level / points / refresh_timer 等）
         """
-        stop_event = getattr(task, '_stop_event', None)
-        progress_callback = getattr(task, '_progress_callback', None) or (lambda text: None)
-        path_points = endless_cfg['points']
-        max_level = endless_cfg['max_level']
+        stop_event = getattr(task, "_stop_event", None)
+        progress_callback = getattr(task, "_progress_callback", None) or (lambda text: None)
+        path_points = endless_cfg["points"]
+        max_level = endless_cfg["max_level"]
         total_games = endless_cfg.get("games")
         is_multi = total_games is not None
-        for floor in range(endless_cfg['min_level'], max_level + 1):
+        for floor in range(endless_cfg["min_level"], max_level + 1):
             logger.info(f"开始清理无尽第 {floor} 层...")
             if is_multi:
                 progress_callback(f"第 {game_idx}/{total_games} 局 - 楼层 {floor}/{max_level}")
@@ -126,7 +124,7 @@ class EndlessRunner:
             feed_timer = time.time()  # 记录喂食时间
             for idx, pt in enumerate(path_points):
                 # 每隔一定时间喂一次宠物
-                if time.time() - feed_timer >= endless_cfg['pet_feed_interval']:
+                if time.time() - feed_timer >= endless_cfg["pet_feed_interval"]:
                     self._combat.feed_pet(task, stop_event)
                     feed_timer = time.time()
                 # 移动 → 到达后执行 actions
@@ -135,17 +133,14 @@ class EndlessRunner:
 
             logger.info(f"无尽第 {floor} 层清理完毕")
             if is_multi:
-                logger.info(
-                    f'任务进度：局数：{game_idx} / {total_games}'
-                    f' - 层数：{floor} / {max_level}'
-                )
+                logger.info(f"任务进度：局数：{game_idx} / {total_games} - 层数：{floor} / {max_level}")
             else:
-                logger.info(f'任务进度：层数：{floor} / {max_level}')
+                logger.info(f"任务进度：层数：{floor} / {max_level}")
             # 记录 BOSS 死亡时间（所有层）
             self._wait_boss_dead(task, endless_cfg)
             # 等待本层刷新计时器结束（非最后一层）
             if floor < max_level:
-                remaining = endless_cfg['refresh_timer'] - (time.time() - task.boss_death_time)
+                remaining = endless_cfg["refresh_timer"] - (time.time() - task.boss_death_time)
                 if remaining > 0:
                     self._war3.interruptible_wait(remaining, stop_event)
 
@@ -159,18 +154,16 @@ class EndlessRunner:
         :param task: 任务对象（需有 boss_death_time 属性）
         :param endless_cfg: 无尽配置（boss_death_text / boss_death_timeout）
         """
-        boss_death_text = endless_cfg.get('boss_death_text', '开始挑战')
-        timeout = endless_cfg.get('boss_death_timeout', 60)
-        stop_event = getattr(task, '_stop_event', None)
+        boss_death_text = endless_cfg.get("boss_death_text", "开始挑战")
+        timeout = endless_cfg.get("boss_death_timeout", 60)
+        stop_event = getattr(task, "_stop_event", None)
         if self._prompt_text_cfg:
-            logger.info(f'等待 BOSS 死亡提示：{boss_death_text}')
-            if self._war3.wait_for_text(
-                self._prompt_text_cfg, boss_death_text, timeout=timeout, stop_event=stop_event
-            ):
+            logger.info(f"等待 BOSS 死亡提示：{boss_death_text}")
+            if self._war3.wait_for_text(self._prompt_text_cfg, boss_death_text, timeout=timeout, stop_event=stop_event):
                 task.boss_death_time = time.time()
-                logger.info('检测到 BOSS 死亡提示')
+                logger.info("检测到 BOSS 死亡提示")
                 return
-            logger.warning('等待 BOSS 死亡提示超时，使用当前时间兜底')
+            logger.warning("等待 BOSS 死亡提示超时，使用当前时间兜底")
         task.boss_death_time = time.time()
 
     def _navigate_to_point(self, pt: dict, stop_event=None):
@@ -179,16 +172,18 @@ class EndlessRunner:
         :param pt: 点位配置（mini_coords / coords / walk_mode / time / desc）
         :param stop_event: 可选的停止事件，设置时中断移动等待
         """
-        self.dm.key_press_char('F1')
-        self._war3.interruptible_wait(self.war3_cfg['key_time'], stop_event)
-        logger.info(f'目标位置：{pt.get("desc")}，等待时间：{pt.get("time", 3)}s')
+        self.dm.key_press_char("F1")
+        self._war3.interruptible_wait(self.war3_cfg["key_time"], stop_event)
+        logger.info(f"目标位置：{pt.get('desc')}，等待时间：{pt.get('time', 3)}s")
         self._war3.move_to_minimap_point(
-            pt.get('mini_coords'), pt.get('coords'), pt.get('walk_mode', 1), pt.get('time', 3),
+            pt.get("mini_coords"),
+            pt.get("coords"),
+            pt.get("walk_mode", 1),
+            pt.get("time", 3),
             stop_event=stop_event,
         )
 
-    def _on_arrive(self, task, pt: dict, floor: int, idx: int, path_points: list,
-                   endless_cfg: dict, stop_event=None):
+    def _on_arrive(self, task, pt: dict, floor: int, idx: int, path_points: list, endless_cfg: dict, stop_event=None):
         """到达路线点后执行 actions。
 
         :param task: 任务对象
@@ -201,14 +196,12 @@ class EndlessRunner:
         """
         # 楼层门控：低于 use_shard_floor 时移除水晶（id=8）的 item action
         pt_eff = dict(pt)
-        actions = pt_eff.get('actions')
-        if actions and floor < endless_cfg.get('use_shard_floor', 0):
-            filtered = [a for a in actions
-                        if not (a and a.get('type') == 'item' and int(a.get('id', 0)) == 8)]
+        actions = pt_eff.get("actions")
+        if actions and floor < endless_cfg.get("use_shard_floor", 0):
+            filtered = [a for a in actions if not (a and a.get("type") == "item" and int(a.get("id", 0)) == 8)]
             if filtered:
-                pt_eff['actions'] = filtered
+                pt_eff["actions"] = filtered
             else:
-                pt_eff.pop('actions', None)
+                pt_eff.pop("actions", None)
 
-        self._combat.execute_actions(pt_eff, pt.get('coords'), stop_event=stop_event)
-
+        self._combat.execute_actions(pt_eff, pt.get("coords"), stop_event=stop_event)
