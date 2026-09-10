@@ -1,16 +1,18 @@
 """圣骑士风龙后台绑定参数手动测试。
 
-从内置的有效组合中选一组跑，手动按 Ctrl+C 停止。
+从内置的有效组合中选一组跑，按小键盘 num- 停止。
 
 用法：
+    uv run python tests/manual/test_paladin_wind_dragon_bind.py
     uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 1
-    uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 4 --duration 30
+    uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 4
 """
 
 from __future__ import annotations
 
 import argparse
 import copy
+import ctypes
 import json
 import sys
 import threading
@@ -24,6 +26,9 @@ from GameBot.utils import DmError, StopTaskError, logger, setup_log_file
 
 OUT_DIR = Path("logs/diag_wind_dragon_bind")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# 小键盘减号键，按一下即停止
+VK_NUMPAD_SUBTRACT = 0x6D
 
 # 本环境（管理员 + dx2 + mode 4）实测有效的组合。
 # 用 --case N 选择，编号从 1 开始。
@@ -43,8 +48,26 @@ DEFAULT_CASES = [
 ]
 
 
-def run_case(base_cfg: dict, dm, case: dict, duration: float) -> dict:
-    """运行一组绑定参数，duration <= 0 时一直跑到手动停止。"""
+def _start_stop_listener(stop_event: threading.Event) -> threading.Thread:
+    """监听小键盘 num- 键，按下后设置 stop_event。"""
+    def listen():
+        user32 = ctypes.windll.user32
+        was_pressed = False
+        while not stop_event.is_set():
+            pressed = (user32.GetAsyncKeyState(VK_NUMPAD_SUBTRACT) & 0x8000) != 0
+            if pressed and not was_pressed:
+                logger.info("  检测到 num- 键，请求停止...")
+                stop_event.set()
+            was_pressed = pressed
+            time.sleep(0.05)
+
+    t = threading.Thread(target=listen, daemon=True)
+    t.start()
+    return t
+
+
+def run_case(base_cfg: dict, dm, case: dict) -> dict:
+    """运行一组绑定参数，按 num- 停止。"""
     public = case.get("public", "")
     label = (
         f"wd_{case['display']}_{case['mouse']}_{case['keypad']}"
@@ -54,7 +77,6 @@ def run_case(base_cfg: dict, dm, case: dict, duration: float) -> dict:
     result = {
         "label": label,
         "case": case,
-        "duration": duration,
         "actual_duration": 0.0,
         "bind_ok": False,
         "detect_ok": False,
@@ -65,10 +87,7 @@ def run_case(base_cfg: dict, dm, case: dict, duration: float) -> dict:
     }
 
     logger.info(f"\n测试组合 [{case}]")
-    if duration > 0:
-        logger.info(f"运行 {duration}s 后自动停止")
-    else:
-        logger.info("按 Ctrl+C 手动停止")
+    logger.info("运行中，按小键盘 num- 停止")
 
     cfg = copy.deepcopy(base_cfg)
     task_path = cfg["war3"]["jiubing2"]["tasks"]["others"]["paladin_wind_dragon"]
@@ -107,23 +126,18 @@ def run_case(base_cfg: dict, dm, case: dict, duration: float) -> dict:
             result["detect_ok"] = detect_ok
 
             stop_event = threading.Event()
-            timer = None
-            if duration > 0:
-                timer = threading.Timer(duration, stop_event.set)
-                timer.daemon = True
-                timer.start()
+            listener = _start_stop_listener(stop_event)
 
             task._stop_event = stop_event
             start_time = time.monotonic()
             try:
                 task.run_core(task.war3.hwnd)
             except StopTaskError:
-                logger.info("  到达测试时长，停止循环")
+                logger.info("  停止循环")
             except KeyboardInterrupt:
                 logger.info("  用户手动停止")
             finally:
-                if timer is not None:
-                    timer.cancel()
+                listener.join(timeout=0.5)
             result["actual_duration"] = round(time.monotonic() - start_time, 2)
 
         result["bind_ok"] = True
@@ -150,12 +164,6 @@ def main() -> int:
         default=None,
         help="跑第几组（1~12），不指定则列出所有组合",
     )
-    parser.add_argument(
-        "--duration",
-        type=float,
-        default=0,
-        help="运行秒数，0 表示手动停止（默认 0）",
-    )
     args = parser.parse_args()
 
     setup_log_file("风龙后台绑定测试")
@@ -176,7 +184,7 @@ def main() -> int:
 
     dm = create_dm_client()
     try:
-        result = run_case(base_cfg, dm, case, args.duration)
+        result = run_case(base_cfg, dm, case)
     finally:
         dm.close()
 
