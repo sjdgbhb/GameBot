@@ -1,18 +1,14 @@
 """圣骑士风龙后台绑定参数手动测试。
 
-复用钓鱼任务的启停逻辑：浮窗倒计时 + num- 键停止。
-从内置有效组合中选一组跑，每组都是实际可施放技能的参数。
+从内置有效组合中选一组跑，浮窗倒计时后自动开始，按小键盘 num- 停止。
 
 用法：
     uv run python tests/manual/test_paladin_wind_dragon_bind.py
     uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 1
-    uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 4 --delay 10
+    uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 4
 """
 
-from __future__ import annotations
-
 import argparse
-import copy
 import sys
 
 from GameBot.config import config
@@ -21,20 +17,19 @@ from GameBot.runner.ui import run_with_float_window
 from GameBot.utils import logger, setup_global_exception_hook, setup_log_file
 
 # 本环境（管理员 + dx2 + mode 4）实测有效的组合。
-# 用 --case N 选择，编号从 1 开始。
 DEFAULT_CASES = [
-    {"display": "dx2", "mouse": "windows",                    "keypad": "windows",           "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "windows2",                   "keypad": "windows",           "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "windows3",                   "keypad": "windows",           "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows",           "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "dx.mouse.focus.input.api",  "keypad": "windows",           "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "dx.mouse.clip.lock.api",     "keypad": "windows",           "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "dx.mouse.state.api",         "keypad": "windows",           "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "dx.mouse.api",               "keypad": "windows",           "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "dx.mouse.cursor",            "keypad": "windows",           "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "windows2",                   "keypad": "dx.keypad.input.lock.api", "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "windows2",                   "keypad": "dx.keypad.api",            "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows",          "public": "dx.public.active.api", "mode": 4},
+    {"display": "dx2", "mouse": "windows",                    "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "windows2",                   "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "windows3",                   "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "dx.mouse.focus.input.api",  "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "dx.mouse.clip.lock.api",     "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "dx.mouse.state.api",         "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "dx.mouse.api",               "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "dx.mouse.cursor",            "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "windows2",                   "keypad": "dx.keypad.input.lock.api", "public": "", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "windows2",                   "keypad": "dx.keypad.api",            "public": "", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows",          "public": "dx.public.active.api", "mode": 4, "bind_delay": 1.5},
 ]
 
 
@@ -45,12 +40,6 @@ def main():
         type=int,
         default=None,
         help="跑第几组（1~12），不指定则列出所有组合",
-    )
-    parser.add_argument(
-        "--delay",
-        type=int,
-        default=5,
-        help="启动前倒计时秒数（默认 5）",
     )
     args = parser.parse_args()
 
@@ -67,20 +56,8 @@ def main():
     setup_global_exception_hook()
     setup_log_file("风龙后台绑定测试")
 
-    case = copy.deepcopy(DEFAULT_CASES[args.case - 1])
     cfg = config.load_task("war3.jiubing2.tasks.others.paladin_wind_dragon")
-
-    # 注入后台绑定参数
-    task_path = cfg["war3"]["jiubing2"]["tasks"]["others"]["paladin_wind_dragon"]
-    task_path["bind_mode"] = "background"
-    cfg["war3"]["bind_multi"] = {
-        "display": case["display"],
-        "mouse": case["mouse"],
-        "keypad": case["keypad"],
-        "public": case.get("public", ""),
-        "mode": case["mode"],
-        "bind_delay": 1.5,
-    }
+    cfg["war3"]["bind_multi"] = DEFAULT_CASES[args.case - 1]
 
     def task_wrapper(stop_event, progress_callback):
         PaladinWindDragonTask(
@@ -92,9 +69,10 @@ def main():
     run_with_float_window(
         "风龙绑定测试",
         task_wrapper,
-        countdown_seconds=args.delay,
+        countdown_seconds=5,
         float_cfg=cfg.get("float_window"),
     )
+    return 0
 
 
 if __name__ == "__main__":
