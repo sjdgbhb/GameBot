@@ -1,34 +1,24 @@
 """圣骑士风龙后台绑定参数手动测试。
 
-从内置的有效组合中选一组跑，按小键盘 num- 停止。
+复用钓鱼任务的启停逻辑：浮窗倒计时 + num- 键停止。
+从内置有效组合中选一组跑，每组都是实际可施放技能的参数。
 
 用法：
     uv run python tests/manual/test_paladin_wind_dragon_bind.py
     uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 1
-    uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 4
+    uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 4 --delay 10
 """
 
 from __future__ import annotations
 
 import argparse
 import copy
-import ctypes
-import json
 import sys
-import threading
-import time
-from pathlib import Path
 
 from GameBot.config import config
-from GameBot.runner.driver import create_dm_client
 from GameBot.runner.tasks.war3.jiubing2.others.paladin_wind_dragon import PaladinWindDragonTask
-from GameBot.utils import DmError, StopTaskError, logger, setup_log_file
-
-OUT_DIR = Path("logs/diag_wind_dragon_bind")
-OUT_DIR.mkdir(parents=True, exist_ok=True)
-
-# 小键盘减号键，按一下即停止
-VK_NUMPAD_SUBTRACT = 0x6D
+from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import logger, setup_global_exception_hook, setup_log_file
 
 # 本环境（管理员 + dx2 + mode 4）实测有效的组合。
 # 用 --case N 选择，编号从 1 开始。
@@ -48,119 +38,7 @@ DEFAULT_CASES = [
 ]
 
 
-def _start_stop_listener(stop_event: threading.Event) -> threading.Thread:
-    """监听小键盘 num- 键，按下后设置 stop_event。"""
-    def listen():
-        user32 = ctypes.windll.user32
-        was_pressed = False
-        while not stop_event.is_set():
-            pressed = (user32.GetAsyncKeyState(VK_NUMPAD_SUBTRACT) & 0x8000) != 0
-            if pressed and not was_pressed:
-                logger.info("  检测到 num- 键，请求停止...")
-                stop_event.set()
-            was_pressed = pressed
-            time.sleep(0.05)
-
-    t = threading.Thread(target=listen, daemon=True)
-    t.start()
-    return t
-
-
-def run_case(base_cfg: dict, dm, case: dict) -> dict:
-    """运行一组绑定参数，按 num- 停止。"""
-    public = case.get("public", "")
-    label = (
-        f"wd_{case['display']}_{case['mouse']}_{case['keypad']}"
-        f"{('_' + public.replace('|', '_')) if public else ''}_mode{case['mode']}"
-    )
-
-    result = {
-        "label": label,
-        "case": case,
-        "actual_duration": 0.0,
-        "bind_ok": False,
-        "detect_ok": False,
-        "ready_states": {},
-        "casts": {},
-        "total_casts": 0,
-        "error": "",
-    }
-
-    logger.info(f"\n测试组合 [{case}]")
-    logger.info("运行中，按小键盘 num- 停止")
-
-    cfg = copy.deepcopy(base_cfg)
-    task_path = cfg["war3"]["jiubing2"]["tasks"]["others"]["paladin_wind_dragon"]
-    task_path["bind_mode"] = "background"
-    cfg["war3"]["bind_multi"] = {
-        "display": case["display"],
-        "mouse": case["mouse"],
-        "keypad": case["keypad"],
-        "public": public,
-        "mode": case["mode"],
-        "bind_delay": 1.5,
-    }
-
-    task = PaladinWindDragonTask(cfg, dm=dm)
-
-    hwnd = task.war3.wait_for_game_window()
-    if not hwnd:
-        result["error"] = "未找到 War3 窗口"
-        logger.error("未找到 War3 窗口")
-        return result
-
-    try:
-        with dm.bind_window(hwnd, bind_cfg=cfg["war3"]["bind_multi"]):
-            task.war3.set_client_size(hwnd)
-            x1, y1, x2, y2 = dm.get_client_rect(hwnd)
-            task.client_center = [(x2 - x1) // 2, (y2 - y1) // 2]
-
-            ready_states = {}
-            detect_ok = False
-            for skill in task.skills:
-                key = skill["key"]
-                ready = task._is_ready(skill)
-                ready_states[key] = ready
-                if ready:
-                    detect_ok = True
-                    logger.info(f"  技能 {key.upper()} 检测: 就绪")
-                else:
-                    logger.info(f"  技能 {key.upper()} 检测: 未就绪/冷却中")
-            result["ready_states"] = ready_states
-            result["detect_ok"] = detect_ok
-
-            stop_event = threading.Event()
-            listener = _start_stop_listener(stop_event)
-
-            task._stop_event = stop_event
-            start_time = time.monotonic()
-            try:
-                task.run_core(task.war3.hwnd)
-            except StopTaskError:
-                logger.info("  停止循环")
-            except KeyboardInterrupt:
-                logger.info("  用户手动停止")
-            finally:
-                listener.join(timeout=0.5)
-            result["actual_duration"] = round(time.monotonic() - start_time, 2)
-
-        result["bind_ok"] = True
-
-    except DmError as e:
-        result["error"] = str(e)
-        logger.error(f"  {label}: 大漠错误: {e}")
-
-    result["casts"] = {k: v for k, v in task._cast_counts.items()}
-    result["total_casts"] = sum(result["casts"].values())
-    logger.info(
-        f"  [{label}] 测试结束，实际运行 {result['actual_duration']}s，"
-        f"bind={result['bind_ok']} detect={result['detect_ok']} "
-        f"casts={result['total_casts']} ({result['casts']})"
-    )
-    return result
-
-
-def main() -> int:
+def main():
     parser = argparse.ArgumentParser(description="圣骑士风龙后台绑定参数手动测试")
     parser.add_argument(
         "--case",
@@ -171,17 +49,10 @@ def main() -> int:
     parser.add_argument(
         "--delay",
         type=int,
-        default=3,
-        help="启动前等待秒数（默认 3）",
+        default=5,
+        help="启动前倒计时秒数（默认 5）",
     )
     args = parser.parse_args()
-
-    setup_log_file("风龙后台绑定测试")
-
-    # 倒计时
-    for i in range(args.delay, 0, -1):
-        logger.info(f"{i} 秒后开始...")
-        time.sleep(1)
 
     if args.case is None:
         logger.info("内置有效组合：")
@@ -193,22 +64,37 @@ def main() -> int:
         logger.error(f"--case 超出范围，有效范围 1~{len(DEFAULT_CASES)}")
         return 1
 
+    setup_global_exception_hook()
+    setup_log_file("风龙后台绑定测试")
+
     case = copy.deepcopy(DEFAULT_CASES[args.case - 1])
-    base_cfg = config.load_task("war3.jiubing2.tasks.others.paladin_wind_dragon")
-    base_cfg = copy.deepcopy(base_cfg)
+    cfg = config.load_task("war3.jiubing2.tasks.others.paladin_wind_dragon")
 
-    dm = create_dm_client()
-    try:
-        result = run_case(base_cfg, dm, case)
-    finally:
-        dm.close()
+    # 注入后台绑定参数
+    task_path = cfg["war3"]["jiubing2"]["tasks"]["others"]["paladin_wind_dragon"]
+    task_path["bind_mode"] = "background"
+    cfg["war3"]["bind_multi"] = {
+        "display": case["display"],
+        "mouse": case["mouse"],
+        "keypad": case["keypad"],
+        "public": case.get("public", ""),
+        "mode": case["mode"],
+        "bind_delay": 1.5,
+    }
 
-    report_path = OUT_DIR / "report.json"
-    with open(report_path, "w", encoding="utf-8") as f:
-        json.dump(result, f, ensure_ascii=False, indent=2)
-    logger.info(f"\n报告已保存: {report_path.resolve()}")
+    def task_wrapper(stop_event, progress_callback):
+        PaladinWindDragonTask(
+            cfg,
+            stop_event=stop_event,
+            progress_callback=progress_callback,
+        ).run()
 
-    return 0 if result["bind_ok"] and result["total_casts"] > 0 else 1
+    run_with_float_window(
+        "风龙绑定测试",
+        task_wrapper,
+        countdown_seconds=args.delay,
+        float_cfg=cfg.get("float_window"),
+    )
 
 
 if __name__ == "__main__":
