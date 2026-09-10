@@ -37,13 +37,16 @@ from GameBot.utils import DmError, StopTaskError, logger, setup_log_file
 OUT_DIR = Path("logs/diag_wind_dragon_bind")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# 默认测试矩阵：display 固定 dx2，mode 固定 0，
-# 主要比较 mouse 与 keypad 设置对游戏行为的影响。
+# 默认测试矩阵：
+# - display 固定 dx2（dx 后台截图在本环境刷新过慢/失败）
+# - mode 固定 4（实测 mode 0 下 windows2 报 -19，mode 4 可正常绑定并施放）
+# - mouse 比较 windows / windows2 / windows3
+# - keypad 比较 windows / dx（dx 在本环境部分组合会失败，但保留用于排查）
 DEFAULT_DISPLAYS = ["dx2"]
 DEFAULT_MICE = ["windows", "windows2", "windows3"]
 DEFAULT_KEYPADS = ["windows", "dx"]
 DEFAULT_PUBLICS = [""]
-DEFAULT_MODES = [0]
+DEFAULT_MODES = [4]
 
 
 def _split_arg(value: str | None, defaults: list[str]) -> list[str]:
@@ -299,6 +302,25 @@ def main() -> int:
                 f"casts={r['total_casts']} ({r['casts']}) | "
                 f"error={r['error'] or '无'}"
             )
+
+        # 可直接用于 war3.bind_multi 的推荐组合
+        working = [
+            r for r in results
+            if r["bind_ok"] and r["total_casts"] > 0
+        ]
+        logger.info("\n" + "=" * 60)
+        logger.info(f"可正常施放技能的组合（共 {len(working)} 组）")
+        logger.info("=" * 60)
+        if working:
+            for r in working:
+                c = r["case"]
+                logger.info(
+                    f"display={c['display']}, mouse={c['mouse']}, "
+                    f"keypad={c['keypad']}, public={c.get('public', '')!r}, "
+                    f"mode={c['mode']} -> casts={r['total_casts']}"
+                )
+        else:
+            logger.info("没有成功施放技能的组合")
 
         # 保存 JSON 报告
         report_path = Path(args.output) if args.output else OUT_DIR / "report.json"
