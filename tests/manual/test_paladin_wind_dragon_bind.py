@@ -1,18 +1,10 @@
 """圣骑士风龙后台绑定参数手动测试。
 
-只跑一组绑定参数，手动在游戏中观察，按 Ctrl+C 停止。
+从内置的有效组合中选一组跑，手动按 Ctrl+C 停止。
 
 用法：
-    uv run python tests/manual/test_paladin_wind_dragon_bind.py
-    uv run python tests/manual/test_paladin_wind_dragon_bind.py --mouse windows2
-    uv run python tests/manual/test_paladin_wind_dragon_bind.py --mouse "dx.mouse.position.lock.api" --duration 30
-    uv run python tests/manual/test_paladin_wind_dragon_bind.py --keypad "dx.keypad.api" --public "dx.public.active.api"
-
-注意事项：
-- 需要以管理员权限运行（dx 绑定模式要求）
-- 测试前请将圣骑士角色置于可释放技能状态
-- 脚本会真实发送按键和点击，请在合适的游戏场景下运行
-- 后台绑定下 War3 窗口可被遮挡，但不能最小化
+    uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 1
+    uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 4 --duration 30
 """
 
 from __future__ import annotations
@@ -33,31 +25,22 @@ from GameBot.utils import DmError, StopTaskError, logger, setup_log_file
 OUT_DIR = Path("logs/diag_wind_dragon_bind")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# 默认用本环境实测最稳的一组：管理员 + dx2 + mode 4
-# 可覆盖：--display / --mouse / --keypad / --public / --mode / --duration
-DEFAULT_DISPLAY = "dx2"
-DEFAULT_MOUSE = "dx.mouse.position.lock.api"
-DEFAULT_KEYPAD = "windows"
-DEFAULT_PUBLIC = ""
-DEFAULT_MODE = 4
-
-# 其它在本环境也有效的组合，需要时可通过 --mouse/--keypad 传入：
-#   mouse: windows, windows2, windows3,
-#          dx.mouse.focus.input.api, dx.mouse.clip.lock.api,
-#          dx.mouse.state.api, dx.mouse.api
-#   keypad: dx.keypad.input.lock.api, dx.keypad.api
-#   public: dx.public.active.api
-
-
-def _build_case(args: argparse.Namespace) -> dict:
-    """把 CLI 参数合并成一组绑定参数。"""
-    return {
-        "display": args.display or DEFAULT_DISPLAY,
-        "mouse": args.mouse or DEFAULT_MOUSE,
-        "keypad": args.keypad or DEFAULT_KEYPAD,
-        "public": args.public if args.public is not None else DEFAULT_PUBLIC,
-        "mode": int(args.mode) if args.mode is not None else DEFAULT_MODE,
-    }
+# 本环境（管理员 + dx2 + mode 4）实测有效的组合。
+# 用 --case N 选择，编号从 1 开始。
+DEFAULT_CASES = [
+    {"display": "dx2", "mouse": "windows",                    "keypad": "windows",           "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "windows2",                   "keypad": "windows",           "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "windows3",                   "keypad": "windows",           "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows",           "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "dx.mouse.focus.input.api",  "keypad": "windows",           "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "dx.mouse.clip.lock.api",     "keypad": "windows",           "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "dx.mouse.state.api",         "keypad": "windows",           "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "dx.mouse.api",               "keypad": "windows",           "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "dx.mouse.cursor",            "keypad": "windows",           "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "windows2",                   "keypad": "dx.keypad.input.lock.api", "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "windows2",                   "keypad": "dx.keypad.api",            "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows",          "public": "dx.public.active.api", "mode": 4},
+]
 
 
 def run_case(base_cfg: dict, dm, case: dict, duration: float) -> dict:
@@ -81,7 +64,7 @@ def run_case(base_cfg: dict, dm, case: dict, duration: float) -> dict:
         "error": "",
     }
 
-    logger.info(f"\n测试组合: {case}")
+    logger.info(f"\n测试组合 [{case}]")
     if duration > 0:
         logger.info(f"运行 {duration}s 后自动停止")
     else:
@@ -105,12 +88,10 @@ def run_case(base_cfg: dict, dm, case: dict, duration: float) -> dict:
         with dm.bind_window(
             task.war3.hwnd, bind_cfg=cfg["war3"]["bind_multi"]
         ):
-            # 注入测试用例的绑定配置（后台模式会读 war3.bind_multi）
             task.war3.set_client_size(task.war3.hwnd)
             x1, y1, x2, y2 = dm.get_client_rect(task.war3.hwnd)
             task.client_center = [(x2 - x1) // 2, (y2 - y1) // 2]
 
-            # 先检测一次技能图标
             ready_states = {}
             detect_ok = False
             for skill in task.skills:
@@ -125,7 +106,6 @@ def run_case(base_cfg: dict, dm, case: dict, duration: float) -> dict:
             result["ready_states"] = ready_states
             result["detect_ok"] = detect_ok
 
-            # 启动挂机循环
             stop_event = threading.Event()
             timer = None
             if duration > 0:
@@ -165,34 +145,10 @@ def run_case(base_cfg: dict, dm, case: dict, duration: float) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description="圣骑士风龙后台绑定参数手动测试")
     parser.add_argument(
-        "--display",
-        type=str,
-        default=None,
-        help=f"截图模式（默认 {DEFAULT_DISPLAY}）",
-    )
-    parser.add_argument(
-        "--mouse",
-        type=str,
-        default=None,
-        help=f"鼠标仿真模式（默认 {DEFAULT_MOUSE}）",
-    )
-    parser.add_argument(
-        "--keypad",
-        type=str,
-        default=None,
-        help=f"键盘仿真模式（默认 {DEFAULT_KEYPAD}）",
-    )
-    parser.add_argument(
-        "--public",
-        type=str,
-        default=None,
-        help=f'公共属性（默认 "{DEFAULT_PUBLIC}"）',
-    )
-    parser.add_argument(
-        "--mode",
+        "--case",
         type=int,
         default=None,
-        help=f"绑定 mode（默认 {DEFAULT_MODE}）",
+        help="跑第几组（1~12），不指定则列出所有组合",
     )
     parser.add_argument(
         "--duration",
@@ -200,27 +156,31 @@ def main() -> int:
         default=0,
         help="运行秒数，0 表示手动停止（默认 0）",
     )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default=None,
-        help="JSON 报告输出路径",
-    )
     args = parser.parse_args()
 
     setup_log_file("风龙后台绑定测试")
 
+    if args.case is None:
+        logger.info("内置有效组合：")
+        for i, c in enumerate(DEFAULT_CASES, 1):
+            logger.info(f"  [{i}] {c}")
+        return 0
+
+    if args.case < 1 or args.case > len(DEFAULT_CASES):
+        logger.error(f"--case 超出范围，有效范围 1~{len(DEFAULT_CASES)}")
+        return 1
+
+    case = copy.deepcopy(DEFAULT_CASES[args.case - 1])
     base_cfg = config.load_task("war3.jiubing2.tasks.others.paladin_wind_dragon")
     base_cfg = copy.deepcopy(base_cfg)
 
-    case = _build_case(args)
     dm = create_dm_client()
     try:
         result = run_case(base_cfg, dm, case, args.duration)
     finally:
         dm.close()
 
-    report_path = Path(args.output) if args.output else OUT_DIR / "report.json"
+    report_path = OUT_DIR / "report.json"
     with open(report_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     logger.info(f"\n报告已保存: {report_path.resolve()}")
