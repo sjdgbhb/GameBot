@@ -37,14 +37,31 @@ from GameBot.utils import DmError, StopTaskError, logger, setup_log_file
 OUT_DIR = Path("logs/diag_wind_dragon_bind")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# 默认测试矩阵：
-# - display 固定 dx2（dx 后台截图在本环境刷新过慢/失败）
-# - mode 固定 4（实测 mode 0 下 windows2 报 -19，mode 4 可正常绑定并施放）
-# - mouse 比较 windows / windows2 / windows3
-# - keypad 比较 windows / dx（dx 在本环境部分组合会失败，但保留用于排查）
+# 默认只包含本环境（管理员 + dx2 + mode 4）实测可成功施放技能的组合。
+# CLI 传入任意 --display/--mouse/--keypad/--public/--mode 时，会退回到笛卡尔积模式。
+DEFAULT_CASES = [
+    # 高层缩写组合（windwos 键盘最稳）
+    {"display": "dx2", "mouse": "windows",  "keypad": "windows", "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "windows2", "keypad": "windows", "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "windows3", "keypad": "windows", "public": "", "mode": 4},
+    # dx 鼠标子项（实测可正常释放 Q/W/T）
+    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows", "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "dx.mouse.focus.input.api",  "keypad": "windows", "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "dx.mouse.clip.lock.api",     "keypad": "windows", "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "dx.mouse.state.api",         "keypad": "windows", "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "dx.mouse.api",               "keypad": "windows", "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "dx.mouse.cursor",            "keypad": "windows", "public": "", "mode": 4},  # 仅 Q
+    # dx 键盘子项（配合 windows2 鼠标）
+    {"display": "dx2", "mouse": "windows2", "keypad": "dx.keypad.input.lock.api", "public": "", "mode": 4},
+    {"display": "dx2", "mouse": "windows2", "keypad": "dx.keypad.api",             "public": "", "mode": 4},
+    # public 子项（配合 dx 鼠标）
+    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows", "public": "dx.public.active.api", "mode": 4},
+]
+
+# 部分覆盖时使用的默认值
 DEFAULT_DISPLAYS = ["dx2"]
-DEFAULT_MICE = ["windows", "windows2", "windows3"]
-DEFAULT_KEYPADS = ["windows", "dx"]
+DEFAULT_MICE = ["windows"]
+DEFAULT_KEYPADS = ["windows"]
 DEFAULT_PUBLICS = [""]
 DEFAULT_MODES = [4]
 
@@ -263,15 +280,21 @@ def main() -> int:
     base_cfg = config.load_task("war3.jiubing2.tasks.others.paladin_wind_dragon")
     base_cfg = copy.deepcopy(base_cfg)
 
-    # 解析测试矩阵
-    displays = _split_arg(args.display, DEFAULT_DISPLAYS)
-    mice = _split_arg(args.mouse, DEFAULT_MICE)
-    keypads = _split_arg(args.keypad, DEFAULT_KEYPADS)
-    publics = _split_arg(args.public, DEFAULT_PUBLICS)
-    mode_strs = _split_arg(args.mode, [str(m) for m in DEFAULT_MODES])
-    modes = [int(m) for m in mode_strs]
+    # 解析测试矩阵：未指定任何覆盖时，使用实测有效的 DEFAULT_CASES
+    if all(
+        x is None
+        for x in (args.display, args.mouse, args.keypad, args.public, args.mode)
+    ):
+        cases = copy.deepcopy(DEFAULT_CASES)
+    else:
+        displays = _split_arg(args.display, DEFAULT_DISPLAYS)
+        mice = _split_arg(args.mouse, DEFAULT_MICE)
+        keypads = _split_arg(args.keypad, DEFAULT_KEYPADS)
+        publics = _split_arg(args.public, DEFAULT_PUBLICS)
+        mode_strs = _split_arg(args.mode, [str(m) for m in DEFAULT_MODES])
+        modes = [int(m) for m in mode_strs]
+        cases = build_test_cases(displays, mice, keypads, publics, modes)
 
-    cases = build_test_cases(displays, mice, keypads, publics, modes)
     if not cases:
         logger.error("没有可测试的组合")
         return 1
