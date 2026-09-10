@@ -7,8 +7,9 @@
 用法：
     uv run python tests/manual/test_paladin_wind_dragon_bind.py
     uv run python tests/manual/test_paladin_wind_dragon_bind.py --duration 20
+    uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 1
+    uv run python tests/manual/test_paladin_wind_dragon_bind.py --step --duration 10
     uv run python tests/manual/test_paladin_wind_dragon_bind.py --mouse windows2,windows3 --keypad windows
-    uv run python tests/manual/test_paladin_wind_dragon_bind.py --display dx2 --mouse windows2 --keypad windows --mode 0
 
 注意事项：
 - 需要以管理员权限运行（dx 绑定模式要求，未提权时 windows2 / dx 等模式常报错）
@@ -261,6 +262,17 @@ def main() -> int:
         dest="wait_between",
         help="每组测试结束后等待秒数，用于让技能冷却恢复（默认 0）",
     )
+    parser.add_argument(
+        "--case",
+        type=int,
+        default=None,
+        help="只跑第 N 组（从 1 开始，对应默认矩阵中的顺序）",
+    )
+    parser.add_argument(
+        "--step",
+        action="store_true",
+        help="逐组确认模式：每组开始前暂停，按 Enter 继续，输入 skip 跳过，quit 退出",
+    )
     args = parser.parse_args()
 
     setup_log_file("风龙后台绑定测试")
@@ -299,14 +311,43 @@ def main() -> int:
         logger.error("没有可测试的组合")
         return 1
 
+    # 单组模式
+    if args.case is not None:
+        if args.case < 1 or args.case > len(cases):
+            logger.error(f"--case 超出范围，有效范围 1~{len(cases)}")
+            return 1
+        cases = [cases[args.case - 1]]
+
     logger.info(f"测试矩阵: {len(cases)} 种组合")
-    for c in cases:
-        logger.info(f"  {c}")
+    for idx, c in enumerate(cases, 1):
+        logger.info(f"  [{idx}] {c}")
 
     dm = create_dm_client()
     try:
         results = []
         for i, case in enumerate(cases, 1):
+            # 逐组确认模式
+            if args.step:
+                if sys.stdin.isatty():
+                    prompt = (
+                        f"\n准备第 {i}/{len(cases)} 组: {case}\n"
+                        "按 Enter 开始，输入 skip 跳过，输入 quit 退出: "
+                    )
+                    try:
+                        choice = input(prompt).strip().lower()
+                    except (EOFError, KeyboardInterrupt):
+                        logger.info("用户中断了测试")
+                        break
+                    if choice == "quit":
+                        logger.info("用户退出测试")
+                        break
+                    if choice == "skip":
+                        logger.info("跳过当前组")
+                        continue
+                else:
+                    logger.warning("非 TTY 环境，--step 自动关闭")
+                    args.step = False
+
             result = run_one_case(base_cfg, dm, case, args.duration, i, len(cases))
             results.append(result)
             if i < len(cases) and args.wait_between > 0:
