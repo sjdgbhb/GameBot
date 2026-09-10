@@ -30,6 +30,10 @@ DEFAULT_CASES = [
     {"display": "dx2", "mouse": "windows2",                   "keypad": "dx.keypad.input.lock.api", "public": "", "mode": 4, "bind_delay": 1.5},
     {"display": "dx2", "mouse": "windows2",                   "keypad": "dx.keypad.api",            "public": "", "mode": 4, "bind_delay": 1.5},
     {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows",          "public": "dx.public.active.api", "mode": 4, "bind_delay": 1.5},
+    # 测试 dx.keypad.* 能否避免聊天输入框吞技能键
+    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "dx.keypad.input.lock.api", "public": "dx.public.active.api", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "dx.keypad.api",            "public": "dx.public.active.api", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "dx.keypad.state.api",       "public": "dx.public.active.api", "mode": 4, "bind_delay": 1.5},
 ]
 
 
@@ -39,7 +43,7 @@ def main():
         "--case",
         type=int,
         default=None,
-        help="跑第几组（1~12），不指定则列出所有组合",
+        help="跑第几组（1~15），不指定则列出所有组合",
     )
     args = parser.parse_args()
 
