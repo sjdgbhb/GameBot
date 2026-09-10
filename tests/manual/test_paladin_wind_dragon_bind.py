@@ -168,9 +168,20 @@ def main() -> int:
         default=None,
         help="跑第几组（1~12），不指定则列出所有组合",
     )
+    parser.add_argument(
+        "--delay",
+        type=int,
+        default=3,
+        help="启动前等待秒数（默认 3）",
+    )
     args = parser.parse_args()
 
     setup_log_file("风龙后台绑定测试")
+
+    # 倒计时
+    for i in range(args.delay, 0, -1):
+        logger.info(f"{i} 秒后开始...")
+        time.sleep(1)
 
     if args.case is None:
         logger.info("内置有效组合：")
