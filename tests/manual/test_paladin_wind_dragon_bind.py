@@ -42,6 +42,7 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 DEFAULT_DISPLAYS = ["dx2"]
 DEFAULT_MICE = ["windows", "windows2", "windows3"]
 DEFAULT_KEYPADS = ["windows", "dx"]
+DEFAULT_PUBLICS = [""]
 DEFAULT_MODES = [0]
 
 
@@ -56,6 +57,7 @@ def build_test_cases(
     displays: list[str],
     mice: list[str],
     keypads: list[str],
+    publics: list[str],
     modes: list[int],
 ) -> list[dict]:
     """构建大漠绑定组合测试列表。"""
@@ -63,13 +65,15 @@ def build_test_cases(
     for display in displays:
         for mouse in mice:
             for keypad in keypads:
-                for mode in modes:
-                    cases.append({
-                        "display": display,
-                        "mouse": mouse,
-                        "keypad": keypad,
-                        "mode": mode,
-                    })
+                for public in publics:
+                    for mode in modes:
+                        cases.append({
+                            "display": display,
+                            "mouse": mouse,
+                            "keypad": keypad,
+                            "public": public,
+                            "mode": mode,
+                        })
     return cases
 
 
@@ -82,6 +86,7 @@ def _inject_test_bind_cfg(base_cfg: dict, case: dict) -> dict:
         "display": case["display"],
         "mouse": case["mouse"],
         "keypad": case["keypad"],
+        "public": case.get("public", ""),
         "mode": case["mode"],
         "bind_delay": 1.5,
     }
@@ -97,13 +102,17 @@ def run_one_case(
     total: int,
 ) -> dict:
     """对一种后台绑定组合运行风龙挂机循环，返回行为指标。"""
+    public = case.get("public", "")
+    public_label = f"_public{public.replace('|', '_')}" if public else ""
     label = (
-        f"wd_{case['display']}_{case['mouse']}_{case['keypad']}_mode{case['mode']}"
+        f"wd_{case['display']}_{case['mouse']}_{case['keypad']}{public_label}_"
+        f"mode{case['mode']}"
     )
     logger.info(
         f"\n[{case_index}/{total}] 测试组合: "
         f"display={case['display']}, mouse={case['mouse']}, "
-        f"keypad={case['keypad']}, mode={case['mode']}, duration={duration}s"
+        f"keypad={case['keypad']}, public={public!r}, "
+        f"mode={case['mode']}, duration={duration}s"
     )
 
     result = {
@@ -214,6 +223,12 @@ def main() -> int:
         help="绑定 mode，多个用逗号分隔",
     )
     parser.add_argument(
+        "--public",
+        type=str,
+        default=None,
+        help='公共属性 dx.public.*，多个用逗号分隔，如 "dx.public.active.api"',
+    )
+    parser.add_argument(
         "--output",
         type=str,
         default=None,
@@ -249,10 +264,11 @@ def main() -> int:
     displays = _split_arg(args.display, DEFAULT_DISPLAYS)
     mice = _split_arg(args.mouse, DEFAULT_MICE)
     keypads = _split_arg(args.keypad, DEFAULT_KEYPADS)
+    publics = _split_arg(args.public, DEFAULT_PUBLICS)
     mode_strs = _split_arg(args.mode, [str(m) for m in DEFAULT_MODES])
     modes = [int(m) for m in mode_strs]
 
-    cases = build_test_cases(displays, mice, keypads, modes)
+    cases = build_test_cases(displays, mice, keypads, publics, modes)
     if not cases:
         logger.error("没有可测试的组合")
         return 1
