@@ -1,23 +1,16 @@
-"""圣骑士风龙后台绑定参数测试。
+"""圣骑士风龙后台绑定参数手动测试。
 
-运行环境：手动测试，依赖大漠插件 COM 与真实 War3 窗口。
-测试不同 display / mouse / keypad / mode 组合下，风龙挂机脚本的
-技能图标检测、按键施放、鼠标点击等行为是否正常。
+只跑一组绑定参数，手动在游戏中观察，按 Ctrl+C 停止。
 
 用法：
-    # 默认列出所有有效组合，不执行
     uv run python tests/manual/test_paladin_wind_dragon_bind.py
-
-    # 一组一组测：指定 --case N
-    uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 1
-    uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 2 --duration 20
-
-    # 自定义组合
-    uv run python tests/manual/test_paladin_wind_dragon_bind.py --mouse windows2,windows3 --keypad windows
+    uv run python tests/manual/test_paladin_wind_dragon_bind.py --mouse windows2
+    uv run python tests/manual/test_paladin_wind_dragon_bind.py --mouse "dx.mouse.position.lock.api" --duration 30
+    uv run python tests/manual/test_paladin_wind_dragon_bind.py --keypad "dx.keypad.api" --public "dx.public.active.api"
 
 注意事项：
-- 需要以管理员权限运行（dx 绑定模式要求，未提权时 windows2 / dx 等模式常报错）
-- 测试前请将圣骑士角色置于可释放技能状态（如风龙挂机点）
+- 需要以管理员权限运行（dx 绑定模式要求）
+- 测试前请将圣骑士角色置于可释放技能状态
 - 脚本会真实发送按键和点击，请在合适的游戏场景下运行
 - 后台绑定下 War3 窗口可被遮挡，但不能最小化
 """
@@ -40,102 +33,39 @@ from GameBot.utils import DmError, StopTaskError, logger, setup_log_file
 OUT_DIR = Path("logs/diag_wind_dragon_bind")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# 默认只包含本环境（管理员 + dx2 + mode 4）实测可成功施放技能的组合。
-# CLI 传入任意 --display/--mouse/--keypad/--public/--mode 时，会退回到笛卡尔积模式。
-DEFAULT_CASES = [
-    # 高层缩写组合（windwos 键盘最稳）
-    {"display": "dx2", "mouse": "windows",  "keypad": "windows", "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "windows2", "keypad": "windows", "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "windows3", "keypad": "windows", "public": "", "mode": 4},
-    # dx 鼠标子项（实测可正常释放 Q/W/T）
-    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows", "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "dx.mouse.focus.input.api",  "keypad": "windows", "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "dx.mouse.clip.lock.api",     "keypad": "windows", "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "dx.mouse.state.api",         "keypad": "windows", "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "dx.mouse.api",               "keypad": "windows", "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "dx.mouse.cursor",            "keypad": "windows", "public": "", "mode": 4},  # 仅 Q
-    # dx 键盘子项（配合 windows2 鼠标）
-    {"display": "dx2", "mouse": "windows2", "keypad": "dx.keypad.input.lock.api", "public": "", "mode": 4},
-    {"display": "dx2", "mouse": "windows2", "keypad": "dx.keypad.api",             "public": "", "mode": 4},
-    # public 子项（配合 dx 鼠标）
-    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows", "public": "dx.public.active.api", "mode": 4},
-]
+# 默认用本环境实测最稳的一组：管理员 + dx2 + mode 4
+# 可覆盖：--display / --mouse / --keypad / --public / --mode / --duration
+DEFAULT_DISPLAY = "dx2"
+DEFAULT_MOUSE = "dx.mouse.position.lock.api"
+DEFAULT_KEYPAD = "windows"
+DEFAULT_PUBLIC = ""
+DEFAULT_MODE = 4
 
-# 部分覆盖时使用的默认值
-DEFAULT_DISPLAYS = ["dx2"]
-DEFAULT_MICE = ["windows"]
-DEFAULT_KEYPADS = ["windows"]
-DEFAULT_PUBLICS = [""]
-DEFAULT_MODES = [4]
+# 其它在本环境也有效的组合，需要时可通过 --mouse/--keypad 传入：
+#   mouse: windows, windows2, windows3,
+#          dx.mouse.focus.input.api, dx.mouse.clip.lock.api,
+#          dx.mouse.state.api, dx.mouse.api
+#   keypad: dx.keypad.input.lock.api, dx.keypad.api
+#   public: dx.public.active.api
 
 
-def _split_arg(value: str | None, defaults: list[str]) -> list[str]:
-    """解析逗号分隔的 CLI 参数，未指定时使用默认值。"""
-    if value is None:
-        return [str(d) for d in defaults]
-    return [v.strip() for v in value.split(",") if v.strip()]
-
-
-def build_test_cases(
-    displays: list[str],
-    mice: list[str],
-    keypads: list[str],
-    publics: list[str],
-    modes: list[int],
-) -> list[dict]:
-    """构建大漠绑定组合测试列表。"""
-    cases = []
-    for display in displays:
-        for mouse in mice:
-            for keypad in keypads:
-                for public in publics:
-                    for mode in modes:
-                        cases.append({
-                            "display": display,
-                            "mouse": mouse,
-                            "keypad": keypad,
-                            "public": public,
-                            "mode": mode,
-                        })
-    return cases
-
-
-def _inject_test_bind_cfg(base_cfg: dict, case: dict) -> dict:
-    """深拷贝配置并注入当前测试的绑定参数。"""
-    cfg = copy.deepcopy(base_cfg)
-    task_path = cfg["war3"]["jiubing2"]["tasks"]["others"]["paladin_wind_dragon"]
-    task_path["bind_mode"] = "background"
-    cfg["war3"]["bind_multi"] = {
-        "display": case["display"],
-        "mouse": case["mouse"],
-        "keypad": case["keypad"],
-        "public": case.get("public", ""),
-        "mode": case["mode"],
-        "bind_delay": 1.5,
+def _build_case(args: argparse.Namespace) -> dict:
+    """把 CLI 参数合并成一组绑定参数。"""
+    return {
+        "display": args.display or DEFAULT_DISPLAY,
+        "mouse": args.mouse or DEFAULT_MOUSE,
+        "keypad": args.keypad or DEFAULT_KEYPAD,
+        "public": args.public if args.public is not None else DEFAULT_PUBLIC,
+        "mode": int(args.mode) if args.mode is not None else DEFAULT_MODE,
     }
-    return cfg
 
 
-def run_one_case(
-    base_cfg: dict,
-    dm,
-    case: dict,
-    duration: float,
-    case_index: int,
-    total: int,
-) -> dict:
-    """对一种后台绑定组合运行风龙挂机循环，返回行为指标。"""
+def run_case(base_cfg: dict, dm, case: dict, duration: float) -> dict:
+    """运行一组绑定参数，duration <= 0 时一直跑到手动停止。"""
     public = case.get("public", "")
-    public_label = f"_public{public.replace('|', '_')}" if public else ""
     label = (
-        f"wd_{case['display']}_{case['mouse']}_{case['keypad']}{public_label}_"
-        f"mode{case['mode']}"
-    )
-    logger.info(
-        f"\n[{case_index}/{total}] 测试组合: "
-        f"display={case['display']}, mouse={case['mouse']}, "
-        f"keypad={case['keypad']}, public={public!r}, "
-        f"mode={case['mode']}, duration={duration}s"
+        f"wd_{case['display']}_{case['mouse']}_{case['keypad']}"
+        f"{('_' + public.replace('|', '_')) if public else ''}_mode{case['mode']}"
     )
 
     result = {
@@ -151,110 +81,124 @@ def run_one_case(
         "error": "",
     }
 
-    cfg = _inject_test_bind_cfg(base_cfg, case)
-    stop_event = threading.Event()
-    task = PaladinWindDragonTask(cfg, stop_event=stop_event, dm=dm)
+    logger.info(f"\n测试组合: {case}")
+    if duration > 0:
+        logger.info(f"运行 {duration}s 后自动停止")
+    else:
+        logger.info("按 Ctrl+C 手动停止")
+
+    cfg = copy.deepcopy(base_cfg)
+    task_path = cfg["war3"]["jiubing2"]["tasks"]["others"]["paladin_wind_dragon"]
+    task_path["bind_mode"] = "background"
+    cfg["war3"]["bind_multi"] = {
+        "display": case["display"],
+        "mouse": case["mouse"],
+        "keypad": case["keypad"],
+        "public": public,
+        "mode": case["mode"],
+        "bind_delay": 1.5,
+    }
+
+    task = PaladinWindDragonTask(cfg, dm=dm)
 
     try:
-        hwnd = task._find_war3_hwnd()
-        if not hwnd:
-            result["error"] = "未找到 war3 窗口"
-            logger.error(f"  [{label}] {result['error']}")
-            return result
-
-        with dm.bind_window(hwnd, bind_cfg=task._bind_cfg()):
-            result["bind_ok"] = True
-            logger.info(f"  [{label}] 已绑定窗口 hwnd={hwnd}")
-
-            # 对齐客户区尺寸并计算中心（run_core 需要 client_center）
-            task.war3.set_client_size(hwnd)
-            x1, y1, x2, y2 = dm.get_client_rect(hwnd)
+        with dm.bind_window(
+            task.war3.hwnd, bind_cfg=cfg["war3"]["bind_multi"]
+        ):
+            # 注入测试用例的绑定配置（后台模式会读 war3.bind_multi）
+            task.war3.set_client_size(task.war3.hwnd)
+            x1, y1, x2, y2 = dm.get_client_rect(task.war3.hwnd)
             task.client_center = [(x2 - x1) // 2, (y2 - y1) // 2]
 
-            # 图标检测：验证 display 模式能否正确截图并识别就绪图标
+            # 先检测一次技能图标
+            ready_states = {}
+            detect_ok = False
             for skill in task.skills:
+                key = skill["key"]
                 ready = task._is_ready(skill)
-                result["ready_states"][skill["key"]] = ready
-                name = skill.get("name", skill["key"].upper())
-                status = "就绪" if ready else "未就绪/冷却中"
-                logger.info(
-                    f"  [{label}] 技能 {name}({skill['key'].upper()}) 检测: {status}"
-                )
-            result["detect_ok"] = any(result["ready_states"].values())
+                ready_states[key] = ready
+                if ready:
+                    detect_ok = True
+                    logger.info(f"  技能 {key.upper()} 检测: 就绪")
+                else:
+                    logger.info(f"  技能 {key.upper()} 检测: 未就绪/冷却中")
+            result["ready_states"] = ready_states
+            result["detect_ok"] = detect_ok
 
-            # 启动限时计时器并运行挂机循环
-            timer = threading.Timer(duration, stop_event.set)
-            timer.daemon = True
-            timer.start()
+            # 启动挂机循环
+            stop_event = threading.Event()
+            timer = None
+            if duration > 0:
+                timer = threading.Timer(duration, stop_event.set)
+                timer.daemon = True
+                timer.start()
+
+            task._stop_event = stop_event
             start_time = time.monotonic()
             try:
-                task.run_core(hwnd)
+                task.run_core(task.war3.hwnd)
             except StopTaskError:
-                logger.info(f"  [{label}] 到达测试时长，停止循环")
+                logger.info("  到达测试时长，停止循环")
+            except KeyboardInterrupt:
+                logger.info("  用户手动停止")
             finally:
-                timer.cancel()
+                if timer is not None:
+                    timer.cancel()
             result["actual_duration"] = round(time.monotonic() - start_time, 2)
 
-        result["casts"] = {k: v for k, v in task._cast_counts.items()}
-        result["total_casts"] = sum(result["casts"].values())
-        logger.info(
-            f"  [{label}] 测试结束，实际运行 {result['actual_duration']}s，"
-            f"施放次数: {result['casts']}"
-        )
+        result["bind_ok"] = True
 
     except DmError as e:
-        result["error"] = f"大漠错误: {e}"
-        logger.error(f"  [{label}] {result['error']}")
-    except Exception as e:
-        result["error"] = f"异常: {e}"
-        logger.exception(f"  [{label}] {result['error']}")
+        result["error"] = str(e)
+        logger.error(f"  {label}: 大漠错误: {e}")
 
+    result["casts"] = {k: v for k, v in task._cast_counts.items()}
+    result["total_casts"] = sum(result["casts"].values())
+    logger.info(
+        f"  [{label}] 测试结束，实际运行 {result['actual_duration']}s，"
+        f"bind={result['bind_ok']} detect={result['detect_ok']} "
+        f"casts={result['total_casts']} ({result['casts']})"
+    )
     return result
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="圣骑士风龙后台绑定参数测试")
-    parser.add_argument(
-        "--delay",
-        type=int,
-        default=None,
-        help="启动前等待秒数（单组默认 0，多组默认 3）",
-    )
-    parser.add_argument(
-        "--duration",
-        type=float,
-        default=None,
-        help="每组绑定运行秒数（单组默认 60，多组默认 15）",
-    )
+    parser = argparse.ArgumentParser(description="圣骑士风龙后台绑定参数手动测试")
     parser.add_argument(
         "--display",
         type=str,
         default=None,
-        help="截图模式，多个用逗号分隔",
+        help=f"截图模式（默认 {DEFAULT_DISPLAY}）",
     )
     parser.add_argument(
         "--mouse",
         type=str,
         default=None,
-        help="鼠标仿真模式，多个用逗号分隔",
+        help=f"鼠标仿真模式（默认 {DEFAULT_MOUSE}）",
     )
     parser.add_argument(
         "--keypad",
         type=str,
         default=None,
-        help="键盘仿真模式，多个用逗号分隔",
-    )
-    parser.add_argument(
-        "--mode",
-        type=str,
-        default=None,
-        help="绑定 mode，多个用逗号分隔",
+        help=f"键盘仿真模式（默认 {DEFAULT_KEYPAD}）",
     )
     parser.add_argument(
         "--public",
         type=str,
         default=None,
-        help='公共属性 dx.public.*，多个用逗号分隔，如 "dx.public.active.api"',
+        help=f'公共属性（默认 "{DEFAULT_PUBLIC}"）',
+    )
+    parser.add_argument(
+        "--mode",
+        type=int,
+        default=None,
+        help=f"绑定 mode（默认 {DEFAULT_MODE}）",
+    )
+    parser.add_argument(
+        "--duration",
+        type=float,
+        default=0,
+        help="运行秒数，0 表示手动停止（默认 0）",
     )
     parser.add_argument(
         "--output",
@@ -262,136 +206,26 @@ def main() -> int:
         default=None,
         help="JSON 报告输出路径",
     )
-    parser.add_argument(
-        "--wait-between",
-        type=float,
-        default=0.0,
-        dest="wait_between",
-        help="每组测试结束后等待秒数，用于让技能冷却恢复（默认 0）",
-    )
-    parser.add_argument(
-        "--case",
-        type=int,
-        default=None,
-        help="只跑第 N 组（从 1 开始，对应默认矩阵中的顺序）",
-    )
     args = parser.parse_args()
 
     setup_log_file("风龙后台绑定测试")
 
-    logger.info("=" * 60)
-    logger.info("圣骑士风龙后台绑定参数测试")
-    logger.info("=" * 60)
-    logger.info("测试目标：比较不同 mouse/keypad 组合下风龙挂机的键鼠行为")
-    logger.info("请提前将圣骑士置于可释放技能状态，并确保 War3 窗口存在")
-
-    # 加载并深拷贝风龙任务配置
     base_cfg = config.load_task("war3.jiubing2.tasks.others.paladin_wind_dragon")
     base_cfg = copy.deepcopy(base_cfg)
 
-    # 解析测试矩阵：未指定任何覆盖时，使用实测有效的 DEFAULT_CASES
-    no_override = all(
-        x is None
-        for x in (args.display, args.mouse, args.keypad, args.public, args.mode)
-    )
-    if no_override:
-        cases = copy.deepcopy(DEFAULT_CASES)
-    else:
-        displays = _split_arg(args.display, DEFAULT_DISPLAYS)
-        mice = _split_arg(args.mouse, DEFAULT_MICE)
-        keypads = _split_arg(args.keypad, DEFAULT_KEYPADS)
-        publics = _split_arg(args.public, DEFAULT_PUBLICS)
-        mode_strs = _split_arg(args.mode, [str(m) for m in DEFAULT_MODES])
-        modes = [int(m) for m in mode_strs]
-        cases = build_test_cases(displays, mice, keypads, publics, modes)
-
-    if not cases:
-        logger.error("没有可测试的组合")
-        return 1
-
-    # 单组模式
-    if args.case is not None:
-        if args.case < 1 or args.case > len(cases):
-            logger.error(f"--case 超出范围，有效范围 1~{len(cases)}")
-            return 1
-        cases = [cases[args.case - 1]]
-
-    is_single = len(cases) == 1
-
-    # 未指定任何参数时，默认只列出组合，不执行
-    if no_override and args.case is None:
-        logger.info(f"\n内置有效组合共 {len(cases)} 组，可用 --case N 一组一组测试：")
-        for idx, c in enumerate(cases, 1):
-            logger.info(f"  [{idx}] {c}")
-        logger.info("\n示例：")
-        logger.info("  uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 1")
-        return 0
-
-    # 单组/多组的 delay、duration 默认值
-    duration = args.duration if args.duration is not None else (60.0 if is_single else 15.0)
-    delay = args.delay if args.delay is not None else (0 if is_single else 3)
-
-    # 倒计时
-    for i in range(delay, 0, -1):
-        logger.info(f"{i} 秒后开始...")
-        time.sleep(1)
-
-    logger.info(f"测试矩阵: {len(cases)} 种组合")
-    for idx, c in enumerate(cases, 1):
-        logger.info(f"  [{idx}] {c}")
-
+    case = _build_case(args)
     dm = create_dm_client()
     try:
-        results = []
-        for i, case in enumerate(cases, 1):
-            result = run_one_case(base_cfg, dm, case, duration, i, len(cases))
-            results.append(result)
-            if i < len(cases) and args.wait_between > 0:
-                logger.info(f"  等待 {args.wait_between}s 让技能冷却恢复...")
-                time.sleep(args.wait_between)
-
-        # 汇总输出
-        logger.info("\n" + "=" * 60)
-        logger.info("测试结果汇总")
-        logger.info("=" * 60)
-        for r in results:
-            status = "通过" if r["total_casts"] > 0 else "未施放/失败"
-            logger.info(
-                f"{r['label']}: {status} | "
-                f"bind={r['bind_ok']} detect={r['detect_ok']} "
-                f"casts={r['total_casts']} ({r['casts']}) | "
-                f"error={r['error'] or '无'}"
-            )
-
-        # 可直接用于 war3.bind_multi 的推荐组合
-        working = [
-            r for r in results
-            if r["bind_ok"] and r["total_casts"] > 0
-        ]
-        logger.info("\n" + "=" * 60)
-        logger.info(f"可正常施放技能的组合（共 {len(working)} 组）")
-        logger.info("=" * 60)
-        if working:
-            for r in working:
-                c = r["case"]
-                logger.info(
-                    f"display={c['display']}, mouse={c['mouse']}, "
-                    f"keypad={c['keypad']}, public={c.get('public', '')!r}, "
-                    f"mode={c['mode']} -> casts={r['total_casts']}"
-                )
-        else:
-            logger.info("没有成功施放技能的组合")
-
-        # 保存 JSON 报告
-        report_path = Path(args.output) if args.output else OUT_DIR / "report.json"
-        with open(report_path, "w", encoding="utf-8") as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
-        logger.info(f"\n报告已保存: {report_path.resolve()}")
-
-        # 只要有一组成功施放即视为测试有有效结果
-        return 0 if any(r["total_casts"] > 0 for r in results) else 1
+        result = run_case(base_cfg, dm, case, args.duration)
     finally:
         dm.close()
+
+    report_path = Path(args.output) if args.output else OUT_DIR / "report.json"
+    with open(report_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+    logger.info(f"\n报告已保存: {report_path.resolve()}")
+
+    return 0 if result["bind_ok"] and result["total_casts"] > 0 else 1
 
 
 if __name__ == "__main__":
