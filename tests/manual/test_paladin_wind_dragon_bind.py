@@ -103,12 +103,16 @@ def run_case(base_cfg: dict, dm, case: dict) -> dict:
 
     task = PaladinWindDragonTask(cfg, dm=dm)
 
+    hwnd = task.war3.wait_for_game_window()
+    if not hwnd:
+        result["error"] = "未找到 War3 窗口"
+        logger.error("未找到 War3 窗口")
+        return result
+
     try:
-        with dm.bind_window(
-            task.war3.hwnd, bind_cfg=cfg["war3"]["bind_multi"]
-        ):
-            task.war3.set_client_size(task.war3.hwnd)
-            x1, y1, x2, y2 = dm.get_client_rect(task.war3.hwnd)
+        with dm.bind_window(hwnd, bind_cfg=cfg["war3"]["bind_multi"]):
+            task.war3.set_client_size(hwnd)
+            x1, y1, x2, y2 = dm.get_client_rect(hwnd)
             task.client_center = [(x2 - x1) // 2, (y2 - y1) // 2]
 
             ready_states = {}
