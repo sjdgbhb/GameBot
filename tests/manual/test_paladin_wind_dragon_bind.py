@@ -5,9 +5,14 @@
 技能图标检测、按键施放、鼠标点击等行为是否正常。
 
 用法：
+    # 默认列出所有有效组合，不执行
     uv run python tests/manual/test_paladin_wind_dragon_bind.py
-    uv run python tests/manual/test_paladin_wind_dragon_bind.py --duration 20
+
+    # 一组一组测：指定 --case N
     uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 1
+    uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 2 --duration 20
+
+    # 自定义组合
     uv run python tests/manual/test_paladin_wind_dragon_bind.py --mouse windows2,windows3 --keypad windows
 
 注意事项：
@@ -15,8 +20,6 @@
 - 测试前请将圣骑士角色置于可释放技能状态（如风龙挂机点）
 - 脚本会真实发送按键和点击，请在合适的游戏场景下运行
 - 后台绑定下 War3 窗口可被遮挡，但不能最小化
-- 多种组合连续测试时，技能会进入冷却，后一组可能检测不到就绪图标；
-  可用 --wait-between 在组间等待，或增大 --duration
 """
 
 from __future__ import annotations
@@ -211,12 +214,17 @@ def run_one_case(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="圣骑士风龙后台绑定参数测试")
-    parser.add_argument("--delay", type=int, default=5, help="启动前等待秒数（默认 5）")
+    parser.add_argument(
+        "--delay",
+        type=int,
+        default=None,
+        help="启动前等待秒数（单组默认 0，多组默认 3）",
+    )
     parser.add_argument(
         "--duration",
         type=float,
-        default=15.0,
-        help="每组绑定运行秒数（默认 15）",
+        default=None,
+        help="每组绑定运行秒数（单组默认 60，多组默认 15）",
     )
     parser.add_argument(
         "--display",
@@ -277,20 +285,16 @@ def main() -> int:
     logger.info("测试目标：比较不同 mouse/keypad 组合下风龙挂机的键鼠行为")
     logger.info("请提前将圣骑士置于可释放技能状态，并确保 War3 窗口存在")
 
-    # 倒计时
-    for i in range(args.delay, 0, -1):
-        logger.info(f"{i} 秒后开始...")
-        time.sleep(1)
-
     # 加载并深拷贝风龙任务配置
     base_cfg = config.load_task("war3.jiubing2.tasks.others.paladin_wind_dragon")
     base_cfg = copy.deepcopy(base_cfg)
 
     # 解析测试矩阵：未指定任何覆盖时，使用实测有效的 DEFAULT_CASES
-    if all(
+    no_override = all(
         x is None
         for x in (args.display, args.mouse, args.keypad, args.public, args.mode)
-    ):
+    )
+    if no_override:
         cases = copy.deepcopy(DEFAULT_CASES)
     else:
         displays = _split_arg(args.display, DEFAULT_DISPLAYS)
@@ -312,6 +316,26 @@ def main() -> int:
             return 1
         cases = [cases[args.case - 1]]
 
+    is_single = len(cases) == 1
+
+    # 未指定任何参数时，默认只列出组合，不执行
+    if no_override and args.case is None:
+        logger.info(f"\n内置有效组合共 {len(cases)} 组，可用 --case N 一组一组测试：")
+        for idx, c in enumerate(cases, 1):
+            logger.info(f"  [{idx}] {c}")
+        logger.info("\n示例：")
+        logger.info("  uv run python tests/manual/test_paladin_wind_dragon_bind.py --case 1")
+        return 0
+
+    # 单组/多组的 delay、duration 默认值
+    duration = args.duration if args.duration is not None else (60.0 if is_single else 15.0)
+    delay = args.delay if args.delay is not None else (0 if is_single else 3)
+
+    # 倒计时
+    for i in range(delay, 0, -1):
+        logger.info(f"{i} 秒后开始...")
+        time.sleep(1)
+
     logger.info(f"测试矩阵: {len(cases)} 种组合")
     for idx, c in enumerate(cases, 1):
         logger.info(f"  [{idx}] {c}")
@@ -320,7 +344,7 @@ def main() -> int:
     try:
         results = []
         for i, case in enumerate(cases, 1):
-            result = run_one_case(base_cfg, dm, case, args.duration, i, len(cases))
+            result = run_one_case(base_cfg, dm, case, duration, i, len(cases))
             results.append(result)
             if i < len(cases) and args.wait_between > 0:
                 logger.info(f"  等待 {args.wait_between}s 让技能冷却恢复...")
