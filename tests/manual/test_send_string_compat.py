@@ -12,7 +12,7 @@
 
 测试内容（结果由人工肉眼核对）：
 - --kk-search：KK 大厅地图搜索框，输入「九种兵器2测试abc123」
-- --kk-password：KK 创建房间密码弹窗（需先手动打开弹窗），输入密码
+- --kk-password：KK 创建密码房弹窗（需先手动打开弹窗），输入密码
 - --war3：War3 聊天框，依次发送「测试中文发送」和「abc123-xyz」
 """
 
@@ -92,9 +92,11 @@ def resolve_bind_cfg(cfg: dict, ns: str, mode: str = None) -> dict:
 
 
 def send_text(dm, text: str, hwnd: int, api: str):
-    """按 --api 选择 SendString/SendString2 发送文本。"""
+    """按 --api 选择 SendString/SendString2/SendStringIme 发送文本。"""
     if api == "send_string2":
         return dm.send_string2(text, hwnd=hwnd)
+    if api == "send_string_ime":
+        return dm.send_string_ime(text)
     return dm.send_string(text, hwnd=hwnd)
 
 
@@ -205,8 +207,18 @@ def main() -> int:
     parser.add_argument("--kk-search", action="store_true", help="测试 KK 大厅地图搜索框中文输入")
     parser.add_argument("--kk-password", action="store_true", help="测试 KK 创建房间密码弹窗（需先手动打开弹窗）")
     parser.add_argument("--war3", action="store_true", help="测试 War3 聊天框中文/字母数字输入")
-    parser.add_argument("--api", choices=["send_string", "send_string2"], default="send_string", help="使用的 dm 接口")
+    parser.add_argument(
+        "--api",
+        choices=["send_string", "send_string2", "send_string_ime"],
+        default="send_string",
+        help="使用的 dm 接口（send_string_ime 支持中文输入法式输入）",
+    )
     parser.add_argument("--mode", choices=["foreground", "background"], default=None, help="覆盖绑定模式")
+    parser.add_argument(
+        "--public-ime",
+        action="store_true",
+        help="绑定 public 追加 dx.public.input.ime（SendStringIme 后台输入中文时通常需要）",
+    )
     parser.add_argument("--delay", type=int, default=5, help="启动前等待秒数")
     parser.add_argument("--password", type=str, default=None, help="密码测试文本（默认读 kk.create_room.password）")
     args = parser.parse_args()
@@ -235,6 +247,10 @@ def main() -> int:
         war3_cfg = cfg.get("war3", {})
         war3_bind_cfg = resolve_bind_cfg(cfg, "war3", args.mode)
         logger.info(f"war3 绑定配置: {war3_bind_cfg}")
+    if args.public_ime:
+        for bc in (kk_bind_cfg, war3_bind_cfg):
+            if bc is not None:
+                bc["public"] = (bc.get("public", "") + " dx.public.input.ime").strip()
 
     for i in range(args.delay, 0, -1):
         logger.info(f"{i} 秒后开始...")

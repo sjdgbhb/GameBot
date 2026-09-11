@@ -52,3 +52,11 @@ class InputMixin:
         """使用旧版 DmPlugin SendString2 向指定窗口发送文本。"""
         target_hwnd = hwnd or getattr(self, "_current_bind_hwnd", 0) or self.get_foreground_window()
         return self._com_call("SendString2", target_hwnd, text)
+
+    def send_string_ime(self, text: str):
+        """使用 DmPlugin SendStringIme 向绑定窗口发送字符串（支持中文等输入法字符）。
+
+        作用于当前绑定窗口，无需传 hwnd；后台模式下通常需要绑定参数
+        public 含 dx.public.input.ime。
+        """
+        return self._com_call("SendStringIme", text)
