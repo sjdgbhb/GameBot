@@ -11,6 +11,10 @@ name = "城门骚扰"
 accept_timeout = 8                 # 接取后等提示的超时（秒）
 route_complete_timeout = 120       # 路线走完仍未完成的兜底超时（秒）
 combat_mode = "cast_skills"        # 战斗模式：auto_attack（全程平A）/ cast_skills（自动施法）
+# 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
+#   - 顶层任务可在自身 [this] 中设置 bind_mode 覆盖此默认值
+#   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
+bind_mode = "background"
 
 # =============================================================================
 # 路线点（按顺序执行，walk_mode=1 = A+左键边走边打，末点是 NPC 附近即交任务）， 约74秒

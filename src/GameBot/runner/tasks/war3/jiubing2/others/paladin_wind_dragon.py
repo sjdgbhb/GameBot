@@ -287,6 +287,8 @@ class PaladinWindDragonTask:
             logger.error("未找到 war3 窗口")
             return
 
+        # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
+        self.war3.set_client_size(hwnd)
         with self.dm.bind_window(hwnd, bind_cfg=self._bind_cfg()):
             self.run_core(hwnd)
 

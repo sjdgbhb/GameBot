@@ -25,12 +25,16 @@ name = "每日声望"
 enable_blackstone = true       # 是否执行黑石城声望 true 或 false
 enable_forest = true           # 是否执行森之城声望 true 或 false
 clear_nearby_probability = 0.3 # 每个路线点清理英雄附近物品的概率（0~1），0 = 禁用（子任务共用）
+# 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
+#   - 顶层任务可在自身 [this] 中设置 bind_mode 覆盖此默认值
+#   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
+bind_mode = "foreground"
 
 # 黑石城声望子配置
 [this.blackstone]
 name = "每日黑石城声望"
 progress_label = "黑石城"       # 浮窗显示标签
-target_reputation = 150       # 每日声望上限
+target_reputation = 150       # 获取声望（每日声望上限150）
 reputation_per_run = 5         # 每次城门骚扰任务获得的声望
 loop_interval_time = 1.5       # 两次城门骚扰任务之间的间隔（秒）
 
@@ -38,6 +42,6 @@ loop_interval_time = 1.5       # 两次城门骚扰任务之间的间隔（秒�
 [this.forest]
 name = "每日森之城声望"
 progress_label = "森之城"       # 浮窗显示标签
-target_reputation = 150        # 每日声望上限
+target_reputation = 150        # 获取声望（每日声望上限150）
 reputation_per_run = 10        # 每次迅猛野兽任务获得的声望
 loop_interval_time = 50        # 两次迅猛野兽任务之间的间隔（秒），迅猛野兽刷新时间大约150秒，一次任务大概90秒

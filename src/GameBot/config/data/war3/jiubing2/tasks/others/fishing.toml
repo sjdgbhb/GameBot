@@ -21,14 +21,14 @@ inventory = [
 name = "钓鱼"
 max_times = 10000  # 抛竿次数
 fishing_interval_time = 1  # 钓鱼间隔
-clear_nearby_probability = 1  # 每次收竿后清理英雄附近物品的概率（0~1），0 = 禁用
+clear_nearby_probability = 0  # 每次收竿后清理英雄附近物品的概率（0~1），0 = 禁用
 mode = 0  # 以何种方法检测中钩，0找色（红色三角形填充），1找图
 hook_coords = [943, 554]  # 鱼钩位置
 is_test_check = false  # 是否测试中钩区域
 # 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
 #   - 顶层任务可在自身 [this] 中设置 bind_mode 覆盖此默认值
 #   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
-bind_mode = "background"
+bind_mode = "foreground"
 
 [this.check]
 # 预判收竿：填充循环周期稳定（实测 ~3.1s），用红色出现时刻+周期推算下次出现时刻，

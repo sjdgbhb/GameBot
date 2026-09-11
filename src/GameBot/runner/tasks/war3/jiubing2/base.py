@@ -122,8 +122,9 @@ class AtomicLoopTask:
             logger.error("未找到 war3 窗口")
             return
 
+        # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
+        self.war3.set_client_size(hwnd)
         with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
-            self.war3.set_client_size(hwnd)
             # 预热 OCR 子进程（启动 + 加载 OCR 模型，约数秒），
             # 避免首次 wait_for_text 时占用超时
             get_inference_client(load_chest=False, load_combat=False)
@@ -310,8 +311,9 @@ class MultiAtomicLoopTask(AtomicLoopTask):
             logger.error("未找到 war3 窗口")
             return
 
+        # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
+        self.war3.set_client_size(hwnd)
         with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
-            self.war3.set_client_size(hwnd)
             get_inference_client(load_chest=False, load_combat=False)
             monitor = self._make_monitor(hwnd)
             try:

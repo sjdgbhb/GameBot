@@ -109,8 +109,9 @@ class IngameSpecialTask:
         if not hwnd:
             logger.error("未找到 war3 窗口，无法前往鱼点")
             return
+        # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
+        self.war3.set_client_size(hwnd)
         with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
-            self.war3.set_client_size(hwnd)
             self.war3.move_to_minimap_point(
                 spot.get("mini_coords"),
                 spot.get("coords"),

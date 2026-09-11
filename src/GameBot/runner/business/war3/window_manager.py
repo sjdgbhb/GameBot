@@ -19,6 +19,9 @@ class WindowManagerMixin:
     def set_client_size(self, hwnd, width: Optional[int] = None, height: Optional[int] = None):
         width = self.war3_cfg.get("client_size", [1902, 1033])[0] if width is None else width
         height = self.war3_cfg.get("client_size", [1902, 1033])[1] if height is None else height
+        # 已对齐则跳过：dx2 绑定状态下真实 resize 会重建交换链导致闪屏，尺寸正确时避免无谓触发
+        if self._verify_client_size(hwnd, width, height):
+            return
         self.dm.set_client_size(hwnd, width, height)
         # 验证实际客户区尺寸是否与配置一致，不一致则重试一次
         actual = self._verify_client_size(hwnd, width, height)

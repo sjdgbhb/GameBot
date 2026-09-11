@@ -61,8 +61,9 @@ def main():
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
+        # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
+        war3.set_client_size(hwnd)
         with dm.bind_window(hwnd, bind_cfg=war3_cfg.get("bind", {})):
-            war3.set_client_size(hwnd)
             # 预热 OCR 子进程（仅需 OCR，不加载 AI 模型），避免占用 wait_for_text 超时
             get_inference_client(load_chest=False, load_combat=False)
             task = GateHarassmentTask(dm, war3, ui, combat, task_cfg)

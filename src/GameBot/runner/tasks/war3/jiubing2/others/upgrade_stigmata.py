@@ -144,8 +144,9 @@ class UpgradeStigmataTask(AtomicLoopTask):
             logger.error("未找到 war3 窗口")
             return
 
+        # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
+        self.war3.set_client_size(hwnd)
         with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
-            self.war3.set_client_size(hwnd)
             get_inference_client(load_chest=False, load_combat=False)  # 预热 OCR 子进程（仅需 OCR，不加载 AI 模型）
             # 启动持续文字监测线程（整段脚本运行期间常驻，城门骚扰完成与升级结果共用）
             monitor = self._make_monitor(hwnd)
