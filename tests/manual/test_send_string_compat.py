@@ -6,14 +6,23 @@
     uv run python tests/manual/test_send_string_compat.py --war3
 
 可选参数：
-    --api send_string2   用旧版 SendString2 对照测试（默认 send_string）
+    --api send_string      新版 SendString（默认），KK 中文/ASCII 均支持；war3 聊天框仅 ASCII
+    --api send_string2     旧版 SendString2 对照，中文受系统编码影响可能乱码
+    --api send_string_ime  SendStringIme 模拟输入法，war3 聊天框中文需用它
     --mode foreground|background   覆盖绑定模式（默认用配置解析结果）
-    --delay N            启动前等待秒数（默认 5）
+    --public-ime           绑定 public 追加 dx.public.input.ime（SendStringIme 后台中文需要，收费功能）
+    --delay N              启动前等待秒数（默认 5）
+    --password TEXT        密码测试文本（默认读 kk.create_room.password）
 
 测试内容（结果由人工肉眼核对）：
 - --kk-search：KK 大厅地图搜索框，输入「九种兵器2测试abc123」
 - --kk-password：KK 创建密码房弹窗（需先手动打开弹窗），输入密码
 - --war3：War3 聊天框，依次发送「测试中文发送」和「abc123-xyz」
+
+示例：
+    # war3 聊天框中文：前台先试，后台需 --public-ime
+    uv run python tests/manual/test_send_string_compat.py --war3 --api send_string_ime --mode foreground
+    uv run python tests/manual/test_send_string_compat.py --war3 --api send_string_ime --public-ime
 """
 
 import argparse
