@@ -59,8 +59,9 @@ mode = 0               # 大漠 BindWindow 附加模式
 # 注意：dx2 模式要求窗口有一部分在屏幕外（Win7/Vista 不需要），且不可连续操作需加 10ms 延时
 [this.bind_background]
 display = "dx2"        # DirectX 后台截图，窗口进程崩溃风险低于 dx
-# dx.mouse.position.lock.api：进程内锁定鼠标位置，隔离系统鼠标对 DirectInput 游戏的影响
-# windows/windows2/windows3 仅投递鼠标消息，不锁位——war3 仍会读真实鼠标，系统鼠标划过窗口会干扰游戏光标
+# dx.mouse.position.lock.api：进程内锁定位 API，隔离系统鼠标对 DirectInput 游戏的影响
+# windows2 是组合模式 dx.mouse.position.lock.api|dx.mouse.position.lock.message|dx.mouse.state.message，
+# 额外叠加消息级锁位与状态同步——实测在该组合下 war3 鼠标卡顿且系统鼠标仍会干扰游戏光标
 mouse = "dx.mouse.position.lock.api"
 keypad = "windows"     # Windows 后台键盘
 public = "dx.public.active.api"  # 公共窗口激活（dx 系绑定建议保留，缺失时窗口状态迁移易抖动）
