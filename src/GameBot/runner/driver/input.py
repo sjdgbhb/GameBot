@@ -40,11 +40,15 @@ class InputMixin:
         self._com_call("RightClick")
 
     def send_string(self, text: str, hwnd: int = 0):
-        """使用 DmPlugin SendString 向指定窗口发送文本。"""
-        target_hwnd = hwnd or self.get_foreground_window()
+        """使用 DmPlugin SendString 向指定窗口发送文本。
+
+        hwnd 缺省时优先取当前绑定窗口（后台模式下目标窗口未必在前台），
+        无绑定再回退到前台窗口。
+        """
+        target_hwnd = hwnd or getattr(self, "_current_bind_hwnd", 0) or self.get_foreground_window()
         return self._com_call("SendString", target_hwnd, text)
 
     def send_string2(self, text: str, hwnd: int = 0):
         """使用旧版 DmPlugin SendString2 向指定窗口发送文本。"""
-        target_hwnd = hwnd or self.get_foreground_window()
+        target_hwnd = hwnd or getattr(self, "_current_bind_hwnd", 0) or self.get_foreground_window()
         return self._com_call("SendString2", target_hwnd, text)

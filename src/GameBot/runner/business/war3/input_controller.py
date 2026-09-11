@@ -33,47 +33,34 @@ class InputControllerMixin:
 
     def send_msg(self, msg: str, is_all: bool = False, stop_event: Optional[threading.Event] = None):
         """
-        向游戏里发送消息
+        向游戏里发送消息。文本用大漠 SendString 一次性投递到绑定窗口，
+        是消息级注入，不经过系统输入法，也不受前台/后台绑定模式影响。
         :param msg: 消息文本（如 -delh）
         :param is_all: 默认发送给盟友
         :param stop_event: 停止事件，设置时中断等待
         :return:
         """
-        # 前台模式下按键经系统输入队列，中文输入法会拦截字母键：
-        # 临时切换为美式键盘，发送完成后恢复原布局，不留下痕迹。
-        # 后台模式（windows 键盘通道）直接向窗口投递消息，不经过输入法，无需切换。
-        bind_mode = self.war3_cfg.get("bind", {}).get("bind_mode", "foreground")
-        hwnd = 0
-        old_input = None
-        if bind_mode != "background":
-            hwnd = self.dm.get_bind_window() or 0
-            old_input = self.set_english_input(hwnd)
-        try:
-            # 给前一个按键（如收竿 s）留出被游戏处理的时间：
-            # 后台模式下消息投递有延迟，若开聊天框时该按键才被消化，会误入聊天框
-            self.interruptible_wait(self.war3_cfg["interface_switch_time"], stop_event)
-            if is_all:
-                self.dm.key_down_char("shift")
-                self.interruptible_wait(0.1, stop_event)
-                self.dm.key_down_char("enter")
-                self.interruptible_wait(0.1, stop_event)
-                self.dm.key_up_char("enter")
-                self.interruptible_wait(0.1, stop_event)
-                self.dm.key_up_char("shift")
-            else:
-                self.dm.key_press_char("enter")
+        # 给前一个按键（如收竿 s）留出被游戏处理的时间：
+        # 后台模式下消息投递有延迟，若开聊天框时该按键才被消化，会误入聊天框
+        self.interruptible_wait(self.war3_cfg["interface_switch_time"], stop_event)
+        if is_all:
+            self.dm.key_down_char("shift")
             self.interruptible_wait(0.1, stop_event)
-            # 清除聊天框内可能残留的误入字符（退格对未打开的聊天框无副作用）
-            for _ in range(5):
-                self.dm.key_press_char("back")
-                self.interruptible_wait(0.03, stop_event)
-            for char in msg:
-                self.dm.key_press_char(char)
-                self.interruptible_wait(0.05, stop_event)
+            self.dm.key_down_char("enter")
+            self.interruptible_wait(0.1, stop_event)
+            self.dm.key_up_char("enter")
+            self.interruptible_wait(0.1, stop_event)
+            self.dm.key_up_char("shift")
+        else:
             self.dm.key_press_char("enter")
-        finally:
-            if old_input is not None:
-                self.restore_input(hwnd, old_input)
+        self.interruptible_wait(0.1, stop_event)
+        # 清除聊天框内可能残留的误入字符（退格对未打开的聊天框无副作用）
+        for _ in range(5):
+            self.dm.key_press_char("back")
+            self.interruptible_wait(0.03, stop_event)
+        self.dm.send_string(msg)
+        self.interruptible_wait(0.1, stop_event)
+        self.dm.key_press_char("enter")
 
     def center_hero(self, char: str = "F1"):
         """双击F1将视角居中到英雄"""
