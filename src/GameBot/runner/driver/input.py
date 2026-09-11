@@ -56,7 +56,8 @@ class InputMixin:
     def send_string_ime(self, text: str):
         """使用 DmPlugin SendStringIme 向绑定窗口发送字符串（支持中文等输入法字符）。
 
-        作用于当前绑定窗口，无需传 hwnd；后台模式下通常需要绑定参数
-        public 含 dx.public.input.ime。
+        作用于当前绑定窗口，无需传 hwnd；如需启用 IME 注入，绑定参数
+        public 需含 dx.public.input.ime（大漠收费功能）。
+        实测注意：dm 3.1233 对 war3 聊天框前/后台均无效（返回 1 但无输入）。
         """
         return self._com_call("SendStringIme", text)

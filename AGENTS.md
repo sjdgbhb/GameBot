@@ -1,5 +1,25 @@
 # GameBot 项目备忘
 
+## 文本输入体系（2026-09-11 实机测试）
+
+### SendString 兼容性结论（测试脚本 tests/manual/test_send_string_compat.py）
+
+| 场景 | SendString | SendString2 | SendStringIme |
+|---|---|---|---|
+| KK 大厅搜索框（Qt） | 中文/ASCII 正常 | 中文乱码风险 | 未测 |
+| KK 密码弹窗（Qt） | 正常 | 正常 | 未测 |
+| War3 聊天框 | **仅 ASCII**，中文被丢弃 | 同左 | **返回 1 但无任何输入**（前/后台均无效） |
+
+- 生产代码统一用 `send_string`（新版 SendString）；`send_string2` 仅保留在驱动层和诊断脚本
+- war3 聊天命令全是 ASCII（-delh、-rw 等），`send_string` 够用；中文聊天无可用方案，SendStringIme 实测无效（dm 3.1233）
+- `dx.public.input.ime` 是绑定参数（BindWindowEx 的 public 字段，`|` 分隔组合），与前台/后台无关；属大漠收费功能，未启用
+- `send_msg`（war3 聊天流程：开框→清残留→SendString→发送）不经过系统输入法，无需切换 IME
+
+### send_msg 聊天框残留字符防护
+
+后台 windows 键盘通道消息投递有延迟，前一按键（如钓鱼收竿 s）可能在聊天框打开后才被游戏消化，误入聊天框变成 `s-delh`。
+`send_msg` 已内置防护：开框前等待 `interface_switch_time`，开框后先按 5 次退格清残留。
+
 ## 截图与 OCR 体系
 
 ### 当前状态
