@@ -8,9 +8,7 @@
 """
 
 import ctypes
-import sys
 import time
-from pathlib import Path
 
 from GameBot.config import config
 from GameBot.runner.driver import create_dm_client

@@ -9,6 +9,7 @@ import argparse
 import ctypes
 import ctypes.wintypes
 import sys
+import time
 
 from GameBot.config import config
 from GameBot.runner.business.kk import KKBusiness
@@ -32,13 +33,15 @@ def enum_all_visible_windows() -> list:
         user32.GetWindowTextW(hwnd, title, 512)
         rect = ctypes.wintypes.RECT()
         user32.GetWindowRect(hwnd, ctypes.byref(rect))
-        results.append({
-            "hwnd": int(hwnd),
-            "class": cls.value,
-            "title": title.value,
-            "rect": (rect.left, rect.top, rect.right, rect.bottom),
-            "pid": int(p.value),
-        })
+        results.append(
+            {
+                "hwnd": int(hwnd),
+                "class": cls.value,
+                "title": title.value,
+                "rect": (rect.left, rect.top, rect.right, rect.bottom),
+                "pid": int(p.value),
+            }
+        )
         return True
 
     EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
@@ -59,7 +62,7 @@ def main():
 
     for i in range(args.delay, 0, -1):
         logger.info(f"{i} 秒后开始...")
-        import time; time.sleep(1)
+        time.sleep(1)
 
     cfg = config.load_task("kk")
     kk_cfg = cfg.get("kk", {})

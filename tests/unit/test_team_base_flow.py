@@ -300,6 +300,7 @@ class TestSyncExit:
         # 在另一个线程延迟写入退出信号
         def delayed_write():
             import time
+
             time.sleep(0.1)
             member.ipc.write_exit_signal(round_num=2)
 
@@ -318,6 +319,7 @@ class TestSyncExit:
         # 在另一个线程延迟设置 stop_event
         def delayed_stop():
             import time
+
             time.sleep(0.1)
             member.stop_event.set()
 

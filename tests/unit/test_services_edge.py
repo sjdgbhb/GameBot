@@ -94,7 +94,7 @@ class TestSaveHeroInventoryEdge:
         )
         assert "item_id = 5" in content
         assert "item_id = 1" not in content
-        assert '[war3]' in content
+        assert "[war3]" in content
 
     def test_save_inventory_filters_non_dict_items(self, services_config_dir):
         """非 dict 类型的物品项应被过滤。"""

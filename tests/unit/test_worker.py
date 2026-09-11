@@ -223,8 +223,8 @@ class TestWorkerExtractLines(unittest.TestCase):
 
         boxes = [
             [[100, 10], [150, 10], [150, 30], [100, 30]],  # y_center=20, x_center=125
-            [[10, 12], [90, 12], [90, 28], [10, 28]],     # y_center=20, x_center=50
-            [[10, 60], [100, 60], [100, 80], [10, 80]],   # y_center=70, x_center=55
+            [[10, 12], [90, 12], [90, 28], [10, 28]],  # y_center=20, x_center=50
+            [[10, 60], [100, 60], [100, 80], [10, 80]],  # y_center=70, x_center=55
         ]
         result = self._make_result(["诸神战场", "九种兵器2", "第二行"], boxes)
         lines = _extract_lines(result)

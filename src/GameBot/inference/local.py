@@ -11,6 +11,7 @@ from PIL import Image, ImageGrab
 
 from GameBot.config import config
 from GameBot.utils import logger
+
 from . import model_loader
 
 
@@ -231,7 +232,7 @@ class LocalInferenceClient:
         """对 PIL Image 执行宝箱检测，返回 [(x1,y1,x2,y2,conf), ...]。"""
         import numpy as np
 
-        from GameBot.inference.worker import _letterbox, _nms, PAD_COLOR
+        from GameBot.inference.worker import _letterbox, _nms
 
         session = self._get_chest_session()
         orig_w, orig_h = img.size

@@ -109,12 +109,14 @@ def _enum_visible_top_windows() -> list:
         user32.GetClassNameW(hwnd, cls, 256)
         rect = ctypes.wintypes.RECT()
         user32.GetWindowRect(hwnd, ctypes.byref(rect))
-        results.append({
-            "hwnd": int(hwnd),
-            "class": cls.value,
-            "rect": (rect.left, rect.top, rect.right, rect.bottom),
-            "pid": int(p.value),
-        })
+        results.append(
+            {
+                "hwnd": int(hwnd),
+                "class": cls.value,
+                "rect": (rect.left, rect.top, rect.right, rect.bottom),
+                "pid": int(p.value),
+            }
+        )
         return True
 
     EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
@@ -171,7 +173,9 @@ def find_room_window(dm, kk_cfg: dict, pid: int) -> int:
             user32.GetClassNameW(hwnd, cls, 256)
             rect = ctypes.wintypes.RECT()
             user32.GetWindowRect(hwnd, ctypes.byref(rect))
-            results.append({"hwnd": int(hwnd), "class": cls.value, "rect": (rect.left, rect.top, rect.right, rect.bottom)})
+            results.append(
+                {"hwnd": int(hwnd), "class": cls.value, "rect": (rect.left, rect.top, rect.right, rect.bottom)}
+            )
             return True
 
         EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
@@ -239,7 +243,9 @@ def send_activate_messages(dialog_hwnd: int) -> None:
         logger.warning(f"发送激活消息失败: {e}")
 
 
-def get_password_area(password_input: list, dialog_size: tuple = (584, 488), width: int = 220, height: int = 50) -> list:
+def get_password_area(
+    password_input: list, dialog_size: tuple = (584, 488), width: int = 220, height: int = 50
+) -> list:
     """根据密码输入框中心点计算截图区域，限制在客户区范围内。"""
     cx, cy = password_input
     x1 = max(0, cx - width // 2)
@@ -404,14 +410,32 @@ def main():
     parser.add_argument("--delay", type=int, default=5, help="启动前等待秒数（默认 5）")
     parser.add_argument("--password", type=str, default=None, help="房间密码（默认读取 kk.create_room.password）")
     parser.add_argument("--activate", action="store_true", help="输入前用 SetForegroundWindow 激活弹窗（测试焦点问题）")
-    parser.add_argument("--activate-msgs", action="store_true", help="输入前发送 WM_ACTIVATE + WM_SETFOCUS（不窃取前台）")
-    parser.add_argument("--input-mouse", type=str, default=None, help="输入阶段单独指定 mouse 模式（如 windows / windows3 / normal）")
+    parser.add_argument(
+        "--activate-msgs", action="store_true", help="输入前发送 WM_ACTIVATE + WM_SETFOCUS（不窃取前台）"
+    )
+    parser.add_argument(
+        "--input-mouse", type=str, default=None, help="输入阶段单独指定 mouse 模式（如 windows / windows3 / normal）"
+    )
     parser.add_argument("--mode", type=int, default=None, help="输入阶段单独指定大漠 mode（默认读取 bind_multi.mode）")
-    parser.add_argument("--dialog-open", action="store_true", help="弹窗已手动打开，跳过点击创建房间按钮，直接查找弹窗并输入密码、点击创建")
-    parser.add_argument("--method", type=str, default="all", choices=["all", "send_string2", "tab", "key_press"],
-                        help="只执行指定输入方法用于单独验证：all(默认)/send_string2/tab/key_press")
-    parser.add_argument("--bind-mode", type=str, default="foreground", choices=["foreground", "background"],
-                        help="绑定模式：foreground(前台 bind) / background(后台 bind_multi)")
+    parser.add_argument(
+        "--dialog-open",
+        action="store_true",
+        help="弹窗已手动打开，跳过点击创建房间按钮，直接查找弹窗并输入密码、点击创建",
+    )
+    parser.add_argument(
+        "--method",
+        type=str,
+        default="all",
+        choices=["all", "send_string2", "tab", "key_press"],
+        help="只执行指定输入方法用于单独验证：all(默认)/send_string2/tab/key_press",
+    )
+    parser.add_argument(
+        "--bind-mode",
+        type=str,
+        default="foreground",
+        choices=["foreground", "background"],
+        help="绑定模式：foreground(前台 bind) / background(后台 bind_multi)",
+    )
     parser.add_argument("--bind-multi", action="store_true", help="强制使用 bind_multi（模拟后台）")
     args = parser.parse_args()
 

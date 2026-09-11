@@ -22,7 +22,7 @@ from GameBot.runner.ui import run_with_float_window
 
 # 鼠标移动目标坐标 [x, y]（客户区坐标，基于 1902x1033）
 # MOVE_COORDS = [253,865]
-MOVE_COORDS = [1039,405]
+MOVE_COORDS = [1039, 405]
 
 # 框选区域 [x1, y1, x2, y2]（客户区坐标，基于 1902x1033）
 BOX_COORDS = [850, 350, 1200, 450]
@@ -61,7 +61,9 @@ def check_dpi(hwnd):
     if win_dpi != mon_dpi:
         scale = mon_dpi / win_dpi
         print(f"⚠ war3 被 DPI 虚拟化！缩放比 {scale:.2f}，游戏内坐标 = 物理坐标 / {scale:.2f}，坐标必偏移")
-        print("  解决：war3.exe 属性 → 兼容性 → 更改高 DPI 设置 → 替代高 DPI 缩放行为=应用程序；或将显示缩放设为 100% 后重启 war3")
+        print(
+            "  解决：war3.exe 属性 → 兼容性 → 更改高 DPI 设置 → 替代高 DPI 缩放行为=应用程序；或将显示缩放设为 100% 后重启 war3"
+        )
         return False
     print("✓ DPI 一致，无虚拟化缩放")
     return True

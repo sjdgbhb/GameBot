@@ -64,11 +64,13 @@ def enum_pid_windows(target_pid: int) -> list:
         GetClassNameW(hwnd, cls, 256)
         rect = ctypes.wintypes.RECT()
         GetWindowRect(hwnd, ctypes.byref(rect))
-        results.append({
-            "hwnd": int(hwnd),
-            "class": cls.value,
-            "rect": (rect.left, rect.top, rect.right, rect.bottom),
-        })
+        results.append(
+            {
+                "hwnd": int(hwnd),
+                "class": cls.value,
+                "rect": (rect.left, rect.top, rect.right, rect.bottom),
+            }
+        )
         return True
 
     EnumWindows(EnumWindowsProc(cb), 0)

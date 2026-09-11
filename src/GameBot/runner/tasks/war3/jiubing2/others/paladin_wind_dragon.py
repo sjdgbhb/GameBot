@@ -56,11 +56,11 @@ class PaladinWindDragonTask:
         self.icon_delta_color = self.cfg.get("icon_delta_color", "202020")
         self.icon_search_half = self.cfg.get("icon_search_half", [40, 30])
 
-        self._last_f1 = 0.0        # 上次按 F1 时刻（防双击跳镜头）
-        self._last_cast = 0.0      # 上次施放成功时刻
-        self._last_idle_f1 = 0.0   # 上次空闲 F1 重选时刻
-        self._ready_state = {}     # key -> 最近一轮是否就绪（浮窗显示用）
-        self._cast_counts = {}     # key -> 施放次数
+        self._last_f1 = 0.0  # 上次按 F1 时刻（防双击跳镜头）
+        self._last_cast = 0.0  # 上次施放成功时刻
+        self._last_idle_f1 = 0.0  # 上次空闲 F1 重选时刻
+        self._ready_state = {}  # key -> 最近一轮是否就绪（浮窗显示用）
+        self._cast_counts = {}  # key -> 施放次数
         # key -> 施放后必须观察到图标变灰一次才允许再次施放（防变灰延迟导致重复按）
         self._need_cd_confirm = {}
         # key -> 确认截止时间，超时未变灰视为按键被吞，允许重按
@@ -100,7 +100,10 @@ class PaladinWindDragonTask:
         """图标与就绪态图片匹配 = 冷却完毕可施放；不匹配（变灰/扫层）= 冷却中。"""
         x1, y1, x2, y2 = self._icon_area(skill)
         index, _, _ = self.dm.find_pic(
-            x1, y1, x2, y2,
+            x1,
+            y1,
+            x2,
+            y2,
             skill["image"],
             sim=self.icon_sim,
             delta_color=self.icon_delta_color,
@@ -188,7 +191,10 @@ class PaladinWindDragonTask:
             # 多档相似度试匹配
             for sim in (0.9, 0.8, 0.7, 0.6, 0.5):
                 index, px, py = self.dm.find_pic(
-                    x1, y1, x2, y2,
+                    x1,
+                    y1,
+                    x2,
+                    y2,
                     skill["image"],
                     sim=sim,
                     delta_color=self.icon_delta_color,
@@ -269,12 +275,8 @@ class PaladinWindDragonTask:
     def _find_war3_hwnd(self) -> int:
         """查找 war3 窗口。后台模式不要求 war3 是活动窗口，直接按类名+标题找。"""
         if self.cfg.get("bind_mode") == "background":
-            return self.dm.find_window(
-                self.war3_cfg["window_class"], self.war3_cfg["window_title"]
-            ) or 0
-        return self.dm.get_active_window(
-            self.war3_cfg["window_class"], self.war3_cfg["window_title"]
-        )
+            return self.dm.find_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"]) or 0
+        return self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
 
     def run(self):
         """主入口 — 查找窗口、绑定、统一窗口尺寸、运行挂机循环。"""
@@ -308,9 +310,7 @@ def main():
             progress_lines_callback=kwargs.get("progress_lines_callback"),
         ).run()
 
-    run_with_float_window(
-        "圣骑士风龙", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {})
-    )
+    run_with_float_window("圣骑士风龙", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
 
 
 if __name__ == "__main__":

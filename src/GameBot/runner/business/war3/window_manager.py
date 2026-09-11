@@ -254,7 +254,9 @@ class WindowManagerMixin:
             return 0
         return 0
 
-    def bind_war3_window(self, target_player: str = "", stop_event=None, timeout: int = 60, known_players: list = None) -> int:
+    def bind_war3_window(
+        self, target_player: str = "", stop_event=None, timeout: int = 60, known_players: list = None
+    ) -> int:
         """等待 War3 窗口出现并绑定准备（多开时验证归属），返回窗口句柄。
 
         封装了 wait_for_game_window → 多开验证 → set_client_size 的完整流程，

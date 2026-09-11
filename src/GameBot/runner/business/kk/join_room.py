@@ -121,9 +121,7 @@ class JoinRoomMixin:
         # room_result_coords 是 [x, y] 点击坐标而非 OCR 区域，搜索结果直接双击该坐标
         popup_class = self.kk_cfg.get("create_room_window_class", "")
         window_title = self.kk_cfg.get("window_title", "")
-        existing_popups = {
-            w["hwnd"] for w in dm.find_windows(popup_class, window_title, owner_pid)
-        }
+        existing_popups = {w["hwnd"] for w in dm.find_windows(popup_class, window_title, owner_pid)}
         if len(ocr_area) == 2:
             # 直接双击搜索结果位置
             with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
@@ -231,9 +229,7 @@ class JoinRoomMixin:
             dm.save_screenshot(label="join_room_failed", force=True)
         return room_hwnd
 
-    def _search_map_and_enter_detail(
-        self, dm: DmClient, hall_hwnd: int, map_name: str, owner_pid: int = 0
-    ) -> bool:
+    def _search_map_and_enter_detail(self, dm: DmClient, hall_hwnd: int, map_name: str, owner_pid: int = 0) -> bool:
         """在 KK 主界面搜索地图并进入地图详情页。
 
         复用 create_room 的前半段逻辑（搜索→点击搜索结果→等待详情页加载）。

@@ -48,7 +48,9 @@ def _make_member(is_sync_source=True):
     member._current_round = 1
     member._flow_failed = False
     member.task_ctx = MagicMock()
-    member.task_cfg = {"war3": {"jiubing2": {"tasks": {"endless": {"endless_single": {"min_level": 1, "max_level": 1}}}}}}
+    member.task_cfg = {
+        "war3": {"jiubing2": {"tasks": {"endless": {"endless_single": {"min_level": 1, "max_level": 1}}}}}
+    }
     return member
 
 

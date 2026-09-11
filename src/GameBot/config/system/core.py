@@ -223,9 +223,7 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
                     entry["item_id"] = item_id
                     del entry["item"]
                 else:
-                    logging.getLogger(__name__).warning(
-                        f"物品名 '{name}' 未在物品定义表中找到，请检查 items 配置"
-                    )
+                    logging.getLogger(__name__).warning(f"物品名 '{name}' 未在物品定义表中找到，请检查 items 配置")
 
     def _apply_bind_mode(self, config: dict):
         """根据 bind_mode 切换前台/后台绑定配置。

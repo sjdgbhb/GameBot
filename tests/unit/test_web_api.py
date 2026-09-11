@@ -155,7 +155,7 @@ class TestHeroExportEndpoint:
     def test_export_hero_success(self, web_client, monkeypatch):
         """正常导出英雄配置应返回 TOML 文本。"""
         monkeypatch.setattr(
-            services, "export_hero_config", lambda _: '[hero]\ninventory = [\n  {slot = 0, item_id = 1},\n]\n'
+            services, "export_hero_config", lambda _: "[hero]\ninventory = [\n  {slot = 0, item_id = 1},\n]\n"
         )
 
         resp = web_client.get("/api/hero_export/paladin")

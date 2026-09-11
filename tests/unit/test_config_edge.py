@@ -31,7 +31,8 @@ def _make_edge_config_dir() -> Path:
 
     _write_toml(
         tmp,
-        "base.toml", """
+        "base.toml",
+        """
 name = "base"
 extends = []
 [paths]
@@ -41,7 +42,8 @@ log_path = "logs"
 
     _write_toml(
         tmp,
-        "war3/war3.toml", """
+        "war3/war3.toml",
+        """
 name = "war3"
 extends = ["base"]
 
@@ -52,7 +54,8 @@ window_class = "War3Class"
 
     _write_toml(
         tmp,
-        "war3/jiubing2/jiubing2.toml", """
+        "war3/jiubing2/jiubing2.toml",
+        """
 name = "war3.jiubing2"
 extends = ["war3"]
 
@@ -66,7 +69,8 @@ inventory = ["A", "B", "C"]
 
     _write_toml(
         tmp,
-        "war3/jiubing2/heroes/mk.toml", """
+        "war3/jiubing2/heroes/mk.toml",
+        """
 name = "war3.jiubing2.heroes.mk"
 extends = []
 [hero]
@@ -77,7 +81,8 @@ attack = 100
 
     _write_toml(
         tmp,
-        "war3/jiubing2/heroes/lancer.toml", """
+        "war3/jiubing2/heroes/lancer.toml",
+        """
 name = "war3.jiubing2.heroes.lancer"
 extends = []
 [hero]
@@ -89,7 +94,8 @@ defense = 50
 
     _write_toml(
         tmp,
-        "war3/jiubing2/tasks/others/fishing.toml", """
+        "war3/jiubing2/tasks/others/fishing.toml",
+        """
 name = "war3.jiubing2.tasks.others.fishing"
 extends = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
@@ -101,7 +107,8 @@ task_times = 5
 
     _write_toml(
         tmp,
-        "war3/jiubing2/tasks/others/patrol_loot.toml", """
+        "war3/jiubing2/tasks/others/patrol_loot.toml",
+        """
 name = "war3.jiubing2.tasks.others.patrol_loot"
 extends = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]
 
@@ -114,7 +121,8 @@ task_times = 3
     # 自依赖测试文件
     _write_toml(
         tmp,
-        "self_circular.toml", """
+        "self_circular.toml",
+        """
 name = "self_circular"
 extends = ["self_circular"]
 [x]
@@ -125,7 +133,8 @@ val = 1
     # 菱形依赖：diamond_d → diamond_a, diamond_b → diamond_c → diamond_a, diamond_b
     _write_toml(
         tmp,
-        "diamond_a.toml", """
+        "diamond_a.toml",
+        """
 name = "diamond_a"
 extends = []
 [a]
@@ -134,7 +143,8 @@ val = 1
     )
     _write_toml(
         tmp,
-        "diamond_b.toml", """
+        "diamond_b.toml",
+        """
 name = "diamond_b"
 extends = ["diamond_a"]
 [b]
@@ -143,7 +153,8 @@ val = 2
     )
     _write_toml(
         tmp,
-        "diamond_c.toml", """
+        "diamond_c.toml",
+        """
 name = "diamond_c"
 extends = ["diamond_a", "diamond_b"]
 [c]
@@ -152,7 +163,8 @@ val = 3
     )
     _write_toml(
         tmp,
-        "diamond_d.toml", """
+        "diamond_d.toml",
+        """
 name = "diamond_d"
 extends = ["diamond_c"]
 [d]
@@ -163,7 +175,8 @@ val = 4
     # 空依赖文件
     _write_toml(
         tmp,
-        "empty_deps.toml", """
+        "empty_deps.toml",
+        """
 name = "empty_deps"
 extends = []
 [e]
@@ -174,7 +187,8 @@ val = 5
     # 仅含控制键的文件
     _write_toml(
         tmp,
-        "control_only.toml", """
+        "control_only.toml",
+        """
 name = "control_only"
 extends = ["base"]
 """,
@@ -183,7 +197,8 @@ extends = ["base"]
     # 全部命名空间节点（无可继承节点）
     _write_toml(
         tmp,
-        "war3/jiubing2/tasks/atomic/test_atomic.toml", """
+        "war3/jiubing2/tasks/atomic/test_atomic.toml",
+        """
 name = "war3.jiubing2.tasks.atomic.test_atomic"
 extends = ["war3.jiubing2"]
 
@@ -195,7 +210,8 @@ name = "测试原子任务"
     # 同名目录文件布局：dir_same/dir_same.toml
     _write_toml(
         tmp,
-        "dir_same/dir_same.toml", """
+        "dir_same/dir_same.toml",
+        """
 name = "dir_same"
 extends = []
 [same]
@@ -206,7 +222,8 @@ val = 10
     # base.toml 回退布局：dir_base/base.toml
     _write_toml(
         tmp,
-        "dir_base/base.toml", """
+        "dir_base/base.toml",
+        """
 name = "dir_base.base"
 extends = []
 [base_fallback]

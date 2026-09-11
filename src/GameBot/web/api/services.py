@@ -435,7 +435,7 @@ def save_hero_inventory(hero_id: str, inventory: list) -> None:
             if "item" in it:
                 parts.append(f'{{slot = {it["slot"]}, item = "{it["item"]}"}}')
             else:
-                parts.append(f'{{slot = {it["slot"]}, item_id = {it["item_id"]}}}')
+                parts.append(f"{{slot = {it['slot']}, item_id = {it['item_id']}}}")
         items_str = ",\n  ".join(parts)
         block_lines = [
             "inventory = [\n",

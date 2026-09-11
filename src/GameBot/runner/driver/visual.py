@@ -90,9 +90,7 @@ class VisualMixin:
         ret = self._com_call("Capture", x1, y1, x2, y2, filepath)
         return ret == 1
 
-    def capture_region_printwindow(
-        self, hwnd: int, x1: int, y1: int, x2: int, y2: int, filepath: str
-    ) -> bool:
+    def capture_region_printwindow(self, hwnd: int, x1: int, y1: int, x2: int, y2: int, filepath: str) -> bool:
         """使用 PrintWindow + PW_RENDERFULLCONTENT 截取 layered window 区域。
 
         对 WS_EX_LAYERED 窗口，PrintWindow + PW_RENDERFULLCONTENT 能从 DWM
@@ -125,7 +123,9 @@ class VisualMixin:
             user32.GetClientRect.argtypes = [ctypes.wintypes.HWND, ctypes.c_void_p]
             user32.GetClientRect.restype = ctypes.wintypes.BOOL
             user32.PrintWindow.argtypes = [
-                ctypes.wintypes.HWND, ctypes.wintypes.HDC, ctypes.wintypes.UINT,
+                ctypes.wintypes.HWND,
+                ctypes.wintypes.HDC,
+                ctypes.wintypes.UINT,
             ]
             user32.PrintWindow.restype = ctypes.wintypes.BOOL
 
@@ -134,7 +134,9 @@ class VisualMixin:
             gdi32.DeleteDC.argtypes = [ctypes.wintypes.HDC]
             gdi32.DeleteDC.restype = ctypes.wintypes.BOOL
             gdi32.CreateCompatibleBitmap.argtypes = [
-                ctypes.wintypes.HDC, ctypes.c_int, ctypes.c_int,
+                ctypes.wintypes.HDC,
+                ctypes.c_int,
+                ctypes.c_int,
             ]
             gdi32.CreateCompatibleBitmap.restype = ctypes.wintypes.HBITMAP
             gdi32.SelectObject.argtypes = [ctypes.wintypes.HDC, ctypes.wintypes.HGDIOBJ]
@@ -144,8 +146,13 @@ class VisualMixin:
             gdi32.GetCurrentObject.argtypes = [ctypes.wintypes.HDC, ctypes.c_uint]
             gdi32.GetCurrentObject.restype = ctypes.wintypes.HGDIOBJ
             gdi32.GetDIBits.argtypes = [
-                ctypes.wintypes.HDC, ctypes.wintypes.HBITMAP, ctypes.c_uint,
-                ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint,
+                ctypes.wintypes.HDC,
+                ctypes.wintypes.HBITMAP,
+                ctypes.c_uint,
+                ctypes.c_uint,
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.c_uint,
             ]
             gdi32.GetDIBits.restype = ctypes.c_int
 
@@ -180,6 +187,7 @@ class VisualMixin:
                         return False
                     # 从全窗口截图中裁剪出目标区域
                     from PIL import Image
+
                     full_path = filepath + ".full.tmp"
                     if not self._save_dc_to_bmp(mem_dc, full_w, full_h, full_path):
                         return False
@@ -231,18 +239,28 @@ class VisualMixin:
         gdi32.GetCurrentObject.argtypes = [ctypes.wintypes.HDC, ctypes.c_uint]
         gdi32.GetCurrentObject.restype = ctypes.wintypes.HGDIOBJ
         gdi32.GetDIBits.argtypes = [
-            ctypes.wintypes.HDC, ctypes.wintypes.HBITMAP, ctypes.c_uint,
-            ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint,
+            ctypes.wintypes.HDC,
+            ctypes.wintypes.HBITMAP,
+            ctypes.c_uint,
+            ctypes.c_uint,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_uint,
         ]
         gdi32.GetDIBits.restype = ctypes.c_int
 
         class BITMAPINFOHEADER(ctypes.Structure):
             _fields_ = [
-                ("biSize", ctypes.c_uint32), ("biWidth", ctypes.c_long),
-                ("biHeight", ctypes.c_long), ("biPlanes", ctypes.c_uint16),
-                ("biBitCount", ctypes.c_uint16), ("biCompression", ctypes.c_uint32),
-                ("biSizeImage", ctypes.c_uint32), ("biXPelsPerMeter", ctypes.c_long),
-                ("biYPelsPerMeter", ctypes.c_long), ("biClrUsed", ctypes.c_uint32),
+                ("biSize", ctypes.c_uint32),
+                ("biWidth", ctypes.c_long),
+                ("biHeight", ctypes.c_long),
+                ("biPlanes", ctypes.c_uint16),
+                ("biBitCount", ctypes.c_uint16),
+                ("biCompression", ctypes.c_uint32),
+                ("biSizeImage", ctypes.c_uint32),
+                ("biXPelsPerMeter", ctypes.c_long),
+                ("biYPelsPerMeter", ctypes.c_long),
+                ("biClrUsed", ctypes.c_uint32),
                 ("biClrImportant", ctypes.c_uint32),
             ]
 

@@ -154,11 +154,12 @@ def main():
                     actual_color = dm.get_color(px, py)
                     elapsed = time.perf_counter() - start
                     progress_callback(f"第 {round_num} 轮: 中钩! ({px},{py}) 颜色={actual_color} 耗时={elapsed:.1f}s")
-                    print(f"[第 {round_num} 轮] 找色命中: 坐标=({px},{py}), 实际颜色={actual_color}, "
-                          f"查找颜色={color_str}, sim={sim}, 耗时={elapsed:.2f}s")
+                    print(
+                        f"[第 {round_num} 轮] 找色命中: 坐标=({px},{py}), 实际颜色={actual_color}, "
+                        f"查找颜色={color_str}, sim={sim}, 耗时={elapsed:.2f}s"
+                    )
                     # 框选命中点
-                    hit_box = [px - HIT_BOX_RADIUS, py - HIT_BOX_RADIUS,
-                               px + HIT_BOX_RADIUS, py + HIT_BOX_RADIUS]
+                    hit_box = [px - HIT_BOX_RADIUS, py - HIT_BOX_RADIUS, px + HIT_BOX_RADIUS, py + HIT_BOX_RADIUS]
                     _box_select(dm, hit_box, HOLD_TIME, stop_event)
                     found_count += 1
                     # 收竿

@@ -64,7 +64,23 @@ def _make_kk():
     }
     ctx = MagicMock()
     kk.dm.bind_window.return_value = ctx
-    kk.dm.get_client_rect.return_value = (0, 0, 1328, 945)
+    # get_client_rect 按 hwnd 返回尺寸：大厅 1328x945，下拉框取其 find_windows rect 的宽高
+    # （实现优先用 get_client_rect 而非 find_windows 的 rect，bridge 模式下 rect 可能为 0）
+    _client_sizes = {
+        500: (1328, 945),
+        111: (246, 342),
+        222: (156, 252),
+        333: (156, 252),
+        997: (156, 252),
+        998: (156, 252),
+        999: (156, 252),
+    }
+
+    def _get_client_rect(hwnd):
+        w, h = _client_sizes.get(hwnd, (0, 0))
+        return (0, 0, w, h)
+
+    kk.dm.get_client_rect.side_effect = _get_client_rect
     kk.dm.get_window_process_id.return_value = 1234
     # 点击头像后，同 PID 下有大厅窗口和下拉框窗口
     # identify_hall_owner 按 PID + 完整类名 + 标题筛选下拉框
@@ -99,9 +115,7 @@ class TestIdentifyHallOwner(unittest.TestCase):
         with kk._pid_identify_lock(4567) as acquired:
             self.assertFalse(acquired)
 
-        kernel32.CreateMutexW.assert_called_once_with(
-            None, False, "Local\\GameBot_KK_Hall_Identify_PID_4567"
-        )
+        kernel32.CreateMutexW.assert_called_once_with(None, False, "Local\\GameBot_KK_Hall_Identify_PID_4567")
         kernel32.WaitForSingleObject.assert_called_once_with(123, 0)
         kernel32.ReleaseMutex.assert_not_called()
         kernel32.CloseHandle.assert_called_once_with(123)

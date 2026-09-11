@@ -18,7 +18,14 @@ from GameBot.utils import logger, setup_global_exception_hook, setup_log_file
 
 # 本环境（管理员 + dx2 + mode 4）实测有效的组合。
 DEFAULT_CASES = [
-    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows",          "public": "dx.public.active.api", "mode": 4, "bind_delay": 1.5}
+    {
+        "display": "dx2",
+        "mouse": "dx.mouse.position.lock.api",
+        "keypad": "windows",
+        "public": "dx.public.active.api",
+        "mode": 4,
+        "bind_delay": 1.5,
+    }
 ]
 
 

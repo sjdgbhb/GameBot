@@ -44,7 +44,14 @@ class UpgradeStigmataTask(AtomicLoopTask):
     @property
     def _npc(self) -> dict:
         """圣痕升级 NPC 配置（来自依赖闭包的 blackstone_city 场景）。"""
-        return self.full_cfg.get("war3", {}).get("jiubing2", {}).get("scenes", {}).get("blackstone_city", {}).get("npcs", {}).get("stigmata", {})
+        return (
+            self.full_cfg.get("war3", {})
+            .get("jiubing2", {})
+            .get("scenes", {})
+            .get("blackstone_city", {})
+            .get("npcs", {})
+            .get("stigmata", {})
+        )
 
     @property
     def _board(self) -> dict:

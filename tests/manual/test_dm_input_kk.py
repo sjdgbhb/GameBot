@@ -72,13 +72,15 @@ def build_test_cases(mouse_modes, keypad_modes, modes, display: str = "gdi") -> 
     for mode in modes:
         for mouse in mouse_modes:
             for keypad in keypad_modes:
-                cases.append({
-                    "display": display,
-                    "mouse": mouse,
-                    "keypad": keypad,
-                    "mode": mode,
-                    "bind_delay": 1.0,
-                })
+                cases.append(
+                    {
+                        "display": display,
+                        "mouse": mouse,
+                        "keypad": keypad,
+                        "mode": mode,
+                        "bind_delay": 1.0,
+                    }
+                )
     return cases
 
 
@@ -262,12 +264,11 @@ def main() -> int:
 
         results = []
         for i, case in enumerate(cases, 1):
-            label = (
-                f"input_{case['display']}_{case['mouse']}_{case['keypad']}_"
-                f"mode{case['mode']}"
+            label = f"input_{case['display']}_{case['mouse']}_{case['keypad']}_mode{case['mode']}"
+            logger.info(
+                f"\n[{i}/{len(cases)}] 测试组合: display={case['display']}, "
+                f"mouse={case['mouse']}, keypad={case['keypad']}, mode={case['mode']}"
             )
-            logger.info(f"\n[{i}/{len(cases)}] 测试组合: display={case['display']}, "
-                        f"mouse={case['mouse']}, keypad={case['keypad']}, mode={case['mode']}")
             result = test_input_case(dm, hwnd, main_cfg, map_name, keyword, case, label, inf)
             results.append({"label": label, **result})
 

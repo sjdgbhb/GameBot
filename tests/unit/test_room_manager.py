@@ -145,7 +145,9 @@ class TestFindRoomWindow(unittest.TestCase):
     def test_owner_pid_and_ready_text_return_hwnd(self):
         kk = _make_kk()
         target_hwnd = 800
-        kk.dm.find_windows.return_value = [{"hwnd": target_hwnd, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1328, 945)}]
+        kk.dm.find_windows.return_value = [
+            {"hwnd": target_hwnd, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1328, 945)}
+        ]
         kk.ocr_kk_lines = MagicMock(return_value=[{"text": "取消准备"}])
 
         result = kk._find_room_window(kk.dm, owner_pid=5678)
@@ -184,7 +186,9 @@ class TestFindRoomWindow(unittest.TestCase):
 
     def test_non_room_size_is_rejected(self):
         kk = _make_kk()
-        kk.dm.find_windows.return_value = [{"hwnd": 800, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1000, 700)}]
+        kk.dm.find_windows.return_value = [
+            {"hwnd": 800, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1000, 700)}
+        ]
         kk.dm.get_client_rect.return_value = (0, 0, 1000, 700)
 
         result = kk._find_room_window(kk.dm, owner_pid=5678)

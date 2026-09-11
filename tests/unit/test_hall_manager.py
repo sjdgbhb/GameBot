@@ -60,10 +60,10 @@ def _make_kk():
     kk.dm = MagicMock()
 
     def _ocr_kk_lines(self, dm, hwnd, ocr_cfg, merge_lines=True):
-        area = ocr_cfg.get("area_coords", [0, 0, 0, 0])
         raw = _base.get_inference_client().ocr_lines_from_file("/tmp/test_ocr.bmp", merge_lines=merge_lines)
         # 模拟 Base.ocr_lines 行为：OCR 坐标相对于截图区域，不额外偏移
         import copy
+
         lines = copy.deepcopy(raw)
         for line in lines:
             line["x_center"] = line.get("x_center", 0)
@@ -273,9 +273,7 @@ class TestClaimHallWindow(unittest.TestCase):
 
         self.assertEqual(result, (500, 123))
         kk.dm.find_windows.assert_called_once_with("KKClass", "KKTitle", 0)
-        kk.identify_hall_owner.assert_called_once_with(
-            kk.dm, 500, stop_event=None, hall_owner_cache=None
-        )
+        kk.identify_hall_owner.assert_called_once_with(kk.dm, 500, stop_event=None, hall_owner_cache=None)
 
     def test_busy_window_skipped_then_retried(self):
         """窗口正忙时应先跳过遍历其他窗口，第一轮结束后再回头重试。
@@ -513,9 +511,7 @@ class TestCreateRoom(unittest.TestCase):
         # bind_window 上下文管理器
         ctx = MagicMock()
         kk.dm.bind_window.return_value = ctx
-        kk.dm.get_client_rect.side_effect = lambda hwnd: (
-            (0, 0, 584, 517) if hwnd == 600 else (0, 0, 1328, 945)
-        )
+        kk.dm.get_client_rect.side_effect = lambda hwnd: (0, 0, 584, 517) if hwnd == 600 else (0, 0, 1328, 945)
         return kk
 
     # U-11: 地图未找到时截图

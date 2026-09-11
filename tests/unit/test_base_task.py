@@ -213,7 +213,6 @@ class TestRunLoop(unittest.TestCase):
         self.assertEqual(task._interruptible_sleep.call_count, 1)
 
 
-
 class TestReputationEffectiveTimes(unittest.TestCase):
     """测试 ReputationTask._effective_times 次数反推逻辑。"""
 

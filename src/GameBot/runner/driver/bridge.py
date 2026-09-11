@@ -155,8 +155,7 @@ class DmBridgeClient(DmClientBase):
             proc = self._proc
             if proc is None or proc.poll() is not None:
                 raise DmError(
-                    "dm_bridge 子进程已退出，无法调用大漠方法"
-                    "（不自动重启以避免丢失窗口绑定状态，请重启任务）"
+                    "dm_bridge 子进程已退出，无法调用大漠方法（不自动重启以避免丢失窗口绑定状态，请重启任务）"
                 )
             self._req_id += 1
             req = {"id": self._req_id, "method": "com", "name": name, "args": list(args)}

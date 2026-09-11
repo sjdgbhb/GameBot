@@ -89,8 +89,7 @@ def create_dm(cfg):
     except Exception:
         if not (dll_file and os.path.isfile(dll_file) and try_register_silent(dll_file)):
             raise RuntimeError(
-                "无法创建大漠 COM 对象（dm.dll 未注册）。"
-                "请以管理员身份执行一次注册：%s" % _REGISTER_HINT
+                "无法创建大漠 COM 对象（dm.dll 未注册）。请以管理员身份执行一次注册：%s" % _REGISTER_HINT
             )
         dm = _dispatch()
 
@@ -102,8 +101,7 @@ def create_dm(cfg):
             ver = dm.Ver()
         if ver != expected:
             raise RuntimeError(
-                "大漠版本不符：期望 %s，实际 %s。"
-                "请以管理员身份重新注册：%s" % (expected, ver, _REGISTER_HINT)
+                "大漠版本不符：期望 %s，实际 %s。请以管理员身份重新注册：%s" % (expected, ver, _REGISTER_HINT)
             )
 
     if dll_dir:

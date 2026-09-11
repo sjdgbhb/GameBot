@@ -230,9 +230,7 @@ class TeamOrchestrator:
 
     def _start_progress_thread(self) -> None:
         """启动进度汇总线程。"""
-        self._progress_thread = threading.Thread(
-            target=self._progress_loop, daemon=True
-        )
+        self._progress_thread = threading.Thread(target=self._progress_loop, daemon=True)
         self._progress_thread.start()
 
     def _progress_loop(self) -> None:
@@ -260,9 +258,7 @@ class TeamOrchestrator:
 
     def _start_monitor_thread(self) -> None:
         """启动子进程监控线程。"""
-        self._monitor_thread = threading.Thread(
-            target=self._monitor_loop, daemon=True
-        )
+        self._monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._monitor_thread.start()
 
     def _monitor_loop(self) -> None:
@@ -297,7 +293,7 @@ class TeamOrchestrator:
                 ret = proc.poll()
                 if ret is not None:
                     target = role_to_target.get(role_key, "")
-                    is_sync_source = (target == self.sync_source)
+                    is_sync_source = target == self.sync_source
                     # 从进程字典移除已退出进程，避免重复处理
                     with self._process_lock:
                         if self._processes.get(role_key) is not proc:
@@ -314,9 +310,7 @@ class TeamOrchestrator:
 
                     if member_phase in kk_states:
                         # KK 阶段：任何成员崩溃都直接重启该进程
-                        logger.error(
-                            f"子进程 {role_key} 在 KK 阶段异常退出 (返回码={ret}), 直接重启"
-                        )
+                        logger.error(f"子进程 {role_key} 在 KK 阶段异常退出 (返回码={ret}), 直接重启")
                         self._restart_member(role_key)
 
                     elif member_phase in game_states:
@@ -350,9 +344,7 @@ class TeamOrchestrator:
 
                     else:
                         # 未知阶段（无进度记录或状态无法识别）：默认直接重启
-                        logger.error(
-                            f"子进程 {role_key} 异常退出 (返回码={ret}, phase={member_phase}), 默认重启"
-                        )
+                        logger.error(f"子进程 {role_key} 异常退出 (返回码={ret}, phase={member_phase}), 默认重启")
                         self._restart_member(role_key)
             self._lifecycle_event.wait(2)
 

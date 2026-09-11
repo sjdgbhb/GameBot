@@ -98,9 +98,13 @@ class _EndlessSingleSteps(Jiubing2TaskSteps):
         from GameBot.runner.business.war3.jiubing2.team_steps_base import _build_business_objects
 
         ui, nav, combat, runner = _build_business_objects(member)
-        endless_cfg = member.task_cfg.get("war3", {}).get(
-            "jiubing2", {}
-        ).get("tasks", {}).get("endless", {}).get("endless_single", {})
+        endless_cfg = (
+            member.task_cfg.get("war3", {})
+            .get("jiubing2", {})
+            .get("tasks", {})
+            .get("endless", {})
+            .get("endless_single", {})
+        )
 
         logger.info("组队无尽就位：进入皇宫 → 进入无尽")
         ui.switch_attribute_panel(is_fold=True)
@@ -114,9 +118,13 @@ class _EndlessSingleSteps(Jiubing2TaskSteps):
         from GameBot.runner.business.war3.jiubing2.team_steps_base import _build_business_objects
 
         ui, nav, combat, runner = _build_business_objects(member)
-        endless_cfg = member.task_cfg.get("war3", {}).get(
-            "jiubing2", {}
-        ).get("tasks", {}).get("endless", {}).get("endless_single", {})
+        endless_cfg = (
+            member.task_cfg.get("war3", {})
+            .get("jiubing2", {})
+            .get("tasks", {})
+            .get("endless", {})
+            .get("endless_single", {})
+        )
 
         if not endless_cfg:
             logger.error("run_task 缺少 endless_cfg")

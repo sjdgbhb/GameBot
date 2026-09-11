@@ -93,9 +93,7 @@ class MultiInstanceMixin:
             if hall_owner_cache:
                 cached_owner = hall_owner_cache.read_hall_owner(hall_hwnd, pid)
                 if cached_owner:
-                    logger.info(
-                        f"大厅归属共享缓存命中: hwnd={hall_hwnd}, pid={pid}, owner={cached_owner}"
-                    )
+                    logger.info(f"大厅归属共享缓存命中: hwnd={hall_hwnd}, pid={pid}, owner={cached_owner}")
                     return cached_owner
 
             # 点击前先记录已有下拉框，避免把其他大厅残留/其他进程刚弹出的框当成本次结果
@@ -171,10 +169,7 @@ class MultiInstanceMixin:
                 except Exception as e:
                     logger.warning(f"设置下拉框尺寸失败: {e}")
 
-            logger.debug(
-                f"大厅下拉框定位: hall_hwnd={hall_hwnd}, dropdown_hwnd={dd_hwnd}, "
-                f"size=({dd_w}x{dd_h})"
-            )
+            logger.debug(f"大厅下拉框定位: hall_hwnd={hall_hwnd}, dropdown_hwnd={dd_hwnd}, size=({dd_w}x{dd_h})")
 
             # 绑定下拉框窗口做 OCR，OCR 完成后在同一上下文内 ESC 关闭
             owner = ""

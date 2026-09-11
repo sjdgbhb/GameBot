@@ -7,7 +7,7 @@
 - worker.py       — 推理子进程 worker（exe 打包用）
 """
 
-from .local import LocalInferenceClient
 from .client import get_inference_client
+from .local import LocalInferenceClient
 
 __all__ = ["LocalInferenceClient", "get_inference_client"]

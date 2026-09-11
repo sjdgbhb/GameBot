@@ -53,6 +53,7 @@ def _make_member(tmp_path, members=None, target_player="player1", role="leader")
     originals = _mock_dm_modules()
 
     import GameBot.runner.team.base as base_mod
+
     old_dm = base_mod.create_dm_client
     old_kk = base_mod.KKBusiness
     old_war3 = base_mod.War3Business
@@ -97,8 +98,11 @@ def _make_member(tmp_path, members=None, target_player="player1", role="leader")
     ipc = TeamIPC("test_review3", str(tmp_path / "ipc"))
     stop_event = threading.Event()
     member = TestMember(
-        cfg=cfg, member_cfg=member_cfg, ipc=ipc,
-        sync_source=target_player, stop_event=stop_event,
+        cfg=cfg,
+        member_cfg=member_cfg,
+        ipc=ipc,
+        sync_source=target_player,
+        stop_event=stop_event,
     )
     member.dm = MagicMock()
     member.war3 = MagicMock()
@@ -202,8 +206,12 @@ class TestWaitAllMembersInGame:
         """成员 state=in_game 但 round 不匹配时不应放行。"""
         # 写入陈旧 round 的 progress
         member.ipc.write_progress(
-            role="leader", member_name="p1", task_name="t",
-            task_progress="", state="in_game", round_num=1,
+            role="leader",
+            member_name="p1",
+            task_name="t",
+            task_progress="",
+            state="in_game",
+            round_num=1,
         )
         member._current_round = 2
 
@@ -214,8 +222,12 @@ class TestWaitAllMembersInGame:
     def test_round_match_passes(self, member):
         """成员 state=in_game 且 round 匹配时应放行。"""
         member.ipc.write_progress(
-            role="leader", member_name="p1", task_name="t",
-            task_progress="", state="in_game", round_num=2,
+            role="leader",
+            member_name="p1",
+            task_name="t",
+            task_progress="",
+            state="in_game",
+            round_num=2,
         )
         member._current_round = 2
 
@@ -233,12 +245,20 @@ class TestWaitAllMembersInGame:
         try:
             # leader 在游戏中，follower 已停止
             member.ipc.write_progress(
-                role="leader", member_name="p1", task_name="t",
-                task_progress="", state="in_game", round_num=1,
+                role="leader",
+                member_name="p1",
+                task_name="t",
+                task_progress="",
+                state="in_game",
+                round_num=1,
             )
             member.ipc.write_progress(
-                role="follower_0", member_name="p2", task_name="t",
-                task_progress="", state="stopped", round_num=1,
+                role="follower_0",
+                member_name="p2",
+                task_name="t",
+                task_progress="",
+                state="stopped",
+                round_num=1,
             )
             member._current_round = 1
 
@@ -262,18 +282,27 @@ class TestWaitAllMembersInGame:
         try:
             # leader 在游戏中
             member.ipc.write_progress(
-                role="leader", member_name="p1", task_name="t",
-                task_progress="", state="in_game", round_num=1,
+                role="leader",
+                member_name="p1",
+                task_name="t",
+                task_progress="",
+                state="in_game",
+                round_num=1,
             )
             # follower 进度过期（timestamp 远在过去）
             old_ts = time.time() - 10000
             member.ipc.write_progress(
-                role="follower_0", member_name="p2", task_name="t",
-                task_progress="", state="game_phase", round_num=1,
+                role="follower_0",
+                member_name="p2",
+                task_name="t",
+                task_progress="",
+                state="game_phase",
+                round_num=1,
             )
             # 手动修改 timestamp
             import json
             import os
+
             prog_path = os.path.join(member.ipc.progress_dir, "follower_0.json")
             with open(prog_path, "r") as f:
                 data = json.load(f)
@@ -300,8 +329,12 @@ class TestRecoverRoundOneTimeFlag:
     def test_recover_round_updates_current_round(self, member):
         """_recover_round 应从 IPC 读取最大 round 并 +1。"""
         member.ipc.write_progress(
-            role="leader", member_name="p1", task_name="t",
-            task_progress="", state="game_phase", round_num=3,
+            role="leader",
+            member_name="p1",
+            task_name="t",
+            task_progress="",
+            state="game_phase",
+            round_num=3,
         )
         member._recover_round()
 

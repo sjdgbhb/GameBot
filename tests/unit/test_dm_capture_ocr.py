@@ -143,7 +143,7 @@ class TestOcrKkLines:
         mock_client.ocr_lines_from_file.return_value = []
         with patch("GameBot.runner.business.base.get_inference_client", return_value=mock_client):
             with patch("os.remove"):
-                lines = kk.ocr_kk_lines(dm, 888, {"area_coords": [0, 0, 100, 50]})
+                kk.ocr_kk_lines(dm, 888, {"area_coords": [0, 0, 100, 50]})
 
         dm.bind_window.assert_called_once()
         dm.capture_to_temp.assert_called_once()
@@ -263,12 +263,24 @@ class TestTeamMemberBindMulti:
         cfg = {
             "war3": {
                 "bind": {"display": "normal", "mouse": "normal", "keypad": "normal", "mode": 0},
-                "bind_multi": {"display": "dx2", "mouse": "windows3", "keypad": "windows", "mode": 0, "bind_delay": 1.5},
+                "bind_multi": {
+                    "display": "dx2",
+                    "mouse": "windows3",
+                    "keypad": "windows",
+                    "mode": 0,
+                    "bind_delay": 1.5,
+                },
             },
             "hero": {"inventory": []},
             "kk": {
                 "bind": {"display": "normal", "mouse": "normal", "keypad": "normal", "mode": 0},
-                "bind_multi": {"display": "gdi2", "mouse": "windows3", "keypad": "windows", "mode": 0, "bind_delay": 1.0},
+                "bind_multi": {
+                    "display": "gdi2",
+                    "mouse": "windows3",
+                    "keypad": "windows",
+                    "mode": 0,
+                    "bind_delay": 1.0,
+                },
             },
             "team": {
                 "team_task": {
@@ -398,7 +410,9 @@ class TestBindWindowEx:
                 return 0
 
         client = FakeClient()
-        with client.bind_window(12345, bind_cfg={"display": "gdi2", "mouse": "windows3", "keypad": "windows", "mode": 0}):
+        with client.bind_window(
+            12345, bind_cfg={"display": "gdi2", "mouse": "windows3", "keypad": "windows", "mode": 0}
+        ):
             pass
 
         # 统一调用 BindWindowEx，无 public 时 public 为空串

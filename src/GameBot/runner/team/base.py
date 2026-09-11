@@ -119,7 +119,7 @@ class TeamMemberBase(abc.ABC):
 
         # 合并 player_id → target_player（War3 窗口归属玩家 ID）
         self.target_player = member_cfg.get("target_player", "")
-        self.is_sync_source = (self.target_player == sync_source)
+        self.is_sync_source = self.target_player == sync_source
 
         # 组队任务配置
         team_cfg = cfg.get("team", {}).get("team_task", {})
@@ -195,9 +195,7 @@ class TeamMemberBase(abc.ABC):
         # 进度上报
         self._last_progress_time = 0.0
         self._last_progress_state = ""
-        self._progress_interval = team_cfg.get("sync", {}).get(
-            "progress_report_interval", 2
-        )
+        self._progress_interval = team_cfg.get("sync", {}).get("progress_report_interval", 2)
 
         # exit_signal 监控线程（非同步源在 task_module 执行期间启动）
         self._exit_signal_watcher = None
@@ -256,10 +254,7 @@ class TeamMemberBase(abc.ABC):
         try:
             hero_raw = config._load_file(hero_config_name)
         except ConfigurationError:
-            logger.warning(
-                f"成员 {self.target_player} 指定的英雄配置 {hero_config_name} 不存在，"
-                "使用任务依赖默认英雄"
-            )
+            logger.warning(f"成员 {self.target_player} 指定的英雄配置 {hero_config_name} 不存在，使用任务依赖默认英雄")
             return
 
         inheritable, _ = config._split_sections(hero_raw)
@@ -292,9 +287,9 @@ class TeamMemberBase(abc.ABC):
     def run(self) -> None:
         """主循环：KK 阶段 → 游戏阶段 → 同步 → 下一局。"""
         consecutive_failures = 0
-        safe_stop_threshold = self.task_cfg.get("team", {}).get("team_task", {}).get(
-            "sync", {}
-        ).get("safe_stop_threshold", 0)
+        safe_stop_threshold = (
+            self.task_cfg.get("team", {}).get("team_task", {}).get("sync", {}).get("safe_stop_threshold", 0)
+        )
         self._start_signal_watcher()
         try:
             while True:
@@ -547,9 +542,7 @@ class TeamMemberBase(abc.ABC):
         """启动后台线程轮询 exit_signal，收到时设置 stop_event 中断 task_module。"""
         if self._exit_signal_watcher is not None:
             return
-        self._exit_signal_watcher = threading.Thread(
-            target=self._exit_signal_watch_loop, daemon=True
-        )
+        self._exit_signal_watcher = threading.Thread(target=self._exit_signal_watch_loop, daemon=True)
         self._exit_signal_watcher_running = True
         self._exit_signal_watcher.start()
 
@@ -586,9 +579,7 @@ class TeamMemberBase(abc.ABC):
         """启动 stop 信号监控线程。"""
         if self._signal_watcher is not None:
             return
-        self._signal_watcher = threading.Thread(
-            target=self._signal_watch_loop, daemon=True
-        )
+        self._signal_watcher = threading.Thread(target=self._signal_watch_loop, daemon=True)
         self._signal_watcher_running = True
         self._signal_watcher.start()
 
@@ -850,7 +841,7 @@ class TeamMemberBase(abc.ABC):
         确保 in_game/stopped 等关键状态及时落盘，避免屏障误判。
         """
         now = time.time()
-        is_state_change = (state != self._last_progress_state)
+        is_state_change = state != self._last_progress_state
         if not is_state_change and now - self._last_progress_time < self._progress_interval and task_progress == "":
             return
         self._last_progress_time = now

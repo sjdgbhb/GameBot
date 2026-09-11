@@ -63,9 +63,7 @@ class RoomManagerMixin:
                 if start_game_keyword in button_text:
                     logger.debug(f"OCR 确认开始按钮文本: {button_text}")
                 else:
-                    logger.debug(
-                        f"开始按钮视觉帧尚未更新（当前: {button_text}），按业务状态继续点击"
-                    )
+                    logger.debug(f"开始按钮视觉帧尚未更新（当前: {button_text}），按业务状态继续点击")
 
             dm.move_to(*start_coords)
             time.sleep(0.2)
@@ -74,9 +72,7 @@ class RoomManagerMixin:
         time.sleep(room_cfg["start_wait_time"])
         return True
 
-    def dismiss_room_popups(
-        self, dm: DmClient, room_size: tuple = None, owner_pid: int = 0
-    ) -> int:
+    def dismiss_room_popups(self, dm: DmClient, room_size: tuple = None, owner_pid: int = 0) -> int:
         """清理目标 KK 进程的房间弹窗，并通过按钮状态 OCR 返回房间句柄。"""
         popup_cfg = self.kk_cfg.get("popup", {})
         offset_x, offset_y = popup_cfg.get("close_offset", [15, 15])
@@ -151,13 +147,8 @@ class RoomManagerMixin:
                 width, height = x2 - x1, y2 - y1
                 if width < min_width or height < min_height:
                     continue
-                if (
-                    abs(width - room_size[0]) <= size_tolerance
-                    and abs(height - room_size[1]) <= size_tolerance
-                ):
-                    logger.debug(
-                        f"识别到 KK 房间窗口: hwnd={hwnd}, size=({width}x{height})"
-                    )
+                if abs(width - room_size[0]) <= size_tolerance and abs(height - room_size[1]) <= size_tolerance:
+                    logger.debug(f"识别到 KK 房间窗口: hwnd={hwnd}, size=({width}x{height})")
                     return hwnd
             except Exception as e:
                 logger.debug(f"识别 KK 房间候选窗口 {hwnd} 失败: {e}")

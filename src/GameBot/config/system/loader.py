@@ -85,8 +85,7 @@ class ConfigLoaderMixin:
                 continue
             if key in roots:
                 raise ConfigurationError(
-                    f"{config_name} ({filepath}): 请使用 [this] 简写，"
-                    f"不要直接写 [{key}]（旧命名空间格式已废弃）"
+                    f"{config_name} ({filepath}): 请使用 [this] 简写，不要直接写 [{key}]（旧命名空间格式已废弃）"
                 )
 
     @staticmethod

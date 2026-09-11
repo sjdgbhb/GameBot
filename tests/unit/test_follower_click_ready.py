@@ -53,6 +53,7 @@ def _make_follower(tmp_path):
     originals = _mock_dm_modules()
 
     import GameBot.runner.team.base as base_mod
+
     old_dm = base_mod.create_dm_client
     old_kk = base_mod.KKBusiness
     old_war3 = base_mod.War3Business
@@ -96,8 +97,11 @@ def _make_follower(tmp_path):
     ipc = TeamIPC("test_click_ready", os.path.join(tmp_path, "ipc"))
     stop_event = __import__("threading").Event()
     follower = TeamFollower(
-        cfg=cfg, member_cfg=member_cfg, ipc=ipc,
-        sync_source="leader_player", follower_index=0,
+        cfg=cfg,
+        member_cfg=member_cfg,
+        ipc=ipc,
+        sync_source="leader_player",
+        follower_index=0,
         stop_event=stop_event,
     )
     follower.dm = MagicMock()
@@ -128,6 +132,7 @@ def _cleanup_follower(follower):
 class TestFollowerKKOwnership(unittest.TestCase):
     def setUp(self):
         import tempfile
+
         self._tmp = tempfile.mkdtemp()
         self.follower = _make_follower(self._tmp)
 
@@ -140,7 +145,9 @@ class TestFollowerKKOwnership(unittest.TestCase):
         result = self.follower.kk_phase(round_num=1)
 
         self.assertFalse(result)
-        self.follower.kk.dismiss_room_popups.assert_not_called()
+        # 认领失败仅做一次房间残留探测（诊断），不进入等待房间信息/加入房间流程
+        self.follower.kk.dismiss_room_popups.assert_called_once_with(self.follower.dm, owner_pid=0)
+        self.follower.kk.join_room_by_id.assert_not_called()
 
     def test_joined_room_reports_recovered_round(self):
         def claim():
@@ -177,9 +184,7 @@ class TestFollowerKKOwnership(unittest.TestCase):
         result = self.follower.kk_phase(round_num=1)
 
         self.assertTrue(result)
-        self.follower.kk.dismiss_room_popups.assert_called_once_with(
-            self.follower.dm, owner_pid=123
-        )
+        self.follower.kk.dismiss_room_popups.assert_called_once_with(self.follower.dm, owner_pid=123)
         self.follower._wait_for_room_info.assert_called_once_with(1)
 
 
@@ -188,6 +193,7 @@ class TestClickReadyReadyState(unittest.TestCase):
 
     def setUp(self):
         import tempfile
+
         self._tmp = tempfile.mkdtemp()
         self.follower = _make_follower(self._tmp)
 

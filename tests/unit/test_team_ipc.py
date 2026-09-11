@@ -57,6 +57,7 @@ class TestTeamIPC:
 
     def test_poll_read_eventual_success(self, ipc):
         """延迟写入后，轮询应最终读取到数据。"""
+
         def delayed_write():
             time.sleep(0.1)
             ipc.write_room_info(room_id="999", password="", map_name="", round_num=2)

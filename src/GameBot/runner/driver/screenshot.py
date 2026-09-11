@@ -1,5 +1,4 @@
-"""截图操作 Mixin — 调试截图保存与频率控制（基于 _com_call 原语组合）。
-"""
+"""截图操作 Mixin — 调试截图保存与频率控制（基于 _com_call 原语组合）。"""
 
 import datetime
 import time
@@ -29,7 +28,9 @@ class ScreenshotMixin:
         path.mkdir(parents=True, exist_ok=True)
         return path
 
-    def save_screenshot(self, bbox: Optional[Tuple[int, int, int, int]] = None, label: str = "debug", force: bool = False) -> Optional[Path]:
+    def save_screenshot(
+        self, bbox: Optional[Tuple[int, int, int, int]] = None, label: str = "debug", force: bool = False
+    ) -> Optional[Path]:
         """截取指定屏幕区域并保存到日志目录，返回文件路径或 None。
 
         带最小间隔限制，避免循环中重复截图。force=True 时绕过频率限制。

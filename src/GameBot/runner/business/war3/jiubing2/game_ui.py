@@ -90,9 +90,7 @@ class GameUI:
             return
 
         area_coords = diff_cfg.get("area_coords", [0, 0, 0, 0])
-        lines = self._war3.ocr_lines(
-            self._war3.dm, hwnd, diff_cfg, bind_cfg=self._war3.war3_cfg.get("bind", {})
-        )
+        lines = self._war3.ocr_lines(self._war3.dm, hwnd, diff_cfg, bind_cfg=self._war3.war3_cfg.get("bind", {}))
         for line in lines:
             if target in line.get("text", ""):
                 x = int(line.get("x_center", 0)) + area_coords[0]
@@ -120,7 +118,9 @@ class GameUI:
         coords = self.hero_cfg["coords"]
         mini_coords = self.hero_cfg.get("mini_coords")
         bind_hwnd = self.dm.get_bind_window()
-        logger.info(f"选英雄前状态: bind_hwnd={bind_hwnd}, floor_key={floor_key}, mini_coords={mini_coords}, coords={coords}")
+        logger.info(
+            f"选英雄前状态: bind_hwnd={bind_hwnd}, floor_key={floor_key}, mini_coords={mini_coords}, coords={coords}"
+        )
         self.dm.key_press_char(floor_key)
         time.sleep(self.war3_cfg["small_window_response_time"])
         # 点小地图切换视角到英雄所在区域，否则英雄头像可能不在屏幕可见范围

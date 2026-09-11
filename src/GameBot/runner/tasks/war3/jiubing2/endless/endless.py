@@ -71,7 +71,9 @@ class EndlessTask:
         map_name = self.task_cfg.get("game", {}).get("map_name", "九种兵器2诸神战场")
         room_hwnd = self.kk.create_room(self.dm, map_name=map_name)
         if not room_hwnd:
-            logger.error("创建房间失败，跳过本局。建议检查：1) KK 主界面是否正常显示 2) 搜索结果是否包含目标地图 3) 创建房间弹窗是否出现 4) 网络是否正常")
+            logger.error(
+                "创建房间失败，跳过本局。建议检查：1) KK 主界面是否正常显示 2) 搜索结果是否包含目标地图 3) 创建房间弹窗是否出现 4) 网络是否正常"
+            )
             return
         self.kk.start_game(self.dm, room_hwnd=room_hwnd)
 

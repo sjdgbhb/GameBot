@@ -223,8 +223,12 @@ class TestMonitorLoop:
         """同步源在游戏阶段异常退出应写 exit_signal 并重启，计入重启次数。"""
         # 写入 progress 模拟游戏阶段
         orchestrator.ipc.write_progress(
-            role="leader", member_name="p1", task_name="test",
-            task_progress="", state="in_game", round_num=1,
+            role="leader",
+            member_name="p1",
+            task_name="test",
+            task_progress="",
+            state="in_game",
+            round_num=1,
         )
 
         crashed_proc = MagicMock()
@@ -254,8 +258,12 @@ class TestMonitorLoop:
     def test_sync_source_max_restart_stops_all(self, mock_popen, orchestrator):
         """同步源在游戏阶段异常退出超过 max_restart 应广播 stop_signal。"""
         orchestrator.ipc.write_progress(
-            role="leader", member_name="p1", task_name="test",
-            task_progress="", state="in_game", round_num=1,
+            role="leader",
+            member_name="p1",
+            task_name="test",
+            task_progress="",
+            state="in_game",
+            round_num=1,
         )
 
         crashed_proc = MagicMock()
@@ -273,8 +281,12 @@ class TestMonitorLoop:
     def test_non_sync_source_crashed_in_game_no_restart(self, orchestrator):
         """非同步源在游戏阶段异常退出仅告警，不重启，不影响其他玩家。"""
         orchestrator.ipc.write_progress(
-            role="follower_0", member_name="p2", task_name="test",
-            task_progress="", state="in_game", round_num=1,
+            role="follower_0",
+            member_name="p2",
+            task_name="test",
+            task_progress="",
+            state="in_game",
+            round_num=1,
         )
 
         crashed_proc = MagicMock()
@@ -297,8 +309,12 @@ class TestMonitorLoop:
     def test_any_member_crashed_in_kk_restarts(self, mock_popen, orchestrator):
         """KK 阶段任何成员崩溃都直接重启，不计入重启次数。"""
         orchestrator.ipc.write_progress(
-            role="follower_0", member_name="p2", task_name="test",
-            task_progress="", state="kk_phase", round_num=1,
+            role="follower_0",
+            member_name="p2",
+            task_name="test",
+            task_progress="",
+            state="kk_phase",
+            round_num=1,
         )
 
         crashed_proc = MagicMock()

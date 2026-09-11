@@ -6,9 +6,9 @@ import time
 from typing import TYPE_CHECKING, Optional
 
 from GameBot.config import config as config
-from GameBot.runner.driver import create_dm_client
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import NearbyCleaner, get_inventory_hotkey
+from GameBot.runner.driver import create_dm_client
 from GameBot.runner.ui import run_with_float_window
 from GameBot.utils import StopTaskError, logger, setup_global_exception_hook, setup_log_file
 

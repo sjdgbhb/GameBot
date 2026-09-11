@@ -97,11 +97,7 @@ class CombatHelper:
         self.game_cfg = cfg.get("game", {})
         self._war3 = war3
         # 物品 id → name 映射，用于日志可读性
-        self._item_names = {
-            it.get("id"): it.get("name", "")
-            for it in cfg.get("items", [])
-            if it.get("id") is not None
-        }
+        self._item_names = {it.get("id"): it.get("name", "") for it in cfg.get("items", []) if it.get("id") is not None}
 
     def resolve_point_skills(self, point_skills) -> list:
         """将路线点的技能配置与英雄技能池合并，返回完整技能列表。

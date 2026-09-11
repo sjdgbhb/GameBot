@@ -75,6 +75,7 @@ def setup_log_file(script_name: str):
 
     # 清理可能已创建的空全局日志文件
     import datetime as _dt
+
     _today = _dt.date.today().strftime("%Y-%m-%d")
     for _name in (f"{_today}.log", f"error_{_today}.log"):
         _f = log_dir / _name

@@ -36,10 +36,19 @@ def main():
     parser = argparse.ArgumentParser(description="房主 KK 创建房间完整流程测试")
     parser.add_argument("--delay", type=int, default=5, help="启动前等待秒数（默认 5）")
     parser.add_argument("--map", type=str, default="九种兵器2诸神战场", help="地图名（默认九种兵器2诸神战场）")
-    parser.add_argument("--bind-mode", type=str, default="foreground", choices=["foreground", "background"],
-                        help="绑定模式：foreground(前台 bind) / background(后台 bind_multi)，与生产代码 team/base.py 逻辑一致")
-    parser.add_argument("--player", type=str, default="",
-                        help="目标玩家 ID（多开场景下通过 OCR 认领属于该玩家的大厅窗口，不传则取第一个匹配窗口）")
+    parser.add_argument(
+        "--bind-mode",
+        type=str,
+        default="foreground",
+        choices=["foreground", "background"],
+        help="绑定模式：foreground(前台 bind) / background(后台 bind_multi)，与生产代码 team/base.py 逻辑一致",
+    )
+    parser.add_argument(
+        "--player",
+        type=str,
+        default="",
+        help="目标玩家 ID（多开场景下通过 OCR 认领属于该玩家的大厅窗口，不传则取第一个匹配窗口）",
+    )
     args = parser.parse_args()
 
     setup_log_file("房主创建房间测试")

@@ -511,7 +511,9 @@ class PatrolLootTask:
             chest_x + half_w,
             text_y + half_h,
         ]
-        text = self.war3.ocr_text(self.war3.dm, self.hwnd, {"area_coords": area_coords}, bind_cfg=self.war3.war3_cfg.get("bind", {}))
+        text = self.war3.ocr_text(
+            self.war3.dm, self.hwnd, {"area_coords": area_coords}, bind_cfg=self.war3.war3_cfg.get("bind", {})
+        )
         return self.war3._normalize_ocr(text)
 
     # ── 辅助 ──────────────────────────────────────────────
@@ -631,9 +633,13 @@ class _PatrolLootSteps(Jiubing2TaskSteps):
         from GameBot.runner.business.war3.jiubing2.team_steps_base import _build_business_objects
 
         ui, nav, combat, runner = _build_business_objects(member)
-        patrol_cfg = member.task_cfg.get("war3", {}).get(
-            "jiubing2", {}
-        ).get("tasks", {}).get("others", {}).get("patrol_loot", {})
+        patrol_cfg = (
+            member.task_cfg.get("war3", {})
+            .get("jiubing2", {})
+            .get("tasks", {})
+            .get("others", {})
+            .get("patrol_loot", {})
+        )
 
         if not patrol_cfg:
             logger.error("position_init 缺少 patrol_loot 配置")

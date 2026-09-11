@@ -55,11 +55,7 @@ def _wait_game_state(member, target_phase: str, stop_event: Optional[threading.E
         if stop_event and stop_event.is_set():
             raise StopTaskError("用户请求停止任务")
         game_state = member.ipc.read_game_state(timeout=0.5, poll_interval=0.5)
-        if (
-            game_state
-            and game_state.get("phase") == target_phase
-            and game_state.get("round") == member._current_round
-        ):
+        if game_state and game_state.get("phase") == target_phase and game_state.get("round") == member._current_round:
             logger.info(f"game_state 进入 {target_phase}")
             return
     raise TimeoutError(f"等待 game_state phase={target_phase} 超时（{timeout}s）")

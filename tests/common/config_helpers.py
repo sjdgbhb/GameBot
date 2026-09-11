@@ -35,7 +35,8 @@ def make_test_config_dir() -> Path:
     # base.toml — 基础配置，无依赖
     write_toml(
         tmp,
-        "base.toml", """
+        "base.toml",
+        """
 name = "base"
 extends = []
 [paths]
@@ -49,7 +50,8 @@ version = "3.1233"
     # war3/war3.toml — 依赖 base
     write_toml(
         tmp,
-        "war3/war3.toml", """
+        "war3/war3.toml",
+        """
 name = "war3"
 extends = ["base"]
 
@@ -65,7 +67,8 @@ general_time = 0.3
     # war3/jiubing2/jiubing2.toml — 依赖 war3
     write_toml(
         tmp,
-        "war3/jiubing2/jiubing2.toml", """
+        "war3/jiubing2/jiubing2.toml",
+        """
 name = "war3.jiubing2"
 extends = ["war3"]
 
@@ -83,7 +86,8 @@ inventory = ["A", "B", "C"]
     # war3/jiubing2/heroes/mk.toml — 英雄配置
     write_toml(
         tmp,
-        "war3/jiubing2/heroes/mk.toml", """
+        "war3/jiubing2/heroes/mk.toml",
+        """
 name = "war3.jiubing2.heroes.mk"
 extends = []
 [hero]
@@ -95,7 +99,8 @@ attack = 100
     # war3/jiubing2/heroes/lancer.toml — 另一个英雄
     write_toml(
         tmp,
-        "war3/jiubing2/heroes/lancer.toml", """
+        "war3/jiubing2/heroes/lancer.toml",
+        """
 name = "war3.jiubing2.heroes.lancer"
 extends = []
 [hero]
@@ -108,7 +113,8 @@ defense = 50
     # war3/jiubing2/tasks/others/fishing.toml
     write_toml(
         tmp,
-        "war3/jiubing2/tasks/others/fishing.toml", """
+        "war3/jiubing2/tasks/others/fishing.toml",
+        """
 name = "war3.jiubing2.tasks.others.fishing"
 extends = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
@@ -122,7 +128,8 @@ loop_interval_time = 2.0
     # war3/jiubing2/tasks/others/patrol_loot.toml
     write_toml(
         tmp,
-        "war3/jiubing2/tasks/others/patrol_loot.toml", """
+        "war3/jiubing2/tasks/others/patrol_loot.toml",
+        """
 name = "war3.jiubing2.tasks.others.patrol_loot"
 extends = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]
 
@@ -136,7 +143,8 @@ patrol_rounds = 10
     # war3/jiubing2/tasks/endless/endless_single.toml
     write_toml(
         tmp,
-        "war3/jiubing2/tasks/endless/endless_single.toml", """
+        "war3/jiubing2/tasks/endless/endless_single.toml",
+        """
 name = "war3.jiubing2.tasks.endless.endless_single"
 extends = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
@@ -149,7 +157,8 @@ task_times = 1
     # 循环依赖测试文件
     write_toml(
         tmp,
-        "circular_a.toml", """
+        "circular_a.toml",
+        """
 name = "circular_a"
 extends = ["circular_b"]
 [x]
@@ -158,7 +167,8 @@ val = 1
     )
     write_toml(
         tmp,
-        "circular_b.toml", """
+        "circular_b.toml",
+        """
 name = "circular_b"
 extends = ["circular_a"]
 [y]

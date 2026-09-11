@@ -432,9 +432,11 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
         kk = self._make_kk()
         # 1600x945 面积大于 1328*945*0.85
         kk.dm.get_client_rect.return_value = (0, 0, 1600, 945)
-        kk.dm.find_windows.side_effect = lambda window_class, *args: [
-            {"hwnd": 123, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1600, 945)}
-        ] if window_class == "KKClass" else []
+        kk.dm.find_windows.side_effect = lambda window_class, *args: (
+            [{"hwnd": 123, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1600, 945)}]
+            if window_class == "KKClass"
+            else []
+        )
 
         result = kk.dismiss_room_popups(kk.dm)
 
@@ -451,9 +453,7 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
             [{"hwnd": popup_hwnd, "title": "KKTitle", "class": "CreateClass", "rect": (0, 0, 400, 300)}],
             [{"hwnd": room_hwnd, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1328, 945)}],
         ]
-        kk.dm.get_client_rect.side_effect = lambda hwnd: (
-            (0, 0, 400, 300) if hwnd == popup_hwnd else (0, 0, 1328, 945)
-        )
+        kk.dm.get_client_rect.side_effect = lambda hwnd: (0, 0, 400, 300) if hwnd == popup_hwnd else (0, 0, 1328, 945)
         kk.dm.close_window_by_x.return_value = True
         self._ocr_mock.return_value.ocr_lines_from_file.side_effect = [[], [{"text": "开始游戏"}]]
 
@@ -469,9 +469,7 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
             {"hwnd": 111, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1000, 700)},
             {"hwnd": 222, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1328, 945)},
         ]
-        kk.dm.get_client_rect.side_effect = lambda hwnd: (
-            (0, 0, 1000, 700) if hwnd == 111 else (0, 0, 1328, 945)
-        )
+        kk.dm.get_client_rect.side_effect = lambda hwnd: (0, 0, 1000, 700) if hwnd == 111 else (0, 0, 1328, 945)
 
         result = kk.dismiss_room_popups(kk.dm)
 
@@ -526,7 +524,7 @@ class TestWindowManagerMixin(unittest.TestCase):
     def test_wait_for_game_window_timeout_screenshot(self):
         """等待 War3 窗口超时后保存截图。"""
         war3 = self._make_war3()
-        war3.dm.get_active_window.return_value = 0
+        war3.dm.find_window.return_value = 0
 
         with patch("GameBot.runner.business.war3.window_manager.time") as mock_time:
             start = [0]
@@ -545,7 +543,7 @@ class TestWindowManagerMixin(unittest.TestCase):
     def test_wait_for_game_window_success(self):
         """成功找到 War3 窗口时返回句柄。"""
         war3 = self._make_war3()
-        war3.dm.get_active_window.return_value = 123
+        war3.dm.find_window.return_value = 123
 
         result = war3.wait_for_game_window(timeout=1)
 

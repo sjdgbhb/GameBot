@@ -1,5 +1,4 @@
-"""输入操作 Mixin — 键盘/鼠标/字符串输入（基于 _com_call 原语组合）。
-"""
+"""输入操作 Mixin — 键盘/鼠标/字符串输入（基于 _com_call 原语组合）。"""
 
 
 class InputMixin:

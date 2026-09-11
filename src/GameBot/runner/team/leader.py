@@ -253,9 +253,7 @@ class TeamLeader(TeamMemberBase):
         logger.warning("未能识别房间号")
         return ""
 
-    def _wait_followers_ready(
-        self, room_hwnd: int, round_num: int, timeout: int = 120
-    ) -> bool:
+    def _wait_followers_ready(self, room_hwnd: int, round_num: int, timeout: int = 120) -> bool:
         """等待所有队员通过 IPC 上报当前局已执行准备点击。
 
         Qt 后台视觉帧可能不更新，因此不使用开始按钮 OCR 作为放行条件；
@@ -281,6 +279,7 @@ class TeamLeader(TeamMemberBase):
         while time.time() - start < timeout:
             if self.stop_event.is_set():
                 return False
+            now = time.time()
 
             # 条件 1：检查 IPC progress 中所有队员 state=ready 且 round 匹配
             # follower 写 ready 后，base.run 会立即覆盖为 game_phase（已准备进入等待游戏阶段），
@@ -302,7 +301,9 @@ class TeamLeader(TeamMemberBase):
                 return True
             elif now - last_log >= 5.0:
                 waiting = expected_follower_roles - ready_roles
-                logger.info(f"等待队员准备: 已准备 {len(ready_roles)}/{len(expected_follower_roles)}, 等待 {sorted(waiting)}")
+                logger.info(
+                    f"等待队员准备: 已准备 {len(ready_roles)}/{len(expected_follower_roles)}, 等待 {sorted(waiting)}"
+                )
                 last_log = now
 
             time.sleep(2)

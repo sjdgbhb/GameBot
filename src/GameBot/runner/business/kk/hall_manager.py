@@ -177,9 +177,7 @@ class HallManagerMixin:
                 # 空结果：记录重试次数，超过上限不再重试
                 empty_retry_counts[hwnd] = empty_retry_counts.get(hwnd, 0) + 1
                 if empty_retry_counts[hwnd] >= max_empty_retries:
-                    logger.warning(
-                        f"KK 大厅窗口 {hwnd} OCR 空结果已达 {max_empty_retries} 次，不再重试"
-                    )
+                    logger.warning(f"KK 大厅窗口 {hwnd} OCR 空结果已达 {max_empty_retries} 次，不再重试")
             return owner
 
         def _check_match(owner: str, pid: int, hwnd: int) -> bool:
@@ -187,12 +185,9 @@ class HallManagerMixin:
             normalized_owner = "".join(owner.split()).casefold()
             normalized_target = "".join(target_player.split()).casefold()
             if normalized_target and (
-                normalized_owner == normalized_target
-                or normalized_owner.startswith(normalized_target)
+                normalized_owner == normalized_target or normalized_owner.startswith(normalized_target)
             ):
-                logger.info(
-                    f"认领大厅成功: target={target_player}, hwnd={hwnd}, pid={pid}, owner={owner}"
-                )
+                logger.info(f"认领大厅成功: target={target_player}, hwnd={hwnd}, pid={pid}, owner={owner}")
                 return True
             return False
 
@@ -238,10 +233,7 @@ class HallManagerMixin:
                 break
             if stop_event and stop_event.is_set():
                 raise StopTaskError("停止 KK 大厅窗口认领")
-            logger.debug(
-                f"重试繁忙大厅: hwnds={busy_hwnds}, attempt={round_idx + 1}/{busy_retry}, "
-                f"wait={busy_wait}s"
-            )
+            logger.debug(f"重试繁忙大厅: hwnds={busy_hwnds}, attempt={round_idx + 1}/{busy_retry}, wait={busy_wait}s")
             if stop_event:
                 if stop_event.wait(busy_wait):
                     raise StopTaskError("停止 KK 大厅窗口认领")
@@ -272,9 +264,7 @@ class HallManagerMixin:
             logger.debug(f"大厅认领本轮未匹配: target={target_player}")
         return 0, 0
 
-    def _find_hall_hwnd(
-        self, dm: DmClient, target_player: str = "", owner_pid: int = 0
-    ) -> int:
+    def _find_hall_hwnd(self, dm: DmClient, target_player: str = "", owner_pid: int = 0) -> int:
         """按 PID + 类名 + 标题枚举 KK 大厅窗口，排除房间窗口。
 
         KK 大厅和房间的类名、标题相同，通过 OCR 房间按钮关键词区分：
@@ -380,9 +370,12 @@ class HallManagerMixin:
                 width, height = x2 - x1, y2 - y1
                 if width < min_width or height < min_height:
                     continue
-                if trust_target_size and target_size and (
-                    abs(width - target_size[0]) <= size_tolerance
-                    and abs(height - target_size[1]) <= size_tolerance
+                if (
+                    trust_target_size
+                    and target_size
+                    and (
+                        abs(width - target_size[0]) <= size_tolerance and abs(height - target_size[1]) <= size_tolerance
+                    )
                 ):
                     return hwnd
                 lines = self.ocr_kk_lines(
@@ -390,7 +383,7 @@ class HallManagerMixin:
                     hwnd,
                     {"area_coords": [0, 0, width, height]},
                 )
-                logger.debug(f"弹窗 hwnd={hwnd} OCR 结果: {' '.join(l.get('text','') for l in lines)[:80]}")
+                logger.debug(f"弹窗 hwnd={hwnd} OCR 结果: {' '.join(l.get('text', '') for l in lines)[:80]}")
             except Exception as e:
                 logger.debug(f"识别 KK 弹窗候选 {hwnd} 失败: {e}")
                 continue

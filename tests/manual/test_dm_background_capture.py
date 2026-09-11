@@ -96,10 +96,7 @@ def find_window_by_class(
         if expected_size:
             x1, y1, x2, y2 = dm.get_client_rect(h)
             w, h_ = x2 - x1, y2 - y1
-            if (
-                abs(w - expected_size[0]) > size_tolerance
-                or abs(h_ - expected_size[1]) > size_tolerance
-            ):
+            if abs(w - expected_size[0]) > size_tolerance or abs(h_ - expected_size[1]) > size_tolerance:
                 continue
         return int(h)
     return 0
@@ -148,12 +145,14 @@ def enum_visible_windows_by_pid(target_pid: int) -> list[dict]:
         GetClassNameW(hwnd, cls_buf, 256)
         rect = ctypes.wintypes.RECT()
         GetWindowRect(hwnd, ctypes.byref(rect))
-        results.append({
-            "hwnd": int(hwnd),
-            "title": buf.value,
-            "class": cls_buf.value,
-            "rect": (int(rect.left), int(rect.top), int(rect.right), int(rect.bottom)),
-        })
+        results.append(
+            {
+                "hwnd": int(hwnd),
+                "title": buf.value,
+                "class": cls_buf.value,
+                "rect": (int(rect.left), int(rect.top), int(rect.right), int(rect.bottom)),
+            }
+        )
         return True
 
     EnumWindows(EnumWindowsProc(callback), 0)
@@ -201,14 +200,7 @@ def _set_window_pos_refresh(hwnd) -> None:
         ctypes.c_int,
         ctypes.wintypes.UINT,
     ]
-    flags = (
-        SWP_NOMOVE
-        | SWP_NOSIZE
-        | SWP_NOZORDER
-        | SWP_NOACTIVATE
-        | SWP_FRAMECHANGED
-        | SWP_NOCOPYBITS
-    )
+    flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOCOPYBITS
     user32.SetWindowPos(int(hwnd), 0, 0, 0, 0, 0, flags)
 
 
@@ -302,34 +294,18 @@ def _save_dc_to_bmp(hdc, width, height, path: str) -> bool:
             DIB_RGB_COLORS,
         )
         if ret != height:
-            logger.warning(
-                f"_save_dc_to_bmp: GetDIBits 返回 {ret}, 期望 {height}"
-            )
+            logger.warning(f"_save_dc_to_bmp: GetDIBits 返回 {ret}, 期望 {height}")
             return False
 
         bfh = BITMAPFILEHEADER()
         bfh.bfType = 0x4D42  # 'BM'
-        bfh.bfSize = (
-            ctypes.sizeof(BITMAPFILEHEADER)
-            + ctypes.sizeof(BITMAPINFOHEADER)
-            + image_size
-        )
-        bfh.bfOffBits = (
-            ctypes.sizeof(BITMAPFILEHEADER) + ctypes.sizeof(BITMAPINFOHEADER)
-        )
+        bfh.bfSize = ctypes.sizeof(BITMAPFILEHEADER) + ctypes.sizeof(BITMAPINFOHEADER) + image_size
+        bfh.bfOffBits = ctypes.sizeof(BITMAPFILEHEADER) + ctypes.sizeof(BITMAPINFOHEADER)
 
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
-            f.write(
-                ctypes.string_at(
-                    ctypes.addressof(bfh), ctypes.sizeof(bfh)
-                )
-            )
-            f.write(
-                ctypes.string_at(
-                    ctypes.addressof(bih), ctypes.sizeof(bih)
-                )
-            )
+            f.write(ctypes.string_at(ctypes.addressof(bfh), ctypes.sizeof(bfh)))
+            f.write(ctypes.string_at(ctypes.addressof(bih), ctypes.sizeof(bih)))
             f.write(ctypes.string_at(ctypes.addressof(bits), image_size))
         return True
     except Exception as e:
@@ -561,9 +537,9 @@ def _capture_single(dm, hwnd: int, bind_cfg: dict, label: str, inf, keyword: str
 def capture_and_ocr(dm, hwnd: int, bind_cfg: dict, label: str, inf, keyword: str = "") -> list[dict]:
     """对指定窗口分别用多种 display 后台模式绑定截图 + OCR。
 
-    用于单目标测试。默认测试 display 模式包含 DEFAULT_DISPLAYS 中所有后台模式
-   （gdi2 / gdi / dx / dx2 / dx3 / dx.graphic.2d / dx.graphic.3d），优先测 gdi2。
-    返回按 display 顺序的结果列表。
+     用于单目标测试。默认测试 display 模式包含 DEFAULT_DISPLAYS 中所有后台模式
+    （gdi2 / gdi / dx / dx2 / dx3 / dx.graphic.2d / dx.graphic.3d），优先测 gdi2。
+     返回按 display 顺序的结果列表。
     """
     # 优先使用 bind_cfg 里的 display，再补齐 DEFAULT_DISPLAYS 中的后台 display 模式
     display_modes = [m for m in (bind_cfg.get("display", "gdi2"),) if m != "normal"]
@@ -629,10 +605,7 @@ def test_dropdown(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
     after = enum_visible_windows_by_pid(pid)
     before_hwnds = {w["hwnd"] for w in before}
     new_wins = [w for w in after if w["hwnd"] not in before_hwnds]
-    dropdown_wins = [
-        w for w in new_wins
-        if dropdown_class and dropdown_class.lower() in w["class"].lower()
-    ]
+    dropdown_wins = [w for w in new_wins if dropdown_class and dropdown_class.lower() in w["class"].lower()]
     target_wins = dropdown_wins or new_wins
 
     if not target_wins:
@@ -658,8 +631,11 @@ def test_dropdown(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
         logger.info(f"  下拉框窗口 {i}: hwnd={dd_hwnd}, 客户区尺寸=({dd_w}x{dd_h})")
 
         capture_and_ocr(
-            dm, dd_hwnd, bind_cfg,
-            label=f"dropdown_{dd_hwnd}", inf=inf,
+            dm,
+            dd_hwnd,
+            bind_cfg,
+            label=f"dropdown_{dd_hwnd}",
+            inf=inf,
         )
 
     # 关闭下拉框
@@ -695,8 +671,12 @@ def test_create_room(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
     logger.info(f"  创建房间弹窗: hwnd={dialog_hwnd}, 客户区尺寸=({w}x{h})")
 
     capture_and_ocr(
-        dm, dialog_hwnd, bind_cfg,
-        label=f"create_room_{dialog_hwnd}", inf=inf, keyword=dialog_keyword,
+        dm,
+        dialog_hwnd,
+        bind_cfg,
+        label=f"create_room_{dialog_hwnd}",
+        inf=inf,
+        keyword=dialog_keyword,
     )
 
 
@@ -726,8 +706,12 @@ def test_password(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
     logger.info(f"  密码弹窗: hwnd={pwd_hwnd}, 客户区尺寸=({w}x{h})")
 
     capture_and_ocr(
-        dm, pwd_hwnd, bind_cfg,
-        label=f"password_{pwd_hwnd}", inf=inf, keyword=password_keyword,
+        dm,
+        pwd_hwnd,
+        bind_cfg,
+        label=f"password_{pwd_hwnd}",
+        inf=inf,
+        keyword=password_keyword,
     )
 
 
@@ -753,8 +737,11 @@ def test_hall(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
     logger.info(f"  主界面窗口: hwnd={hall_hwnd}, 客户区尺寸=({w}x{h})")
 
     capture_and_ocr(
-        dm, hall_hwnd, bind_cfg,
-        label=f"hall_{hall_hwnd}", inf=inf,
+        dm,
+        hall_hwnd,
+        bind_cfg,
+        label=f"hall_{hall_hwnd}",
+        inf=inf,
     )
 
 
@@ -794,9 +781,7 @@ def test_room(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
             ex_style = GetWindowLongPtrW(win["hwnd"], -20)  # GWL_EXSTYLE
             if ex_style & WS_EX_APPWINDOW:
                 room_hwnd = win["hwnd"]
-                logger.info(
-                    f"  房间窗口: hwnd={room_hwnd}, 尺寸=({ww}x{wh}), ex_style={hex(ex_style)}"
-                )
+                logger.info(f"  房间窗口: hwnd={room_hwnd}, 尺寸=({ww}x{wh}), ex_style={hex(ex_style)}")
                 break
 
     if not room_hwnd:
@@ -808,8 +793,12 @@ def test_room(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
     logger.info(f"  统一尺寸后: 客户区尺寸=({w}x{h})")
 
     capture_and_ocr(
-        dm, room_hwnd, bind_cfg,
-        label=f"room_{room_hwnd}", inf=inf, keyword=room_keyword,
+        dm,
+        room_hwnd,
+        bind_cfg,
+        label=f"room_{room_hwnd}",
+        inf=inf,
+        keyword=room_keyword,
     )
 
 
@@ -865,11 +854,7 @@ def _render_test_common(
                 logger.error(f"[{label}] 操作前截图失败")
                 return
             lines = inf.ocr_lines_from_file(str(before_path))
-            before_texts = [
-                ln.get("text", "").strip()
-                for ln in lines
-                if ln.get("text", "").strip()
-            ]
+            before_texts = [ln.get("text", "").strip() for ln in lines if ln.get("text", "").strip()]
             logger.info(f"[{label}] 操作前 OCR: {before_texts}")
     except Exception as e:
         logger.error(f"[{label}] 操作前绑定/截图/OCR 失败: {e}")
@@ -893,6 +878,7 @@ def _render_test_common(
                 if _print_window_capture(hwnd_, w, h, str(path), PW_CLIENT_FULL):
                     return str(path)
                 return ""
+
             return _print_window_only
 
         if method_name == "print_window_clientonly":
@@ -902,34 +888,27 @@ def _render_test_common(
                 if _print_window_capture(hwnd_, w, h, str(path), PW_CLIENTONLY):
                     return str(path)
                 return ""
+
             return _print_window_clientonly
 
         if method_name == "print_window_after_bind":
+
             def _print_window_then_bind(hwnd_):
-                print_path = (
-                    OUT_DIR / f"{label}_{method_name}_print.bmp"
-                ).resolve()
+                print_path = (OUT_DIR / f"{label}_{method_name}_print.bmp").resolve()
                 if not _print_window_capture(hwnd_, w, h, str(print_path), PW_CLIENT_FULL):
                     return ""
-                after_path = (
-                    OUT_DIR / f"{label}_{method_name}_after.bmp"
-                ).resolve()
+                after_path = (OUT_DIR / f"{label}_{method_name}_after.bmp").resolve()
                 try:
                     with dm.bind_window(hwnd_, bind_cfg=bind_cfg):
-                        ok = dm.capture_region(
-                            0, 0, w, h, str(after_path)
-                        )
+                        ok = dm.capture_region(0, 0, w, h, str(after_path))
                         if not ok:
-                            logger.error(
-                                f"[{label}] {method_name} capture_region 失败"
-                            )
+                            logger.error(f"[{label}] {method_name} capture_region 失败")
                             return ""
                 except Exception as e:
-                    logger.error(
-                        f"[{label}] {method_name} 绑定/截图失败: {e}"
-                    )
+                    logger.error(f"[{label}] {method_name} 绑定/截图失败: {e}")
                     return ""
                 return str(after_path)
+
             return _print_window_then_bind
 
         return lambda _: None
@@ -942,9 +921,7 @@ def _render_test_common(
         ),
         (
             "redraw_window_allchildren",
-            lambda h: _redraw_window(
-                h, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN
-            ),
+            lambda h: _redraw_window(h, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN),
         ),
         ("invalidate_update", _invalidate_update),
         ("set_window_pos", _set_window_pos_refresh),
@@ -980,18 +957,12 @@ def _render_test_common(
             after_texts: list[str] = []
             try:
                 lines = inf.ocr_lines_from_file(str(after_path))
-                after_texts = [
-                    ln.get("text", "").strip()
-                    for ln in lines
-                    if ln.get("text", "").strip()
-                ]
+                after_texts = [ln.get("text", "").strip() for ln in lines if ln.get("text", "").strip()]
             except Exception as e:
                 logger.error(f"[{label}] {method_name} 直接 OCR 失败: {e}")
                 continue
         else:
-            after_path = (
-                OUT_DIR / f"{label}_{method_name}_after.bmp"
-            ).resolve()
+            after_path = (OUT_DIR / f"{label}_{method_name}_after.bmp").resolve()
             after_texts: list[str] = []
             try:
                 with dm.bind_window(hwnd, bind_cfg=bind_cfg):
@@ -1000,21 +971,14 @@ def _render_test_common(
                         logger.error(f"[{label}] {method_name} 截图失败")
                         continue
                     lines = inf.ocr_lines_from_file(str(after_path))
-                    after_texts = [
-                        ln.get("text", "").strip()
-                        for ln in lines
-                        if ln.get("text", "").strip()
-                    ]
+                    after_texts = [ln.get("text", "").strip() for ln in lines if ln.get("text", "").strip()]
             except Exception as e:
-                logger.error(
-                    f"[{label}] {method_name} 刷新后绑定/截图/OCR 失败: {e}"
-                )
+                logger.error(f"[{label}] {method_name} 刷新后绑定/截图/OCR 失败: {e}")
                 continue
 
         is_refreshed = after_texts != before_texts
         logger.info(
-            f"[{label}] 方式={method_name}, before={before_texts}, "
-            f"after={after_texts}, 是否刷新={is_refreshed}"
+            f"[{label}] 方式={method_name}, before={before_texts}, after={after_texts}, 是否刷新={is_refreshed}"
         )
 
 
@@ -1030,13 +994,9 @@ def test_render_password(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
     window_title = kk_cfg.get("window_title", "")
     password_input_coords = password_cfg.get("password_input_coords", [0, 0])
 
-    pwd_hwnd = find_window_by_class(
-        dm, popup_class, window_title, expected_size=dialog_size
-    )
+    pwd_hwnd = find_window_by_class(dm, popup_class, window_title, expected_size=dialog_size)
     if not pwd_hwnd:
-        logger.error(
-            f"  未找到密码输入弹窗（class={popup_class}, 尺寸={dialog_size}）"
-        )
+        logger.error(f"  未找到密码输入弹窗（class={popup_class}, 尺寸={dialog_size}）")
         logger.error("  请先手动搜索房间并点击搜索结果打开密码弹窗")
         return
 
@@ -1060,14 +1020,10 @@ def test_render_password(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
             dm_action.send_string("1234", hwnd=hwnd)
             time.sleep(0.5)
 
-    _render_test_common(
-        dm, pwd_hwnd, bind_cfg, inf, dialog_size, _action_password
-    )
+    _render_test_common(dm, pwd_hwnd, bind_cfg, inf, dialog_size, _action_password)
 
 
-def test_render_password_minimal(
-    dm, kk_cfg: dict, bind_cfg: dict, inf
-) -> None:
+def test_render_password_minimal(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
     """最小化密码弹窗测试：只输入 1234，不点确定，只截图一次。"""
     logger.info("\n" + "=" * 60)
     logger.info("最小化测试：密码弹窗输入 1234 后仅截图一次")
@@ -1079,9 +1035,7 @@ def test_render_password_minimal(
     window_title = kk_cfg.get("window_title", "")
     password_input_coords = password_cfg.get("password_input_coords", [0, 0])
 
-    pwd_hwnd = find_window_by_class(
-        dm, popup_class, window_title, expected_size=dialog_size
-    )
+    pwd_hwnd = find_window_by_class(dm, popup_class, window_title, expected_size=dialog_size)
     if not pwd_hwnd:
         logger.error("未找到密码弹窗")
         return
@@ -1130,9 +1084,7 @@ def test_render_password_minimal(
         logger.info(f"[PrintWindow PW_CLIENTONLY] 截图保存: {pw_co_path}")
 
 
-def test_render_create_room_password(
-    dm, kk_cfg: dict, bind_cfg: dict, inf
-) -> None:
+def test_render_create_room_password(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
     """在创建房间弹窗的密码输入框里输入 1234，不点创建，只截图一次。"""
     logger.info("\n" + "=" * 60)
     logger.info("最小化测试：创建房间弹窗输入密码 1234 后仅截图一次")
@@ -1239,9 +1191,7 @@ def test_render_room(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
     window_class = kk_cfg.get("window_class", "")
     window_title = kk_cfg.get("window_title", "")
     size_tolerance = kk_cfg.get("size_tolerance", 30)
-    start_button_ocr_area = room_cfg.get(
-        "start_button_ocr_area_coords", [0, 0, 0, 0]
-    )
+    start_button_ocr_area = room_cfg.get("start_button_ocr_area_coords", [0, 0, 0, 0])
     # 渲染测试只点击"准备/取消准备"按钮，避免误点房主的"开始游戏"
     button_keywords = ["准备", "取消准备"]
     exclude_keywords = ["开始游戏", "等待准备"]
@@ -1254,9 +1204,7 @@ def test_render_room(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
     player_room_hwnd = 0
     logger.info("  开始扫描可见的 KK 房间窗口...")
 
-    for hwnd in dm.enum_windows(
-        window_class, window_title or "", filter=1 + 2 + 8 + 16
-    ):
+    for hwnd in dm.enum_windows(window_class, window_title or "", filter=1 + 2 + 8 + 16):
         if not dm.is_window_visible(hwnd):
             continue
         if dm.get_window_class(hwnd) != window_class:
@@ -1266,20 +1214,14 @@ def test_render_room(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
 
         x1, y1, x2, y2 = dm.get_client_rect(hwnd)
         aw, ah = x2 - x1, y2 - y1
-        if (
-            abs(aw - room_size[0]) > size_tolerance
-            or abs(ah - room_size[1]) > size_tolerance
-        ):
+        if abs(aw - room_size[0]) > size_tolerance or abs(ah - room_size[1]) > size_tolerance:
             continue
 
         ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
         if not (ex_style & WS_EX_APPWINDOW):
             continue
 
-        logger.info(
-            f"  候选房间窗口: hwnd={hwnd}, 客户区=({aw}x{ah}), "
-            f"ex_style={hex(ex_style)}"
-        )
+        logger.info(f"  候选房间窗口: hwnd={hwnd}, 客户区=({aw}x{ah}), ex_style={hex(ex_style)}")
 
         _try_set_client_size(dm, hwnd, room_size, "render_room_scan")
         x1, y1, x2, y2 = dm.get_client_rect(hwnd)
@@ -1301,47 +1243,31 @@ def test_render_room(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
         if ax2 <= ax1 or ay2 <= ay1:
             continue
 
-        ocr_path = (
-            OUT_DIR / f"render_room_scan_{hwnd}_button_ocr.bmp"
-        ).resolve()
+        ocr_path = (OUT_DIR / f"render_room_scan_{hwnd}_button_ocr.bmp").resolve()
         try:
             with dm.bind_window(hwnd, bind_cfg=bind_cfg):
                 ok = dm.capture_region(ax1, ay1, ax2, ay2, str(ocr_path))
                 if not ok:
-                    logger.warning(
-                        f"  候选窗口 {hwnd} 按钮区域截图失败"
-                    )
+                    logger.warning(f"  候选窗口 {hwnd} 按钮区域截图失败")
                     continue
                 lines = inf.ocr_lines_from_file(str(ocr_path))
         except Exception as e:
             logger.warning(f"  候选窗口 {hwnd} 绑定/OCR 失败: {e}")
             continue
 
-        button_text = " ".join(
-            ln.get("text", "").strip() for ln in lines
-        )
-        logger.info(
-            f"  候选窗口 {hwnd} 按钮 OCR 文本: {button_text}"
-        )
+        button_text = " ".join(ln.get("text", "").strip() for ln in lines)
+        logger.info(f"  候选窗口 {hwnd} 按钮 OCR 文本: {button_text}")
 
         if any(kw in button_text for kw in exclude_keywords):
-            logger.info(
-                f"  候选窗口 {hwnd} 不是队员房间（包含 {exclude_keywords}）"
-            )
+            logger.info(f"  候选窗口 {hwnd} 不是队员房间（包含 {exclude_keywords}）")
             continue
         if any(kw in button_text for kw in button_keywords):
             player_room_hwnd = hwnd
-            logger.info(
-                f"  找到队员房间窗口: hwnd={player_room_hwnd}, "
-                f"客户区=({aw}x{ah}), 按钮文本={button_text}"
-            )
+            logger.info(f"  找到队员房间窗口: hwnd={player_room_hwnd}, 客户区=({aw}x{ah}), 按钮文本={button_text}")
             break
 
     if not player_room_hwnd:
-        logger.error(
-            "未找到队员房间窗口，请让另一个 KK 以普通队员身份加入房间，"
-            "并确保按钮显示'准备'或'取消准备'"
-        )
+        logger.error("未找到队员房间窗口，请让另一个 KK 以普通队员身份加入房间，并确保按钮显示'准备'或'取消准备'")
         return
 
     def _action_room(dm_action, hwnd: int) -> None:
@@ -1364,12 +1290,8 @@ def test_render_room(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
                 ax2, ay2 = min(aw, ax2), min(ah, ay2)
 
                 if ax2 > ax1 and ay2 > ay1:
-                    ocr_path = (
-                        OUT_DIR / f"render_room_{hwnd}_button_ocr.bmp"
-                    ).resolve()
-                    if dm_action.capture_region(
-                        ax1, ay1, ax2, ay2, str(ocr_path)
-                    ):
+                    ocr_path = (OUT_DIR / f"render_room_{hwnd}_button_ocr.bmp").resolve()
+                    if dm_action.capture_region(ax1, ay1, ax2, ay2, str(ocr_path)):
                         lines = inf.ocr_lines_from_file(str(ocr_path))
                         for ln in lines:
                             text = ln.get("text", "").strip()
@@ -1380,14 +1302,10 @@ def test_render_room(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
                                 time.sleep(0.3)
                                 dm_action.left_click()
                                 clicked = True
-                                logger.info(
-                                    f"  点击 OCR 识别到的按钮: {text} ({cx},{cy})"
-                                )
+                                logger.info(f"  点击 OCR 识别到的按钮: {text} ({cx},{cy})")
                                 break
                         if not clicked:
-                            logger.info(
-                                "  OCR 区域未找到目标文本，回退到 start_button_coords"
-                            )
+                            logger.info("  OCR 区域未找到目标文本，回退到 start_button_coords")
                     else:
                         logger.warning("  开始按钮 OCR 区域截图失败")
                 else:
@@ -1395,16 +1313,12 @@ def test_render_room(dm, kk_cfg: dict, bind_cfg: dict, inf) -> None:
 
             if not clicked:
                 # 渲染测试只能点"准备/取消准备"，不能回退到固定坐标（避免误点房主的"开始游戏"）
-                logger.warning(
-                    "  未在按钮 OCR 区域识别到'准备'/'取消准备'，跳过点击（避免误点开始游戏）"
-                )
+                logger.warning("  未在按钮 OCR 区域识别到'准备'/'取消准备'，跳过点击（避免误点开始游戏）")
                 return
 
             time.sleep(0.5)
 
-    _render_test_common(
-        dm, player_room_hwnd, bind_cfg, inf, room_size, _action_room
-    )
+    _render_test_common(dm, player_room_hwnd, bind_cfg, inf, room_size, _action_room)
 
 
 def _prepare_compatibility_windows(dm, kk_cfg: dict, base_bind_cfg: dict, inf) -> dict[str, dict]:
@@ -1445,10 +1359,7 @@ def _prepare_compatibility_windows(dm, kk_cfg: dict, base_bind_cfg: dict, inf) -
         after = enum_visible_windows_by_pid(pid)
         before_hwnds = {w["hwnd"] for w in before}
         new_wins = [w for w in after if w["hwnd"] not in before_hwnds]
-        dropdown_wins = [
-            w for w in new_wins
-            if dropdown_class and dropdown_class.lower() in w["class"].lower()
-        ]
+        dropdown_wins = [w for w in new_wins if dropdown_class and dropdown_class.lower() in w["class"].lower()]
         target_wins = dropdown_wins or new_wins
 
         if target_wins:
@@ -1561,8 +1472,7 @@ def _print_compatibility_summary(report: dict) -> None:
         hits = sum(1 for r in win["results"] if r.get("keyword_matched"))
         solid_or_black = sum(1 for r in win["results"] if r["solid"] or r["black"])
         logger.info(
-            f"窗口 {win['name']}: 总组合 {total}, 有效截图 {valid}, "
-            f"纯色/黑屏 {solid_or_black}, 关键词命中 {hits}"
+            f"窗口 {win['name']}: 总组合 {total}, 有效截图 {valid}, 纯色/黑屏 {solid_or_black}, 关键词命中 {hits}"
         )
         for r in win["results"]:
             if r["success"] and not r["solid"] and not r["black"]:
@@ -1637,17 +1547,17 @@ def test_compatibility(dm, kk_cfg: dict, base_bind_cfg: dict, inf, args: argpars
 
                         status = "OK" if (result["success"] and not result["solid"] and not result["black"]) else "FAIL"
                         matched = ", 关键词命中" if result["keyword_matched"] else ""
-                        logger.info(
-                            f"[{name}] {display}/{mouse}/{keypad}/mode={mode}: {status}{matched}"
-                        )
+                        logger.info(f"[{name}] {display}/{mouse}/{keypad}/mode={mode}: {status}{matched}")
 
-        report["windows"].append({
-            "name": name,
-            "hwnd": hwnd,
-            "size": list(info["size"]),
-            "keyword": keyword,
-            "results": win_results,
-        })
+        report["windows"].append(
+            {
+                "name": name,
+                "hwnd": hwnd,
+                "size": list(info["size"]),
+                "keyword": keyword,
+                "results": win_results,
+            }
+        )
 
     report["summary"] = {
         "total_combos": total,
@@ -1682,9 +1592,7 @@ def _parse_arg_list(values: list[str] | None, default: list, cast: type = str) -
 
 def parse_args() -> argparse.Namespace:
     """解析命令行参数，保持旧式 positional target 兼容。"""
-    parser = argparse.ArgumentParser(
-        description="大漠后台截图手动测试（单窗口 + BindWindowEx 兼容性矩阵）"
-    )
+    parser = argparse.ArgumentParser(description="大漠后台截图手动测试（单窗口 + BindWindowEx 兼容性矩阵）")
     parser.add_argument(
         "target",
         nargs="?",

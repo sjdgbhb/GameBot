@@ -170,6 +170,7 @@ class TestChestDetectorDetect(unittest.TestCase):
 
     def setUp(self):
         from GameBot.inference import worker
+
         self._worker = worker
         self._orig_cfg = worker._cfg.copy()
         worker._cfg = {"chest_input_size": 1280, "chest_conf": 0.5, "chest_iou": 0.5}
@@ -222,6 +223,7 @@ class TestCombatDetector(unittest.TestCase):
 
     def setUp(self):
         from GameBot.inference import worker
+
         self._worker = worker
         self._orig_cfg = worker._cfg.copy()
         worker._cfg = {"combat_img_w": 87, "combat_img_h": 61, "combat_threshold": 0.5}

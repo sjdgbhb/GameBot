@@ -55,6 +55,7 @@ class TeamIPC:
             return
         current = f"team_ipc_{self.session_id}"
         import shutil
+
         for name in os.listdir(self.ipc_root):
             if name.startswith("team_ipc_") and name != current:
                 stale_dir = os.path.join(self.ipc_root, name)
@@ -142,9 +143,7 @@ class TeamIPC:
         self._atomic_write(filepath, data)
         logger.info(f"广播 exit_signal: round={round_num}, reason={reason}")
 
-    def read_exit_signal(
-        self, timeout: float = 0, poll_interval: float = 0.5, min_round: int = 0
-    ) -> Optional[dict]:
+    def read_exit_signal(self, timeout: float = 0, poll_interval: float = 0.5, min_round: int = 0) -> Optional[dict]:
         """读取退出信号，按 round 纪元过滤。
 
         消费者只接受 round >= min_round 的信号；旧 round 的信号自然失效，
@@ -275,9 +274,7 @@ class TeamIPC:
 
     # ---------- 内部辅助 ----------
 
-    def _poll_read(
-        self, filepath: str, timeout: float = 0, poll_interval: float = 0.5
-    ) -> Optional[dict]:
+    def _poll_read(self, filepath: str, timeout: float = 0, poll_interval: float = 0.5) -> Optional[dict]:
         """轮询读取 JSON 文件。
 
         :param filepath: 文件路径

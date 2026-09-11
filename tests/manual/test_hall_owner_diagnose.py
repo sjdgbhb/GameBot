@@ -48,12 +48,14 @@ def enum_visible_windows_by_pid(target_pid: int) -> list:
         GetClassNameW(hwnd, cls_buf, 256)
         rect = ctypes.wintypes.RECT()
         GetWindowRect(hwnd, ctypes.byref(rect))
-        results.append({
-            "hwnd": int(hwnd),
-            "title": buf.value,
-            "class": cls_buf.value,
-            "rect": (int(rect.left), int(rect.top), int(rect.right), int(rect.bottom)),
-        })
+        results.append(
+            {
+                "hwnd": int(hwnd),
+                "title": buf.value,
+                "class": cls_buf.value,
+                "rect": (int(rect.left), int(rect.top), int(rect.right), int(rect.bottom)),
+            }
+        )
         return True
 
     EnumWindows(EnumWindowsProc(callback), 0)
@@ -130,9 +132,9 @@ def main():
         w, h = cand["size"]
         label = f"hwnd_{hwnd}_pid_{pid}"
 
-        logger.info(f"\n{'='*60}")
+        logger.info(f"\n{'=' * 60}")
         logger.info(f"诊断窗口 {idx + 1}/{len(candidates)}: hwnd={hwnd}, pid={pid}, 尺寸=({w}x{h})")
-        logger.info(f"{'='*60}")
+        logger.info(f"{'=' * 60}")
 
         # --- 步骤 1：点击前枚举同 PID 窗口 ---
         logger.info("[步骤1] 点击前枚举同 PID 可见窗口")
@@ -140,7 +142,9 @@ def main():
         for win in wins_before:
             wr = win["rect"]
             tag = " ← 主窗口" if win["hwnd"] == hwnd else ""
-            logger.info(f"  hwnd={win['hwnd']}, class={win['class']}, title={win['title']!r}, 尺寸=({wr[2]-wr[0]}x{wr[3]-wr[0]}){tag}")
+            logger.info(
+                f"  hwnd={win['hwnd']}, class={win['class']}, title={win['title']!r}, 尺寸=({wr[2] - wr[0]}x{wr[3] - wr[0]}){tag}"
+            )
 
         # --- 步骤 2：绑定主窗口，点击头像 ---
         logger.info(f"[步骤2] 绑定主窗口并点击头像图标 {profile_icon}")
@@ -175,7 +179,9 @@ def main():
                 for win in new_wins:
                     wr = win["rect"]
                     ww, wh = wr[2] - wr[0], wr[3] - wr[1]
-                    logger.info(f"    hwnd={win['hwnd']}, class={win['class']}, title={win['title']!r}, 尺寸=({ww}x{wh}), 坐标=({wr[0]},{wr[1]})")
+                    logger.info(
+                        f"    hwnd={win['hwnd']}, class={win['class']}, title={win['title']!r}, 尺寸=({ww}x{wh}), 坐标=({wr[0]},{wr[1]})"
+                    )
 
                 # --- 步骤 5：对新窗口（下拉框）做截图 ---
                 if new_wins:
@@ -233,7 +239,7 @@ def main():
         except Exception as e:
             logger.error(f"  操作失败: {e}")
 
-    logger.info(f"\n{'='*60}")
+    logger.info(f"\n{'=' * 60}")
     logger.info(f"诊断完成！截图保存到: {out_dir.absolute()}")
     logger.info("关键对比：")
     logger.info("  *_1_gdi_main_after_click.bmp  → GDI2 能否看到下拉框")
@@ -241,7 +247,7 @@ def main():
     logger.info("  *_4_gdi.bmp  → 对下拉框独立窗口做 GDI2 截图")
     logger.info("  *_5_gdi_foreground.bmp  → 对下拉框做前台绑定截图")
     logger.info("  日志中 OCR 结果  → 哪种方式能识别到用户名")
-    logger.info(f"{'='*60}")
+    logger.info(f"{'=' * 60}")
 
 
 if __name__ == "__main__":

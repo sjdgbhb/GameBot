@@ -10,6 +10,7 @@ from GameBot.utils import logger
 
 class BossDeathTimeoutError(Exception):
     """BOSS 死亡提示检测超时"""
+
     pass
 
 
@@ -164,9 +165,7 @@ class EndlessRunner:
         if not self._prompt_text_cfg:
             return None
         boss_death_text = endless_cfg.get("boss_death_text", "开始挑战")
-        return self._war3.start_text_watcher(
-            self._prompt_text_cfg, boss_death_text, interval=1.0
-        )
+        return self._war3.start_text_watcher(self._prompt_text_cfg, boss_death_text, interval=1.0)
 
     def _wait_boss_dead(self, task, endless_cfg: dict, boss_death_event=None):
         """等待 BOSS 死亡（后台 OCR 监测），记录 boss_death_time。

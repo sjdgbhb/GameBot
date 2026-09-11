@@ -198,12 +198,14 @@ class WindowMixin:
                 rect = self.get_window_rect(hwnd)
             except Exception:
                 rect = (0, 0, 0, 0)
-            results.append({
-                "hwnd": hwnd,
-                "title": actual_title,
-                "class": actual_class,
-                "rect": rect,
-            })
+            results.append(
+                {
+                    "hwnd": hwnd,
+                    "title": actual_title,
+                    "class": actual_class,
+                    "rect": rect,
+                }
+            )
         return results
 
     def close_window_by_x(self, hwnd: int, offset_x: int = 15, offset_y: int = 15) -> bool:
@@ -442,21 +444,19 @@ class WindowMixin:
         try:
             user32 = ctypes.windll.user32
             user32.RedrawWindow.argtypes = [
-                ctypes.wintypes.HWND, ctypes.c_void_p,
-                ctypes.c_void_p, ctypes.wintypes.UINT,
+                ctypes.wintypes.HWND,
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.wintypes.UINT,
             ]
             original_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
             if not (original_style & WS_EX_LAYERED):
                 # 非 layered 窗口直接 RedrawWindow
-                user32.RedrawWindow(
-                    hwnd, 0, 0, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN
-                )
+                user32.RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN)
                 return True
             # 取消 layered → RedrawWindow → 等待 Qt 重绘 → 恢复 layered → 等待 DWM 合成
             user32.SetWindowLongW(hwnd, GWL_EXSTYLE, original_style & ~WS_EX_LAYERED)
-            user32.RedrawWindow(
-                hwnd, 0, 0, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN
-            )
+            user32.RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN)
             time.sleep(wait)
             user32.SetWindowLongW(hwnd, GWL_EXSTYLE, original_style)
             # 恢复 layered 后等待 DWM 自动合成，不再调 RedrawWindow（对 layered 窗口无效）
@@ -466,5 +466,3 @@ class WindowMixin:
         except Exception as e:
             logger.warning(f"force_refresh_layered 失败: hwnd={hwnd}, {e}")
             return False
-
-

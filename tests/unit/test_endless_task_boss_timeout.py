@@ -316,7 +316,9 @@ class TestFindTargetWar3Hwnd(unittest.TestCase):
     def test_find_target_war3_hwnd_single_window(self):
         """仅一个 War3 窗口时应直接返回该窗口句柄。"""
         war3 = self._make_war3()
-        war3.dm.find_windows.return_value = [{"hwnd": 123, "title": "War3Title", "class": "War3Class", "rect": (0, 0, 1920, 1080)}]
+        war3.dm.find_windows.return_value = [
+            {"hwnd": 123, "title": "War3Title", "class": "War3Class", "rect": (0, 0, 1920, 1080)}
+        ]
         war3.identify_war3_owner = MagicMock()
 
         result = war3.find_target_war3_hwnd("")

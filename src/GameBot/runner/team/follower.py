@@ -176,10 +176,7 @@ class TeamFollower(TeamMemberBase):
                 if accept:
                     self._last_room_timestamp = timestamp
                     self._current_round = info_round
-                    logger.info(
-                        f"收到房间信息: 房间号={room_info.get('room_id')}, "
-                        f"局数={info_round}"
-                    )
+                    logger.info(f"收到房间信息: 房间号={room_info.get('room_id')}, 局数={info_round}")
                     return room_info
 
             time.sleep(0.5)
