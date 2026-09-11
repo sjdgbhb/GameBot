@@ -1,4 +1,4 @@
-﻿"""
+"""
 刷装备自动化 EXE 入口 — 64 位 Python 3.12（进程内推理 + dm_bridge 子进程调大漠 COM）
 
 功能：巡逻杀怪 + AI 宝箱检测 + OCR 物品识别 + 自动拾取。
@@ -6,17 +6,17 @@
 dm_bridge/dm_bridge.exe（32 位）子进程调用。
 用户配置：编辑同目录下的 刷装备_config.toml 文件。
 """
+
 import sys
-import os
 from pathlib import Path
 
 # ===== 1. 确定路径 =====
-if getattr(sys, 'frozen', False):
+if getattr(sys, "frozen", False):
     EXE_DIR = Path(sys.executable).parent
-    BUNDLED_DIR = Path(sys._MEIPASS) / 'config' / 'data'
+    BUNDLED_DIR = Path(sys._MEIPASS) / "config" / "data"
 else:
     EXE_DIR = Path(__file__).parent
-    BUNDLED_DIR = EXE_DIR.parent / 'src' / 'GameBot' / 'config' / 'data'
+    BUNDLED_DIR = EXE_DIR.parent / "src" / "GameBot" / "config" / "data"
 
 # ===== 2. 初始化配置系统（必须在导入其他 GameBot 模块之前）=====
 from GameBot.config import config
@@ -25,10 +25,10 @@ config.config_path = BUNDLED_DIR
 config._project_root_override = EXE_DIR
 
 # ===== 3. 导入业务模块 =====
-from GameBot.utils import setup_global_exception_hook, logger
 from GameBot.config import config as cfg_singleton
 from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
 from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import logger, setup_global_exception_hook
 
 try:
     import tomli
@@ -42,7 +42,7 @@ def _load_user_config() -> dict:
     if not user_cfg_path.exists():
         logger.warning(f"未找到用户配置文件: {user_cfg_path}，将使用默认配置")
         return {}
-    with open(user_cfg_path, 'rb') as f:
+    with open(user_cfg_path, "rb") as f:
         return tomli.load(f)
 
 
@@ -132,8 +132,7 @@ def main():
     def task_wrapper(stop_event, progress_callback=None, **kwargs):
         cfg = config.load_task("war3.jiubing2.tasks.others.patrol_loot")
         _apply_overrides(cfg, user_cfg)
-        task = PatrolLootTask(cfg, stop_event=stop_event,
-                              progress_lines_callback=kwargs.get('progress_lines_callback'))
+        task = PatrolLootTask(cfg, stop_event=stop_event, progress_lines_callback=kwargs.get("progress_lines_callback"))
         task.run()
 
     route_scheme = user_cfg.get("tasks", {}).get("others", {}).get("patrol_loot", {}).get("route_scheme", "")

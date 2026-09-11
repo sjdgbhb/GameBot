@@ -15,12 +15,11 @@
     # 仅更新单个任务到已有包
     uv run python exe/build_all.py --update <任务名>
 """
-import os
+
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-
 
 # ── 任务定义 ──────────────────────────────────────────────────────────
 TASKS = [
@@ -87,6 +86,7 @@ PACKAGE_NAME = "九兵2脚本集合"
 def _ensure_pyinstaller():
     try:
         import PyInstaller  # noqa: F401
+
         return
     except ImportError:
         pass
@@ -106,8 +106,17 @@ def _ensure_pyinstaller():
 
 def _run_pyinstaller(project_root: Path, spec_file: str, exe_dir: Path):
     result = subprocess.run(
-        [sys.executable, "-m", "PyInstaller", spec_file, "--noconfirm",
-         "--distpath", str(exe_dir / "dist"), "--workpath", str(exe_dir / "build")],
+        [
+            sys.executable,
+            "-m",
+            "PyInstaller",
+            spec_file,
+            "--noconfirm",
+            "--distpath",
+            str(exe_dir / "dist"),
+            "--workpath",
+            str(exe_dir / "build"),
+        ],
         cwd=str(project_root),
     )
     if result.returncode != 0:
@@ -142,8 +151,17 @@ def build_dm_bridge(project_root: Path, exe_dir: Path):
         sys.exit(1)
     spec_file = str(exe_dir / "dm_bridge.spec")
     result = subprocess.run(
-        [str(dm_python), "-m", "PyInstaller", spec_file, "--noconfirm",
-         "--distpath", str(exe_dir / "dist"), "--workpath", str(exe_dir / "build")],
+        [
+            str(dm_python),
+            "-m",
+            "PyInstaller",
+            spec_file,
+            "--noconfirm",
+            "--distpath",
+            str(exe_dir / "dist"),
+            "--workpath",
+            str(exe_dir / "build"),
+        ],
         cwd=str(project_root),
     )
     if result.returncode != 0:
@@ -188,7 +206,7 @@ def assemble(project_root: Path, exe_dir: Path):
                 # 第一个任务：直接复制整个 _internal/
                 shutil.copytree(task_internal, pkg_dir / "_internal")
                 base_internal = pkg_dir / "_internal"
-                print(f"  复制: _internal/ (基础)")
+                print("  复制: _internal/ (基础)")
             else:
                 # 后续任务：合并（只补充不存在的文件）
                 _merge_internal(task_internal, base_internal)
@@ -202,7 +220,7 @@ def assemble(project_root: Path, exe_dir: Path):
     if full_config_data.exists() and pkg_config_data.exists():
         shutil.rmtree(pkg_config_data)
         shutil.copytree(full_config_data, pkg_config_data)
-        print(f"  覆盖: _internal/config/data/ (主仓库完整配置)")
+        print("  覆盖: _internal/config/data/ (主仓库完整配置)")
 
     # 3.2 复制 dm/ 目录
     dm_src = project_root / "external" / "dm"
@@ -230,9 +248,9 @@ def assemble(project_root: Path, exe_dir: Path):
             if internal_dst.exists():
                 shutil.rmtree(internal_dst)
             shutil.copytree(bridge_internal, internal_dst)
-        print(f"  复制: dm_bridge/ (32 位大漠 COM 桥接子进程)")
+        print("  复制: dm_bridge/ (32 位大漠 COM 桥接子进程)")
     else:
-        print(f"  警告：dm_bridge 子进程未打包，请先运行完整构建")
+        print("  警告：dm_bridge 子进程未打包，请先运行完整构建")
 
     # 3.4 复制 resources/ 目录
     resources_dst = pkg_dir / "resources"
@@ -283,7 +301,7 @@ def assemble(project_root: Path, exe_dir: Path):
     readme_src = exe_dir / "README.md"
     if readme_src.exists():
         shutil.copy2(readme_src, pkg_dir / "README.md")
-        print(f"  复制: README.md")
+        print("  复制: README.md")
 
     # 3.7 输出目录结构
     print()
@@ -316,12 +334,12 @@ def _print_tree(path: Path, prefix: str = "", max_depth: int = 2, depth: int = 0
         return
     items = sorted(path.iterdir(), key=lambda x: (not x.is_file(), x.name))
     for i, item in enumerate(items):
-        is_last = (i == len(items) - 1)
+        is_last = i == len(items) - 1
         connector = "└── " if is_last else "├── "
         if item.is_file():
             size_kb = item.stat().st_size / 1024
             if size_kb > 1024:
-                print(f"{prefix}{connector}{item.name}  ({size_kb/1024:.1f} MB)")
+                print(f"{prefix}{connector}{item.name}  ({size_kb / 1024:.1f} MB)")
             else:
                 print(f"{prefix}{connector}{item.name}  ({size_kb:.0f} KB)")
         else:
@@ -386,7 +404,7 @@ def update_task(project_root: Path, exe_dir: Path, task_name: str):
             shutil.rmtree(pkg_config_data)
         pkg_config_data.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(full_config_data, pkg_config_data)
-        print(f"  覆盖: _internal/config/data/ (主仓库完整配置)")
+        print("  覆盖: _internal/config/data/ (主仓库完整配置)")
 
     # 4. 更新该任务的配置文件
     if task.get("config_src"):

@@ -5,7 +5,7 @@
     uv run python exe/patrol_loot/build.py          # 打包主程序 + 复制文件
     uv run python exe/patrol_loot/build.py --copy   # 仅复制外部文件（exe 已打包好时）
 """
-import os
+
 import shutil
 import subprocess
 import sys
@@ -16,6 +16,7 @@ def _ensure_pyinstaller():
     """确保 PyInstaller 已安装，自动适配 uv/pip 环境。"""
     try:
         import PyInstaller  # noqa: F401
+
         return
     except ImportError:
         pass
@@ -46,8 +47,17 @@ def build_main(project_root: Path, exe_dir: Path):
     dist_path = str(exe_dir / "dist")
     work_path = str(exe_dir / "build")
     result = subprocess.run(
-        [sys.executable, "-m", "PyInstaller", spec_file, "--noconfirm",
-         "--distpath", dist_path, "--workpath", work_path],
+        [
+            sys.executable,
+            "-m",
+            "PyInstaller",
+            spec_file,
+            "--noconfirm",
+            "--distpath",
+            dist_path,
+            "--workpath",
+            work_path,
+        ],
         cwd=str(project_root),
     )
     if result.returncode != 0:
@@ -88,16 +98,16 @@ def copy_files(project_root: Path, exe_dir: Path):
         bridge_exe = bridge_dist / "dm_bridge.exe"
         if bridge_exe.exists():
             shutil.copy2(bridge_exe, bridge_dst / "dm_bridge.exe")
-            print(f"  复制: dm_bridge/dm_bridge.exe")
+            print("  复制: dm_bridge/dm_bridge.exe")
         bridge_internal = bridge_dist / "_internal"
         if bridge_internal.exists():
             internal_dst = bridge_dst / "_internal"
             if internal_dst.exists():
                 shutil.rmtree(internal_dst)
             shutil.copytree(bridge_internal, internal_dst)
-            print(f"  复制: dm_bridge/_internal/ (依赖库)")
+            print("  复制: dm_bridge/_internal/ (依赖库)")
     else:
-        print(f"  警告：dm_bridge 子进程未打包，请先运行 exe/build_all.py 或单独打包 dm_bridge")
+        print("  警告：dm_bridge 子进程未打包，请先运行 exe/build_all.py 或单独打包 dm_bridge")
 
     # resources/models/ 目录 — 模型文件
     models_src = project_root / "src" / "GameBot" / "resources" / "models"
@@ -114,21 +124,21 @@ def copy_files(project_root: Path, exe_dir: Path):
     config_src = exe_dir / "patrol_loot" / "config.toml"
     config_dst = dist_dir / "刷装备_config.toml"
     shutil.copy2(config_src, config_dst)
-    print(f"  复制: 刷装备_config.toml")
+    print("  复制: 刷装备_config.toml")
 
     # patrol_loot.toml — 完整任务配置（含路线点），用户可编辑路线点参数
     task_toml_src = exe_dir / "patrol_loot" / "data" / "war3" / "jiubing2" / "tasks" / "others" / "patrol_loot.toml"
     if task_toml_src.exists():
         task_toml_dst = dist_dir / "patrol_loot.toml"
         shutil.copy2(task_toml_src, task_toml_dst)
-        print(f"  复制: patrol_loot.toml")
+        print("  复制: patrol_loot.toml")
 
     # README.md
     readme_src = exe_dir / "patrol_loot" / "README.md"
     if readme_src.exists():
         readme_dst = dist_dir / "README.md"
         shutil.copy2(readme_src, readme_dst)
-        print(f"  复制: README.md")
+        print("  复制: README.md")
 
     # 输出目录结构
     print()

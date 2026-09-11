@@ -1,4 +1,4 @@
-﻿"""
+"""
 每日声望自动化 EXE 入口 — 64 位 Python 3.12（进程内推理 + dm_bridge 子进程调大漠 COM）
 
 功能：每日声望任务（黑石城 + 森之城），各 150 点。
@@ -6,16 +6,17 @@
 dm_bridge/dm_bridge.exe（32 位）子进程调用。
 用户配置：编辑同目录下的 每日声望_config.toml 文件。
 """
+
 import sys
 from pathlib import Path
 
 # ===== 1. 确定路径 =====
-if getattr(sys, 'frozen', False):
+if getattr(sys, "frozen", False):
     EXE_DIR = Path(sys.executable).parent
-    BUNDLED_DIR = Path(sys._MEIPASS) / 'config' / 'data'
+    BUNDLED_DIR = Path(sys._MEIPASS) / "config" / "data"
 else:
     EXE_DIR = Path(__file__).parent
-    BUNDLED_DIR = EXE_DIR.parent / 'src' / 'GameBot' / 'config' / 'data'
+    BUNDLED_DIR = EXE_DIR.parent / "src" / "GameBot" / "config" / "data"
 
 # ===== 2. 初始化配置系统（必须在导入其他 GameBot 模块之前）=====
 from GameBot.config import config
@@ -24,10 +25,10 @@ config.config_path = BUNDLED_DIR
 config._project_root_override = EXE_DIR
 
 # ===== 3. 导入业务模块 =====
-from GameBot.utils import setup_global_exception_hook, logger
 from GameBot.config import config as cfg_singleton
 from GameBot.runner.tasks.war3.jiubing2.reputation.daily_reputation import DailyReputationTask
 from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import logger, setup_global_exception_hook
 
 try:
     import tomli
@@ -41,7 +42,7 @@ def _load_user_config() -> dict:
     if not user_cfg_path.exists():
         logger.warning(f"未找到用户配置文件: {user_cfg_path}，将使用默认配置")
         return {}
-    with open(user_cfg_path, 'rb') as f:
+    with open(user_cfg_path, "rb") as f:
         return tomli.load(f)
 
 
@@ -123,8 +124,7 @@ def main():
         task = DailyReputationTask(cfg)
         task.run(stop_event=stop_event, progress_lines_callback=progress_lines_callback)
 
-    run_with_float_window("每日声望", task_wrapper, countdown_seconds=5,
-                          float_cfg=float_cfg)
+    run_with_float_window("每日声望", task_wrapper, countdown_seconds=5, float_cfg=float_cfg)
 
 
 if __name__ == "__main__":

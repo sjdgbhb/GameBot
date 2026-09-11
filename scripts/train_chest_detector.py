@@ -1,4 +1,4 @@
-﻿r"""
+r"""
 训练宝箱检测模型（YOLOv8）
 
 使用 ultralytics YOLOv8m 训练宝箱目标检测模型，训练完成后导出 ONNX。
@@ -18,21 +18,19 @@
     labels/*.txt           # YOLO格式标注（每行: class xc yc w h，归一化）
     classes.txt            # 类别名称
 """
-import os
-import sys
-import shutil
+
 import argparse
 import glob
+import os
 import random
+import shutil
+import sys
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "chest_samples")
 IMAGE_DIR = os.path.join(DATA_DIR, "images")
 LABEL_DIR = os.path.join(DATA_DIR, "labels")
 DATASET_DIR = os.path.join(DATA_DIR, "dataset")
-MODEL_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)),
-    "src", "GameBot", "resources", "models"
-)
+MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "GameBot", "resources", "models")
 ONNX_PATH = os.path.join(MODEL_DIR, "chest_detector.onnx")
 
 VAL_RATIO = 0.2
@@ -40,9 +38,11 @@ VAL_RATIO = 0.2
 
 def prepare_dataset():
     """将标注好的数据拆分为 train/val，生成 data.yaml。"""
-    images = sorted(glob.glob(os.path.join(IMAGE_DIR, "*.jpg")) +
-                    glob.glob(os.path.join(IMAGE_DIR, "*.png")) +
-                    glob.glob(os.path.join(IMAGE_DIR, "*.bmp")))
+    images = sorted(
+        glob.glob(os.path.join(IMAGE_DIR, "*.jpg"))
+        + glob.glob(os.path.join(IMAGE_DIR, "*.png"))
+        + glob.glob(os.path.join(IMAGE_DIR, "*.bmp"))
+    )
 
     labeled = []
     for img_path in images:
@@ -51,7 +51,7 @@ def prepare_dataset():
             labeled.append((img_path, label_path))
 
     if not labeled:
-        print(f"错误: 未找到标注数据")
+        print("错误: 未找到标注数据")
         print(f"  图片目录: {IMAGE_DIR}")
         print(f"  标注目录: {LABEL_DIR}")
         sys.exit(1)
@@ -118,15 +118,15 @@ def train(yaml_path, epochs, imgsz, batch):
         scale=0.5,
         flipud=0.0,
         fliplr=0.5,
-        mosaic=0.5,        # 降低，避免宝箱被缩太小
-        mixup=0.0,         # 关闭，对小目标有害
-        copy_paste=0.3,    # 开启，生成重叠宝箱场景
+        mosaic=0.5,  # 降低，避免宝箱被缩太小
+        mixup=0.0,  # 关闭，对小目标有害
+        copy_paste=0.3,  # 开启，生成重叠宝箱场景
     )
     print(f"\n训练完成，最佳模型: {results.save_dir}")
 
     best_pt = os.path.join(results.save_dir, "weights", "best.pt")
     if not os.path.exists(best_pt):
-        print(f"错误: 未找到 best.pt")
+        print("错误: 未找到 best.pt")
         sys.exit(1)
 
     os.makedirs(MODEL_DIR, exist_ok=True)

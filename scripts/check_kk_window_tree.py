@@ -22,10 +22,10 @@
 """
 
 import ctypes
-import tomllib
 from ctypes import wintypes
 from pathlib import Path
 
+import tomllib
 
 user32 = ctypes.windll.user32
 
@@ -143,15 +143,17 @@ def enum_all_target_windows():
             visible = is_window_visible(hwnd)
             width, height = get_client_size(hwnd)
             wtype = classify_window(width, height)
-            results.append({
-                "hwnd": hwnd,
-                "cls": cls,
-                "text": text,
-                "pid": pid,
-                "visible": visible,
-                "size": (width, height),
-                "type": wtype,
-            })
+            results.append(
+                {
+                    "hwnd": hwnd,
+                    "cls": cls,
+                    "text": text,
+                    "pid": pid,
+                    "visible": visible,
+                    "size": (width, height),
+                    "type": wtype,
+                }
+            )
         return True
 
     proc = enum_proc(callback)
@@ -206,8 +208,9 @@ def main():
         print(f"\n【{wtype}】({len(by_type[wtype])} 个)")
         for w in by_type[wtype]:
             vis = "可见" if w["visible"] else "不可见"
-            print(f"  句柄={w['hwnd']:08X}, PID={w['pid']}, {vis}, "
-                  f"尺寸={w['size'][0]}x{w['size'][1]}, 类名={w['cls']!r}")
+            print(
+                f"  句柄={w['hwnd']:08X}, PID={w['pid']}, {vis}, 尺寸={w['size'][0]}x{w['size'][1]}, 类名={w['cls']!r}"
+            )
 
     # 检查所有窗口的父窗口
     print("\n" + "-" * 70)
@@ -242,17 +245,20 @@ def main():
 
     for w in windows:
         children = []
+
         def child_callback(child_hwnd, _):
             child_text = get_window_text(child_hwnd)
             child_cls = get_class_name(child_hwnd)
             if "KK" in child_text or "Warcraft III" in child_text or child_cls == "Warcraft III":
                 child_size = get_client_size(child_hwnd)
-                children.append({
-                    "hwnd": child_hwnd,
-                    "cls": child_cls,
-                    "text": child_text,
-                    "size": child_size,
-                })
+                children.append(
+                    {
+                        "hwnd": child_hwnd,
+                        "cls": child_cls,
+                        "text": child_text,
+                        "size": child_size,
+                    }
+                )
             return True
 
         proc = enum_proc(child_callback)
@@ -262,8 +268,10 @@ def main():
             has_any_child = True
             print(f"\n  父窗口：{w['type']} 句柄={w['hwnd']:08X} (PID={w['pid']})")
             for c in children:
-                print(f"    └─ 子窗口：句柄={c['hwnd']:08X}, 尺寸={c['size'][0]}x{c['size'][1]}, "
-                      f"类名={c['cls']!r}, 标题={c['text']!r}")
+                print(
+                    f"    └─ 子窗口：句柄={c['hwnd']:08X}, 尺寸={c['size'][0]}x{c['size'][1]}, "
+                    f"类名={c['cls']!r}, 标题={c['text']!r}"
+                )
 
     if not has_any_child:
         print("  没有任何目标窗口包含目标标题的子窗口。")

@@ -1,4 +1,4 @@
-﻿"""
+"""
 自动采集战斗状态训练样本
 
 利用帧差法 + 红色像素过滤自动标注：
@@ -12,6 +12,7 @@
 切换英雄后重新运行，指定 --hero 参数即可。
 按 Ctrl+C 停止。
 """
+
 import argparse
 import os
 import tempfile
@@ -58,9 +59,7 @@ def main():
     logger.info(f"已有样本: combat={combat_count}, non_combat={non_combat_count}")
 
     dm = create_dm_client()
-    hwnd = dm.get_active_window(
-        war3_cfg["window_class"], war3_cfg["window_title"]
-    )
+    hwnd = dm.get_active_window(war3_cfg["window_class"], war3_cfg["window_title"])
     if not hwnd:
         logger.error("未找到 war3 窗口")
         return
@@ -77,9 +76,7 @@ def main():
 
         try:
             while combat_count < args.max or non_combat_count < args.max:
-                imgs, max_changed = _capture_frames(
-                    dm, area, tmp_bmp, frame_count, frame_interval, diff_threshold
-                )
+                imgs, max_changed = _capture_frames(dm, area, tmp_bmp, frame_count, frame_interval, diff_threshold)
 
                 if imgs is None:
                     time.sleep(args.interval)
@@ -113,9 +110,7 @@ def main():
                     )
                 else:
                     red_count = _count_red_pixels(imgs[-1])
-                    logger.debug(
-                        f"跳过 | 闪烁={is_blinking} 变化像素={max_changed} 红色像素={red_count}"
-                    )
+                    logger.debug(f"跳过 | 闪烁={is_blinking} 变化像素={max_changed} 红色像素={red_count}")
 
                 time.sleep(args.interval)
         except KeyboardInterrupt:
@@ -152,9 +147,11 @@ def _capture_frames(dm, area, tmp_bmp, frame_count, frame_interval, diff_thresho
     for i in range(1, len(pixel_data)):
         changed = 0
         for px1, px2 in zip(pixel_data[i - 1], pixel_data[i]):
-            if abs(px1[0] - px2[0]) > diff_threshold or \
-               abs(px1[1] - px2[1]) > diff_threshold or \
-               abs(px1[2] - px2[2]) > diff_threshold:
+            if (
+                abs(px1[0] - px2[0]) > diff_threshold
+                or abs(px1[1] - px2[1]) > diff_threshold
+                or abs(px1[2] - px2[2]) > diff_threshold
+            ):
                 changed += 1
         if changed > max_changed:
             max_changed = changed

@@ -9,6 +9,7 @@
 
 按 Ctrl+C 停止。
 """
+
 import os
 import random
 import sys
@@ -20,10 +21,8 @@ from GameBot.config import config
 from GameBot.runner.driver import create_dm_client
 from GameBot.utils.logger import logger
 
-IMAGE_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "data", "chest_samples", "images"
-)
-INTERVAL = random.randint(1,10)  # 截图间隔（秒）
+IMAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "chest_samples", "images")
+INTERVAL = random.randint(1, 10)  # 截图间隔（秒）
 
 
 def main():

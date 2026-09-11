@@ -1,4 +1,4 @@
-﻿"""
+"""
 训练战斗状态分类模型（CNN）
 
 使用 PyTorch 训练一个小型 CNN，分类英雄头像为 战斗/非战斗。
@@ -12,17 +12,18 @@
     combat/{hero}/*.bmp
     non_combat/{hero}/*.bmp
 """
-import os
-import sys
+
 import glob
+import os
 import random
+import sys
 
 import numpy as np
-from PIL import Image
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "combat_samples")
 MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "GameBot", "resources", "models")
@@ -165,8 +166,10 @@ def train():
                 total += labels.size(0)
 
         val_acc = correct / total if total > 0 else 0
-        print(f"Epoch {epoch+1}/{EPOCHS} | train_loss={train_loss/len(train_loader):.4f} | "
-              f"val_loss={val_loss/len(val_loader):.4f} | val_acc={val_acc:.4f}")
+        print(
+            f"Epoch {epoch + 1}/{EPOCHS} | train_loss={train_loss / len(train_loader):.4f} | "
+            f"val_loss={val_loss / len(val_loader):.4f} | val_acc={val_acc:.4f}"
+        )
 
         if val_acc >= best_val_acc:
             best_val_acc = val_acc

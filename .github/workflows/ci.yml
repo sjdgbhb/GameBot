@@ -42,13 +42,13 @@ jobs:
         run: uv sync
 
       - name: 代码风格检查
-        run: uv run ruff check src/ tests/
+        run: uv run ruff check src/ tests/ scripts/ exe/ main.py
 
       - name: 代码格式检查
-        run: uv run ruff format --check src/ tests/
+        run: uv run ruff format --check src/ tests/ scripts/ exe/ main.py
 
       - name: 运行单元测试（含覆盖率）
-        run: uv run pytest tests/unit/ --cov=GameBot --cov-report=term-missing --cov-fail-under=34 -v
+        run: uv run pytest tests/unit/ --cov=GameBot --cov-report=term-missing --cov-fail-under=45 -v
 
       - name: 运行集成测试
         run: uv run pytest tests/integration/ -v

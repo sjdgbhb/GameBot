@@ -1,12 +1,12 @@
-﻿"""
+"""
 钓鱼自动化 EXE 入口 — 64 位 Python 3.12（dm_bridge 子进程调大漠 COM）
 
 功能：快速模式钓鱼（找色 + 预判收竿），不含 Web 配置端和 OCR 推理。
 大漠 COM 经同目录下的 dm_bridge/dm_bridge.exe（32 位）子进程调用。
 用户配置：编辑同目录下的 钓鱼_config.toml 文件。
 """
+
 import sys
-import os
 from pathlib import Path
 
 # ===== 1. 确定路径 =====
@@ -15,12 +15,12 @@ from pathlib import Path
 #   sys._MEIPASS  = dist/fishing_exe/_internal/
 # 开发模式：
 #   __file__ = exe/fishing_exe.py
-if getattr(sys, 'frozen', False):
+if getattr(sys, "frozen", False):
     EXE_DIR = Path(sys.executable).parent
-    BUNDLED_DIR = Path(sys._MEIPASS) / 'config' / 'data'
+    BUNDLED_DIR = Path(sys._MEIPASS) / "config" / "data"
 else:
     EXE_DIR = Path(__file__).parent
-    BUNDLED_DIR = EXE_DIR.parent / 'src' / 'GameBot' / 'config' / 'data'
+    BUNDLED_DIR = EXE_DIR.parent / "src" / "GameBot" / "config" / "data"
 
 # ===== 2. 初始化配置系统（必须在导入其他 GameBot 模块之前）=====
 from GameBot.config import config
@@ -31,10 +31,10 @@ config.config_path = BUNDLED_DIR
 config._project_root_override = EXE_DIR
 
 # ===== 3. 导入业务模块（此时 logger 会使用正确的 project_root）=====
-from GameBot.utils import setup_global_exception_hook, logger
 from GameBot.config import config as cfg_singleton
 from GameBot.runner.tasks.war3.jiubing2.others.fishing import FishingTask
 from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import logger, setup_global_exception_hook
 
 try:
     import tomli
@@ -49,7 +49,7 @@ def _load_user_config() -> dict:
     if not user_cfg_path.exists():
         logger.warning(f"未找到用户配置文件: {user_cfg_path}，将使用默认配置")
         return {}
-    with open(user_cfg_path, 'rb') as f:
+    with open(user_cfg_path, "rb") as f:
         return tomli.load(f)
 
 
@@ -92,7 +92,7 @@ def _apply_overrides(task_cfg: dict, user_cfg: dict):
 
     # 4. 强制锁定模式（exe 版仅支持快速 + 预判，检测模式由用户配置决定）
     fishing_cfg = task_cfg.setdefault("tasks", {}).setdefault("others", {}).setdefault("fishing", {})
-    fishing_cfg["fishing_mode"] = 1   # 快速模式
+    fishing_cfg["fishing_mode"] = 1  # 快速模式
     check_cfg = fishing_cfg.setdefault("check", {})
     check_cfg["predict_mode"] = True  # 预判收竿
 

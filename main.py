@@ -14,19 +14,20 @@ def _check_environment():
         print("请使用主环境运行：uv run python main.py")
         sys.exit(1)
 
+
 # 任务名 → (配置路径, 任务类) 映射
 TASK_REGISTRY = {
-    "fishing":           ("war3.jiubing2.tasks.others.fishing",           "FishingTask"),
-    "endless":           ("war3.jiubing2.tasks.endless.endless",          "EndlessTask"),
-    "endless_single":    ("war3.jiubing2.tasks.endless.endless_single",   "EndlessSingleTask"),
-    "patrol_loot":       ("war3.jiubing2.tasks.others.patrol_loot",       "PatrolLootTask"),
+    "fishing": ("war3.jiubing2.tasks.others.fishing", "FishingTask"),
+    "endless": ("war3.jiubing2.tasks.endless.endless", "EndlessTask"),
+    "endless_single": ("war3.jiubing2.tasks.endless.endless_single", "EndlessSingleTask"),
+    "patrol_loot": ("war3.jiubing2.tasks.others.patrol_loot", "PatrolLootTask"),
     "paladin_wind_dragon": ("war3.jiubing2.tasks.others.paladin_wind_dragon", "PaladinWindDragonTask"),
-    "upgrade_stigmata":  ("war3.jiubing2.tasks.others.upgrade_stigmata",  "UpgradeStigmataTask"),
-    "daily_reputation":  ("war3.jiubing2.tasks.reputation.daily_reputation",   "DailyReputationTask"),
-    "blackstone":        ("war3.jiubing2.tasks.reputation.blackstone_reputation", "BlackstoneReputationTask"),
-    "forest":            ("war3.jiubing2.tasks.reputation.forest_reputation",   "ForestReputationTask"),
-    "ingame_special":    ("war3.jiubing2.tasks.festival.ingame_special",   "IngameSpecialTask"),
-    "team_task":         ("team.team_task",                               "TeamTaskRunner"),
+    "upgrade_stigmata": ("war3.jiubing2.tasks.others.upgrade_stigmata", "UpgradeStigmataTask"),
+    "daily_reputation": ("war3.jiubing2.tasks.reputation.daily_reputation", "DailyReputationTask"),
+    "blackstone": ("war3.jiubing2.tasks.reputation.blackstone_reputation", "BlackstoneReputationTask"),
+    "forest": ("war3.jiubing2.tasks.reputation.forest_reputation", "ForestReputationTask"),
+    "ingame_special": ("war3.jiubing2.tasks.festival.ingame_special", "IngameSpecialTask"),
+    "team_task": ("team.team_task", "TeamTaskRunner"),
 }
 
 

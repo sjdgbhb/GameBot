@@ -2,17 +2,18 @@
 
 功能：重置 war3 窗口尺寸 → F1 居中英雄 → 框选英雄，供用户检查坐标是否兼容。
 """
+
 import sys
 import time
 from pathlib import Path
 
 # ===== 1. 确定路径 =====
-if getattr(sys, 'frozen', False):
+if getattr(sys, "frozen", False):
     EXE_DIR = Path(sys.executable).parent
-    BUNDLED_DIR = Path(sys._MEIPASS) / 'config' / 'data'
+    BUNDLED_DIR = Path(sys._MEIPASS) / "config" / "data"
 else:
     EXE_DIR = Path(__file__).parent
-    BUNDLED_DIR = EXE_DIR.parent / 'src' / 'GameBot' / 'config' / 'data'
+    BUNDLED_DIR = EXE_DIR.parent / "src" / "GameBot" / "config" / "data"
 
 # ===== 2. 初始化配置系统（必须在导入其他 GameBot 模块之前）=====
 from GameBot.config import config

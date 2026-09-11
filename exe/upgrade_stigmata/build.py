@@ -5,7 +5,7 @@
     uv run python exe/upgrade_stigmata/build.py          # 打包主程序 + 复制文件
     uv run python exe/upgrade_stigmata/build.py --copy   # 仅复制外部文件
 """
-import os
+
 import shutil
 import subprocess
 import sys
@@ -15,6 +15,7 @@ from pathlib import Path
 def _ensure_pyinstaller():
     try:
         import PyInstaller  # noqa: F401
+
         return
     except ImportError:
         pass
@@ -40,8 +41,17 @@ def build_main(project_root: Path, exe_dir: Path):
     _ensure_pyinstaller()
     spec_file = str(exe_dir / "upgrade_stigmata" / "upgrade_stigmata_exe.spec")
     result = subprocess.run(
-        [sys.executable, "-m", "PyInstaller", spec_file, "--noconfirm",
-         "--distpath", str(exe_dir / "dist"), "--workpath", str(exe_dir / "build")],
+        [
+            sys.executable,
+            "-m",
+            "PyInstaller",
+            spec_file,
+            "--noconfirm",
+            "--distpath",
+            str(exe_dir / "dist"),
+            "--workpath",
+            str(exe_dir / "build"),
+        ],
         cwd=str(project_root),
     )
     if result.returncode != 0:
@@ -81,26 +91,26 @@ def copy_files(project_root: Path, exe_dir: Path):
         bridge_exe = bridge_dist / "dm_bridge.exe"
         if bridge_exe.exists():
             shutil.copy2(bridge_exe, bridge_dst / "dm_bridge.exe")
-            print(f"  复制: dm_bridge/dm_bridge.exe")
+            print("  复制: dm_bridge/dm_bridge.exe")
         bridge_internal = bridge_dist / "_internal"
         if bridge_internal.exists():
             internal_dst = bridge_dst / "_internal"
             if internal_dst.exists():
                 shutil.rmtree(internal_dst)
             shutil.copytree(bridge_internal, internal_dst)
-            print(f"  复制: dm_bridge/_internal/ (依赖库)")
+            print("  复制: dm_bridge/_internal/ (依赖库)")
     else:
-        print(f"  警告：dm_bridge 子进程未打包，请先运行 exe/build_all.py 或单独打包 dm_bridge")
+        print("  警告：dm_bridge 子进程未打包，请先运行 exe/build_all.py 或单独打包 dm_bridge")
 
     # config.toml
     shutil.copy2(exe_dir / "upgrade_stigmata" / "config.toml", dist_dir / "升级圣痕_config.toml")
-    print(f"  复制: 升级圣痕_config.toml")
+    print("  复制: 升级圣痕_config.toml")
 
     # README.md
     readme_src = exe_dir / "upgrade_stigmata" / "README.md"
     if readme_src.exists():
         shutil.copy2(readme_src, dist_dir / "README.md")
-        print(f"  复制: README.md")
+        print("  复制: README.md")
 
     print()
     print("=" * 60)

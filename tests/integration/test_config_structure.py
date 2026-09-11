@@ -366,3 +366,86 @@ class TestEndlessOptimizationConfig:
             data = tomllib.load(f)
         section = _find_task_section(data)
         assert "target_player" in section, "endless.toml 任务配置应含 target_player"
+
+
+# ── 任务配置闭包完整性（load_task 真实加载） ──
+
+
+class TestTaskConfigClosure:
+    """经 load_task 加载的任务配置闭包完整性验证。
+
+    防止「TOML 语法/文件都存在，但合并后缺运行时依赖节点」类问题
+    （如 ForestReputationTask 需要 scenes.menethil.teleport.forest_waygate，
+    依赖未声明时运行到转场才抛 KeyError）。
+    """
+
+    # 已知运行时依赖的必备节点（合并后的点分路径）
+    _REQUIRED_NODES = {
+        "war3.jiubing2.tasks.reputation.daily_reputation": [
+            "war3.jiubing2.scenes.blackstone_city.npcs.guard_captain",
+            "war3.jiubing2.scenes.forest_city.npcs.diana",
+            "war3.jiubing2.scenes.menethil.teleport.forest_waygate",
+        ],
+        "war3.jiubing2.tasks.festival.ingame_special": [
+            "war3.jiubing2.scenes.menethil.teleport.forest_waygate",
+            "war3.jiubing2.tasks.reputation.daily_reputation",
+            "war3.jiubing2.tasks.others.fishing",
+        ],
+    }
+
+    @staticmethod
+    def _task_name(toml_path: Path) -> str:
+        """TOML 路径 → 配置名（tasks/atomic/foo.toml → war3.jiubing2.tasks.atomic.foo）。"""
+        rel = toml_path.relative_to(_JIUBING2_DIR).with_suffix("")
+        return "war3.jiubing2." + ".".join(rel.parts)
+
+    @staticmethod
+    def _dig(cfg: dict, dotted: str):
+        """按点分路径取值，缺失返回 None。"""
+        node = cfg
+        for part in dotted.split("."):
+            if not isinstance(node, dict) or part not in node:
+                return None
+            node = node[part]
+        return node
+
+    def test_all_tasks_load_without_error(self):
+        """每个任务 TOML 应能通过 load_task 完整加载，且合并后含任务节点和 name。"""
+        from GameBot.config import config
+
+        errors = []
+        for toml_path in sorted(_TASKS_DIR.rglob("*.toml")):
+            name = self._task_name(toml_path)
+            try:
+                cfg = config.load_task(name)
+            except Exception as e:
+                errors.append(f"{name}: {e}")
+                continue
+            node = self._dig(cfg, name)
+            if not isinstance(node, dict) or not node.get("name"):
+                errors.append(f"{name}: 合并后缺少任务节点或 name")
+        assert not errors, "以下任务加载失败或缺少任务节点:\n" + "\n".join(errors)
+
+    def test_hero_inventory_slots_injected(self):
+        """每个任务闭包应将 kk.inventory_slots 注入 hero（get_inventory_hotkey 依赖）。"""
+        from GameBot.config import config
+
+        missing = []
+        for toml_path in sorted(_TASKS_DIR.rglob("*.toml")):
+            name = self._task_name(toml_path)
+            cfg = config.load_task(name)
+            if not cfg.get("hero", {}).get("inventory_slots"):
+                missing.append(name)
+        assert not missing, "以下任务闭包缺少 hero.inventory_slots:\n" + "\n".join(missing)
+
+    def test_required_runtime_nodes(self):
+        """关键任务闭包应含运行时必备节点（防 menethil.teleport 缺失类 bug）。"""
+        from GameBot.config import config
+
+        errors = []
+        for task_name, nodes in self._REQUIRED_NODES.items():
+            cfg = config.load_task(task_name)
+            for node_path in nodes:
+                if self._dig(cfg, node_path) is None:
+                    errors.append(f"{task_name} 缺少 {node_path}")
+        assert not errors, "以下任务闭包缺少必备节点:\n" + "\n".join(errors)
