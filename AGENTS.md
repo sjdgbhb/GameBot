@@ -20,6 +20,27 @@
 后台 windows 键盘通道消息投递有延迟，前一按键（如钓鱼收竿 s）可能在聊天框打开后才被游戏消化，误入聊天框变成 `s-delh`。
 `send_msg` 已内置防护：开框前等待 `interface_switch_time`，开框后先按 5 次退格清残留。
 
+### War3 后台鼠标模式实测矩阵（display=dx2, keypad=windows, mode=4）
+
+| mouse | 结果 |
+|---|---|
+| `windows` | ❌ 受物理鼠标影响：物理指针在不可点击处时技能点不出；指针在窗口边缘触发视角平移 |
+| `windows2` | ✅ 完全解耦：游戏光标与物理鼠标互不影响 |
+| `windows3` | ❌ 同 windows |
+| `dx.mouse.position.lock.api` | ⚠️ 点击可用，但游戏光标跟随物理鼠标 → 物理移动会干扰点击落点 |
+| `dx.mouse.focus.input.api` / `clip.lock.api` / `state.api` / `dx.mouse.api` / `dx.mouse.cursor` | ❌ 同 windows |
+| `windows2` + `dx.keypad.input.lock.api` / `dx.keypad.api` | ✅ 同 windows2（keypad 换法不影响） |
+
+- 结论：**war3 后台鼠标只能用 `windows2`**（= lock.api|lock.message|state.message 组合）
+- `dx.mouse.position.lock.api|dx.mouse.raw.input` 组合在 dm 3.1233 上 BindWindowEx 直接失败（ret=0），不可用
+- 探针脚本：tests/manual/test_war3_bind_probe.py
+
+### 后台模式窗口尺寸设置
+
+- `set_client_size` 必须在 `bind_window` **之前**调用：dx2 挂钩后 resize 会重建交换链导致闪屏数秒
+- `set_client_size` 已对齐目标尺寸时提前返回，不触发无谓 resize
+- `dx.public.active.api`：war3 矩阵验证以 public="" 通过；如绑定异常可考虑恢复
+
 ## 截图与 OCR 体系
 
 ### 当前状态

@@ -59,12 +59,11 @@ mode = 0               # 大漠 BindWindow 附加模式
 # 注意：dx2 模式要求窗口有一部分在屏幕外（Win7/Vista 不需要），且不可连续操作需加 10ms 延时
 [this.bind_background]
 display = "dx2"        # DirectX 后台截图，窗口进程崩溃风险低于 dx
-# dx.mouse.position.lock.api：锁 GetCursorPos 返回值；war3 鼠标走 DirectInput/raw input，
-# 单锁位与 raw input 通道不同步会导致点击落点错位，需叠加 dx.mouse.raw.input
-# windows2 = position.lock.api|position.lock.message|state.message（消息级锁位，实测卡顿）
-mouse = "dx.mouse.position.lock.api|dx.mouse.raw.input"
+# 实机矩阵测试结论（详见 AGENTS.md 文本输入/鼠标体系）：
+# windows2 = dx.mouse.position.lock.api|position.lock.message|state.message 组合，
+# 游戏光标与物理鼠标完全解耦互不影响——唯一验证可用的后台鼠标模式
+mouse = "windows2"
 keypad = "windows"     # Windows 后台键盘
-public = "dx.public.active.api"  # 公共窗口激活（dx 系绑定建议保留，缺失时窗口状态迁移易抖动）
 mode = 4
 bind_delay = 1.5       # 绑定后延时 1.5 秒等待后台生效（DX 绑定较慢）
 
