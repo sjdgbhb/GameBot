@@ -49,6 +49,9 @@ class InputControllerMixin:
             hwnd = self.dm.get_bind_window() or 0
             old_input = self.set_english_input(hwnd)
         try:
+            # 给前一个按键（如收竿 s）留出被游戏处理的时间：
+            # 后台模式下消息投递有延迟，若开聊天框时该按键才被消化，会误入聊天框
+            self.interruptible_wait(self.war3_cfg["interface_switch_time"], stop_event)
             if is_all:
                 self.dm.key_down_char("shift")
                 self.interruptible_wait(0.1, stop_event)
@@ -60,6 +63,10 @@ class InputControllerMixin:
             else:
                 self.dm.key_press_char("enter")
             self.interruptible_wait(0.1, stop_event)
+            # 清除聊天框内可能残留的误入字符（退格对未打开的聊天框无副作用）
+            for _ in range(5):
+                self.dm.key_press_char("back")
+                self.interruptible_wait(0.03, stop_event)
             for char in msg:
                 self.dm.key_press_char(char)
                 self.interruptible_wait(0.05, stop_event)
