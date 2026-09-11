@@ -24,39 +24,6 @@ class Base(ABC):
         """检查大漠对象是否可用（如 Ver 方法）"""
         return self.dm.version != ""
 
-    @staticmethod
-    def set_english_input(hwnd: int = 0):
-        """将目标窗口的输入法临时切换为美式键盘，返回原布局供恢复。
-
-        前台键盘模拟会经过系统输入队列，中文输入法会拦截字母键。
-        :param hwnd: 目标窗口句柄，0 表示当前前台窗口
-        :return: 原键盘布局句柄（HKL），失败时返回 None
-        """
-        import win32api
-        import win32con
-        import win32gui
-        import win32process
-
-        hwnd = hwnd or win32gui.GetForegroundWindow()
-        if not hwnd:
-            return None
-        tid, _ = win32process.GetWindowThreadProcessId(hwnd)
-        old_hkl = win32api.GetKeyboardLayout(tid)
-        # '00000409' 是美式键盘的语言代码
-        hkl = win32api.LoadKeyboardLayout("00000409", win32con.KLF_ACTIVATE)
-        win32api.SendMessage(hwnd, win32con.WM_INPUTLANGCHANGEREQUEST, 0, hkl)
-        return old_hkl
-
-    @staticmethod
-    def restore_input(hwnd: int, old_hkl):
-        """恢复目标窗口原来的键盘布局。"""
-        if not hwnd or not old_hkl:
-            return
-        import win32api
-        import win32con
-
-        win32api.SendMessage(hwnd, win32con.WM_INPUTLANGCHANGEREQUEST, 0, old_hkl)
-
     def ocr_lines(
         self, dm: DmClient, hwnd: int, ocr_cfg: dict, bind_cfg: dict = None, merge_lines: bool = True
     ) -> list:
