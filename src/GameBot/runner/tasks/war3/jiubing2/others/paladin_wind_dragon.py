@@ -265,16 +265,15 @@ class PaladinWindDragonTask:
                 self._interruptible_wait(self.poll_interval)
 
     def _bind_cfg(self) -> dict:
-        """按任务配置选择前台/后台绑定参数（background 用 war3.bind_multi 配置）。"""
-        if self.cfg.get("bind_mode") == "background":
-            bind_cfg = self.war3_cfg.get("bind_multi") or self.war3_cfg.get("bind", {})
+        """绑定参数（load_task 已按 bind_mode 解析好写入 war3.bind）。"""
+        bind_cfg = self.war3_cfg.get("bind", {})
+        if bind_cfg.get("bind_mode") == "background":
             logger.info(f"使用后台绑定: {bind_cfg}")
-            return bind_cfg
-        return self.war3_cfg.get("bind", {})
+        return bind_cfg
 
     def _find_war3_hwnd(self) -> int:
         """查找 war3 窗口。后台模式不要求 war3 是活动窗口，直接按类名+标题找。"""
-        if self.cfg.get("bind_mode") == "background":
+        if self.war3_cfg.get("bind", {}).get("bind_mode") == "background":
             return self.dm.find_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"]) or 0
         return self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
 

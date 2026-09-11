@@ -180,10 +180,10 @@ def main():
     parser = argparse.ArgumentParser(description="KK 创建房间弹窗密码输入测试")
     parser.add_argument("--delay", type=int, default=5, help="启动前等待秒数（默认 5）")
     parser.add_argument("--password", type=str, default=None, help="测试输入的密码（默认读取 kk.create_room.password）")
-    parser.add_argument("--display", type=str, default=None, help="绑定 display（默认读取 kk.bind_multi.display）")
-    parser.add_argument("--mouse", type=str, default=None, help="绑定 mouse（默认读取 kk.bind_multi.mouse）")
-    parser.add_argument("--keypad", type=str, default=None, help="绑定 keypad（默认读取 kk.bind_multi.keypad）")
-    parser.add_argument("--mode", type=int, default=None, help="绑定 mode（默认读取 kk.bind_multi.mode）")
+    parser.add_argument("--display", type=str, default=None, help="绑定 display（默认读取 kk.bind_background.display）")
+    parser.add_argument("--mouse", type=str, default=None, help="绑定 mouse（默认读取 kk.bind_background.mouse）")
+    parser.add_argument("--keypad", type=str, default=None, help="绑定 keypad（默认读取 kk.bind_background.keypad）")
+    parser.add_argument("--mode", type=int, default=None, help="绑定 mode（默认读取 kk.bind_background.mode）")
     args = parser.parse_args()
 
     setup_log_file("测试创建房间密码输入")
@@ -197,7 +197,7 @@ def main():
 
     # 加载配置
     kk_cfg = config.load_task("kk").get("kk", {})
-    bind_cfg = copy.deepcopy(kk_cfg.get("bind_multi", {}))
+    bind_cfg = copy.deepcopy(kk_cfg.get("bind_background", {}))
     if not bind_cfg:
         bind_cfg = copy.deepcopy(kk_cfg.get("bind", {}))
     if args.display is not None:

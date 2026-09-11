@@ -63,8 +63,9 @@
 | `dm.version` | base.toml | 期望的大漠插件版本 |
 | `dm.dll_path` | base.toml | 大漠 DLL 所在目录 |
 | `dm.python_path` | base.toml | 可选：32位Python路径（默认自动检测 .venv-dm） |
-| `war3.bind.*` | war3.toml | 大漠窗口绑定模式（前台/后台、截图/鼠标/键盘方式） |
-| `war3.bind_multi.*` | war3.toml | 多开后台绑定配置（dx2截图 + windows3鼠标） |
+| `war3.bind_mode` | war3.toml | 绑定模式开关：foreground / background（顶层任务可用自身 [this].bind_mode 覆盖） |
+| `war3.bind_foreground.*` | war3.toml | 前台绑定参数（normal 系截图/鼠标/键盘） |
+| `war3.bind_background.*` | war3.toml | 后台绑定参数（dx2截图 + 后台鼠标/键盘，多开/遮挡用） |
 | `paths.screenshot_path` | base.toml | 调试截图输出目录 |
 
 ## 禁忌

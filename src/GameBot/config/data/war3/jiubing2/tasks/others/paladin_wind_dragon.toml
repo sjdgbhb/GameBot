@@ -20,7 +20,7 @@ cast_confirm_time = 3     # 施放确认窗口（秒）：按技能后需观察�
 f1_min_interval = 0.6       # 两次 F1 最小间隔（秒），防止被判定双击 F1 镜头跳英雄
 reselect_idle_time = 10      # 连续无技能就绪超过该秒数时按一次 F1（防选中丢失卡死）
 bind_mode = "background"    # 绑定模式：foreground=前台（正常截图/键鼠，需 war3 为活动窗口）；
-                            # background=后台（用 war3.bind_multi 的 dx2+windows3+windows，
+                            # background=后台（用 war3.bind_background 的 dx2+windows3+windows，
                             # 不占物理键鼠，不要求 war3 在前台，可被遮挡但不能最小化）；
                             # 需管理员权限，且 dx2 要求窗口有一部分移出屏幕外
 

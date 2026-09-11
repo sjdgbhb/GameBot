@@ -50,13 +50,14 @@
 
 | 模式 | 说明 | 配置段 | 适用场景 |
 |------|------|--------|----------|
-| **前台**（foreground） | `normal` + `normal` + `normal`，简单可靠，但会抢占前台 | `[xx.bind]` | 单开、调试 |
-| **后台**（background） | `gdi2`/`dx2` + `windows3` + `windows`，不抢占前台，支持多窗口 | `[xx.bind_multi]` | 多开、需要后台操作 |
+| **前台**（foreground） | `normal` + `normal` + `normal`，简单可靠，但会抢占前台 | `[xx.bind_foreground]` | 单开、调试 |
+| **后台**（background） | `gdi2`/`dx2` + `windows3` + `windows`，不抢占前台，支持多窗口 | `[xx.bind_background]` | 多开、需要后台操作 |
 
 ### 模式选择规则
 - **非组队 / 单成员组队**：由配置 `bind_mode` 决定（`foreground` 或 `background`）
 - **多成员组队（成员数 > 1）**：强制 `background`，忽略 `bind_mode` 配置
-- 配置优先级：`team.team_task.bind_mode` > `war3.bind.bind_mode` / `kk.bind.bind_mode`
+- 配置优先级：顶层任务的 `[this].bind_mode` > `war3.bind_mode` / `kk.bind_mode`（命名空间级开关）
+- 解析结果写入 `war3.bind` / `kk.bind`，业务代码始终读 `bind` 段即可
 
 ### 后台模式注意事项
 - **需要管理员权限**

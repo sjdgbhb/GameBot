@@ -1,7 +1,7 @@
 """大漠后台截图 OCR 单元测试。
 
 覆盖 ocr_kk_lines、Base.ocr_lines/ocr_text、capture_to_temp、
-TextMonitor 大漠截图路径、bind_multi 切换等。
+TextMonitor 大漠截图路径、bind_background 切换等。
 """
 
 import os
@@ -199,11 +199,11 @@ class TestTextMonitorDmCapture:
         mock_client.ocr_from_file.assert_called_once_with("/tmp/war3_ocr.bmp")
 
 
-# ── TeamMemberBase bind_multi 切换测试 ────────────────
+# ── TeamMemberBase bind_background 切换测试 ────────────────
 
 
 class TestTeamMemberBindMulti:
-    """测试 TeamMemberBase 根据成员数/bind_mode 切换 bind_multi。"""
+    """测试 TeamMemberBase 根据成员数/bind_mode 切换 bind_background。"""
 
     def test_single_member_keeps_bind(self, tmp_path, monkeypatch):
         """单成员时保持 bind 配置不变。"""
@@ -224,12 +224,12 @@ class TestTeamMemberBindMulti:
         cfg = {
             "war3": {
                 "bind": {"display": "normal", "mouse": "normal", "keypad": "normal", "mode": 0},
-                "bind_multi": {"display": "dx2", "mouse": "windows3", "keypad": "windows", "mode": 0},
+                "bind_background": {"display": "dx2", "mouse": "windows3", "keypad": "windows", "mode": 0},
             },
             "hero": {"inventory": []},
             "kk": {
                 "bind": {"display": "normal", "mouse": "normal", "keypad": "normal", "mode": 0},
-                "bind_multi": {"display": "gdi2", "mouse": "windows3", "keypad": "windows", "mode": 0},
+                "bind_background": {"display": "gdi2", "mouse": "windows3", "keypad": "windows", "mode": 0},
             },
             "team": {
                 "team_task": {
@@ -244,8 +244,8 @@ class TestTeamMemberBindMulti:
         assert member.kk_cfg["bind"]["display"] == "normal"
         assert member.war3_cfg["bind"]["display"] == "normal"
 
-    def test_multi_members_switch_bind_multi(self, tmp_path, monkeypatch):
-        """多成员时 bind_multi 配置覆盖 bind 配置。"""
+    def test_multi_members_switch_bind_background(self, tmp_path, monkeypatch):
+        """多成员时 bind_background 配置覆盖 bind 配置。"""
         monkeypatch.setattr("GameBot.runner.team.base.create_dm_client", lambda: MagicMock())
         monkeypatch.setattr("GameBot.runner.team.base.KKBusiness", lambda dm, cfg: MagicMock())
         monkeypatch.setattr("GameBot.runner.team.base.War3Business", lambda dm, cfg: MagicMock())
@@ -263,7 +263,7 @@ class TestTeamMemberBindMulti:
         cfg = {
             "war3": {
                 "bind": {"display": "normal", "mouse": "normal", "keypad": "normal", "mode": 0},
-                "bind_multi": {
+                "bind_background": {
                     "display": "dx2",
                     "mouse": "windows3",
                     "keypad": "windows",
@@ -274,7 +274,7 @@ class TestTeamMemberBindMulti:
             "hero": {"inventory": []},
             "kk": {
                 "bind": {"display": "normal", "mouse": "normal", "keypad": "normal", "mode": 0},
-                "bind_multi": {
+                "bind_background": {
                     "display": "gdi2",
                     "mouse": "windows3",
                     "keypad": "windows",
@@ -303,7 +303,7 @@ class TestTeamMemberBindMulti:
         assert member.war3_cfg["bind"]["bind_delay"] == 1.5
 
     def test_bind_mode_foreground_multi_member_forces_back(self, tmp_path, monkeypatch):
-        """bind_mode=foreground 但多成员时，强制用后台 bind_multi。"""
+        """bind_mode=foreground 但多成员时，强制用后台 bind_background。"""
         monkeypatch.setattr("GameBot.runner.team.base.create_dm_client", lambda: MagicMock())
         monkeypatch.setattr("GameBot.runner.team.base.KKBusiness", lambda dm, cfg: MagicMock())
         monkeypatch.setattr("GameBot.runner.team.base.War3Business", lambda dm, cfg: MagicMock())
@@ -321,12 +321,12 @@ class TestTeamMemberBindMulti:
         cfg = {
             "war3": {
                 "bind": {"display": "normal"},
-                "bind_multi": {"display": "dx2"},
+                "bind_background": {"display": "dx2"},
             },
             "hero": {"inventory": []},
             "kk": {
                 "bind": {"display": "normal"},
-                "bind_multi": {"display": "gdi2"},
+                "bind_background": {"display": "gdi2"},
             },
             "team": {
                 "team_task": {
@@ -347,7 +347,7 @@ class TestTeamMemberBindMulti:
         assert member.war3_cfg["bind"]["display"] == "dx2"
 
     def test_bind_mode_background_forces_back(self, tmp_path, monkeypatch):
-        """bind_mode=background 时即使单成员也用 bind_multi。"""
+        """bind_mode=background 时即使单成员也用 bind_background。"""
         monkeypatch.setattr("GameBot.runner.team.base.create_dm_client", lambda: MagicMock())
         monkeypatch.setattr("GameBot.runner.team.base.KKBusiness", lambda dm, cfg: MagicMock())
         monkeypatch.setattr("GameBot.runner.team.base.War3Business", lambda dm, cfg: MagicMock())
@@ -365,12 +365,12 @@ class TestTeamMemberBindMulti:
         cfg = {
             "war3": {
                 "bind": {"display": "normal"},
-                "bind_multi": {"display": "dx2", "bind_delay": 1.5},
+                "bind_background": {"display": "dx2", "bind_delay": 1.5},
             },
             "hero": {"inventory": []},
             "kk": {
                 "bind": {"display": "normal"},
-                "bind_multi": {"display": "gdi2", "bind_delay": 1.0},
+                "bind_background": {"display": "gdi2", "bind_delay": 1.0},
             },
             "team": {
                 "team_task": {
@@ -498,7 +498,11 @@ class TestBindWindowEx:
 
 
 class TestConfigApplyBindMode:
-    """测试 Config._apply_bind_mode 在配置加载后自动切换 bind/bind_multi。"""
+    """测试 Config._apply_bind_mode 按 bind_mode 把 bind_foreground/bind_background 解析进 bind。
+
+    bind_mode 位于命名空间层（war3.bind_mode / kk.bind_mode），顶层任务可用自身
+    [this].bind_mode 覆盖；解析结果写入 config[ns]["bind"] 并记录 bind_mode。
+    """
 
     def _make_config(self):
         """构造一个最小 Config 实例用于测试 _apply_bind_mode。"""
@@ -507,116 +511,81 @@ class TestConfigApplyBindMode:
         cfg = Config.__new__(Config)
         return cfg
 
-    def test_default_mode_no_swap(self):
-        """未指定 bind_mode 时默认 foreground，不切换 bind。"""
-        cfg = self._make_config()
+    @staticmethod
+    def _config(war3_mode=None, kk_mode=None):
+        """构造测试配置：bind_mode 在命名空间层，bind_foreground/bind_background 为参数源。"""
         config = {
             "war3": {
-                "bind": {"display": "normal"},
-                "bind_multi": {"display": "dx2"},
+                "bind_foreground": {"display": "normal"},
+                "bind_background": {"display": "dx2", "bind_delay": 1.5},
             },
             "kk": {
-                "bind": {"display": "normal"},
-                "bind_multi": {"display": "gdi2"},
+                "bind_foreground": {"display": "normal"},
+                "bind_background": {"display": "gdi2", "bind_delay": 1.0},
             },
         }
+        if war3_mode is not None:
+            config["war3"]["bind_mode"] = war3_mode
+        if kk_mode is not None:
+            config["kk"]["bind_mode"] = kk_mode
+        return config
+
+    def test_default_mode_uses_foreground(self):
+        """未指定 bind_mode 时默认 foreground，bind 取 bind_foreground。"""
+        cfg = self._make_config()
+        config = self._config()
         cfg._apply_bind_mode(config)
         assert config["war3"]["bind"]["display"] == "normal"
+        assert config["war3"]["bind"]["bind_mode"] == "foreground"
         assert config["kk"]["bind"]["display"] == "normal"
 
-    def test_background_mode_swaps(self):
-        """background 模式用 bind_multi 覆盖 bind。"""
+    def test_background_mode_resolves_background_params(self):
+        """平台 bind_mode=background 时 bind 取 bind_background 并记录模式。"""
         cfg = self._make_config()
-        config = {
-            "war3": {
-                "bind": {"display": "normal", "bind_mode": "background"},
-                "bind_multi": {"display": "dx2", "bind_delay": 1.5},
-            },
-            "kk": {
-                "bind": {"display": "normal", "bind_mode": "background"},
-                "bind_multi": {"display": "gdi2", "bind_delay": 1.0},
-            },
-        }
+        config = self._config(war3_mode="background", kk_mode="background")
         cfg._apply_bind_mode(config)
         assert config["war3"]["bind"]["display"] == "dx2"
         assert config["war3"]["bind"]["bind_delay"] == 1.5
+        assert config["war3"]["bind"]["bind_mode"] == "background"
         assert config["kk"]["bind"]["display"] == "gdi2"
         assert config["kk"]["bind"]["bind_delay"] == 1.0
 
-    def test_foreground_mode_no_swap(self):
-        """foreground 模式保持 bind 不变。"""
+    def test_platforms_resolve_independently(self):
+        """war3/kk 各自按自身 bind_mode 解析。"""
         cfg = self._make_config()
-        config = {
-            "war3": {
-                "bind": {"display": "normal", "bind_mode": "foreground"},
-                "bind_multi": {"display": "dx2"},
-            },
-            "kk": {
-                "bind": {"display": "normal", "bind_mode": "foreground"},
-                "bind_multi": {"display": "gdi2"},
-            },
-        }
+        config = self._config(war3_mode="background", kk_mode="foreground")
         cfg._apply_bind_mode(config)
-        assert config["war3"]["bind"]["display"] == "normal"
+        assert config["war3"]["bind"]["display"] == "dx2"
         assert config["kk"]["bind"]["display"] == "normal"
 
-    def test_team_bind_mode_background_overrides(self):
-        """team.team_task.bind_mode=background 优先级高于 war3/kk 自身的 bind_mode。"""
+    def test_task_bind_mode_background_overrides(self):
+        """顶层任务 this.bind_mode=background 覆盖平台默认 foreground。"""
         cfg = self._make_config()
-        config = {
-            "war3": {
-                "bind": {"display": "normal", "bind_mode": "foreground"},
-                "bind_multi": {"display": "dx2"},
-            },
-            "kk": {
-                "bind": {"display": "normal", "bind_mode": "foreground"},
-                "bind_multi": {"display": "gdi2"},
-            },
-            "team": {
-                "team_task": {
-                    "bind_mode": "background",
-                }
-            },
-        }
-        cfg._apply_bind_mode(config)
-        # team 的 background 覆盖 war3/kk 的 foreground
+        config = self._config(war3_mode="foreground", kk_mode="foreground")
+        config["war3"]["jiubing2"] = {"tasks": {"others": {"paladin_wind_dragon": {"bind_mode": "background"}}}}
+        cfg._apply_bind_mode(config, "war3.jiubing2.tasks.others.paladin_wind_dragon")
         assert config["war3"]["bind"]["display"] == "dx2"
         assert config["kk"]["bind"]["display"] == "gdi2"
 
-    def test_team_bind_mode_foreground_overrides(self):
-        """team.team_task.bind_mode=foreground 优先级高于 war3/kk 自身的 bind_mode。"""
+    def test_task_bind_mode_foreground_overrides(self):
+        """顶层任务 this.bind_mode=foreground 覆盖平台默认 background。"""
         cfg = self._make_config()
-        config = {
-            "war3": {
-                "bind": {"display": "normal", "bind_mode": "background"},
-                "bind_multi": {"display": "dx2"},
-            },
-            "kk": {
-                "bind": {"display": "normal", "bind_mode": "background"},
-                "bind_multi": {"display": "gdi2"},
-            },
-            "team": {
-                "team_task": {
-                    "bind_mode": "foreground",
-                }
-            },
-        }
-        cfg._apply_bind_mode(config)
-        # team 的 foreground 覆盖 war3/kk 的 background，保持 bind 不变
+        config = self._config(war3_mode="background", kk_mode="background")
+        config["team"] = {"team_task": {"bind_mode": "foreground"}}
+        cfg._apply_bind_mode(config, "team.team_task")
         assert config["war3"]["bind"]["display"] == "normal"
         assert config["kk"]["bind"]["display"] == "normal"
 
-    def test_no_bind_multi_no_crash(self):
-        """没有 bind_multi 时 background 模式不崩溃。"""
+    def test_missing_bind_background_no_crash(self):
+        """没有 bind_background 时 background 模式不崩溃，bind 不生成。"""
         cfg = self._make_config()
         config = {
-            "war3": {"bind": {"display": "normal", "bind_mode": "background"}},
-            "kk": {"bind": {"display": "normal", "bind_mode": "background"}},
+            "war3": {"bind_mode": "background"},
+            "kk": {"bind_mode": "background"},
         }
         cfg._apply_bind_mode(config)
-        # 没有 bind_multi，bind 保持不变
-        assert config["war3"]["bind"]["display"] == "normal"
-        assert config["kk"]["bind"]["display"] == "normal"
+        assert "bind" not in config["war3"]
+        assert "bind" not in config["kk"]
 
 
 # ── bind_window 幂等测试 ──────────────────────────────

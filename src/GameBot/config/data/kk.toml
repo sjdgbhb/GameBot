@@ -21,6 +21,11 @@ create_room_window_class = "Qt5152QWindow" # 创建房间、退出、断线重�
 dropdown_window_class = "Qt5152QWindowPopupSaveBits" # 下拉框窗口类名
 min_business_window_size = [200, 200]  # 业务候选窗口最小可见尺寸
 
+# 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
+#   - 顶层任务可在自身 [this] 中设置 bind_mode 覆盖此默认值
+#   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
+bind_mode = "foreground"
+
 # kk主界面
 [this.main]
 window_size = [1332,945]  # kk主界面窗口客户区尺寸，运行时强制对齐
@@ -69,21 +74,17 @@ password_input_coords = [184,115]  # 密码输入框坐标
 confirm_button_coords = [126,191]  # 确认按钮坐标
 join_wait_time = 2  # 点击确认后等待进入房间的时间（秒）
 
-# 大漠窗口绑定模式
-# bind_mode：foreground（前台）或 background（后台）
-#   - 非组队/单成员组队：按此配置选择前台或后台
-#   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
-[this.bind]
-bind_mode = "foreground"  # foreground（前台）/ background（后台，用 bind_multi）
+# 前台绑定参数（bind_mode = foreground 时生效）
+[this.bind_foreground]
 display = "normal"     # 前台截图（normal）；KK 弹窗如截图异常可试 gdi2
 mouse = "normal"       # 可选：normal / windows / windows2 / windows3
 keypad = "normal"      # 可选：normal / windows
 mode = 0               # 大漠 BindWindow 附加模式
 
-# 后台绑定配置（bind_mode = background 或多成员组队时使用）
+# 后台绑定参数（bind_mode = background 或多成员组队时生效）
 # gdi2 在窗口可见时稳定；多开/窗口被遮挡时 dx2 更能读后台缓冲。
 # dx3 在弹窗/房间上常截到纯色/黑屏。
-[this.bind_multi]
+[this.bind_background]
 display = "dx2"       # 多开/弹窗被遮挡时用 dx2，单开可见窗口可用 gdi2
 mouse = "windows3"     # Windows 后台鼠标，支持多子窗口
 keypad = "windows"     # Windows 后台键盘

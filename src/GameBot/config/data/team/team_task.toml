@@ -12,8 +12,8 @@ game = "war3.jiubing2"  # 游戏标识，任务模块和配置路径由此推导
 rounds = 1  # 总局数，0=无限循环
 
 # 绑定模式：foreground（前台）/ background（后台）
-# foreground：用 [xx.bind]，适合单开调试
-# background：用 [xx.bind_multi]，适合多开或需要后台操作的场合
+# foreground：用 [xx.bind_foreground]，适合单开调试
+# background：用 [xx.bind_background]，适合多开或需要后台操作的场合
 # 注意：多成员组队（成员数 > 1）强制 background，忽略此配置
 bind_mode = "foreground"
 

@@ -7,7 +7,7 @@
 流程：
 1. 等待 N 秒（默认 5 秒），方便用户提前打开/切换好 KK 主界面。
 2. 从配置读取 KK 窗口类名、标题和客户区尺寸。
-3. 查找并绑定 KK 主界面窗口，优先使用配置里的 [kk.bind_multi]，
+3. 查找并绑定 KK 主界面窗口，优先使用配置里的 [kk.bind_background]，
    失败则回退 gdi2 → gdi → normal。
 4. 截取全客户区并保存到 logs/diag_kk_hall_screenshot/。
 
@@ -42,10 +42,10 @@ def find_hall_window(dm, window_class: str, window_title: str) -> int:
 
 
 def get_bind_cfg(kk_cfg: dict) -> dict:
-    """优先使用 [kk.bind_multi] 的绑定配置，否则用默认 gdi2。"""
-    bind_multi = kk_cfg.get("bind_multi", {})
-    if bind_multi:
-        return dict(bind_multi)
+    """优先使用 [kk.bind_background] 的绑定配置，否则用默认 gdi2。"""
+    bind_background = kk_cfg.get("bind_background", {})
+    if bind_background:
+        return dict(bind_background)
     return {
         "display": "gdi2",
         "mouse": "windows3",

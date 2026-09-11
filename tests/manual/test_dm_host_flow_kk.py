@@ -380,10 +380,10 @@ def main() -> int:
     parser.add_argument("--delay", type=int, default=5, help="启动前等待秒数（默认 5）")
     parser.add_argument("--map-name", type=str, default=None, help="搜索的地图名（默认读取 jiubing2.toml）")
     parser.add_argument("--password", type=str, default=None, help="房间密码（默认读取 kk.create_room.password）")
-    parser.add_argument("--display", type=str, default=None, help="绑定 display（默认读取 kk.bind_multi.display）")
-    parser.add_argument("--mouse", type=str, default=None, help="绑定 mouse（默认读取 kk.bind_multi.mouse）")
-    parser.add_argument("--keypad", type=str, default=None, help="绑定 keypad（默认读取 kk.bind_multi.keypad）")
-    parser.add_argument("--mode", type=int, default=None, help="绑定 mode（默认读取 kk.bind_multi.mode）")
+    parser.add_argument("--display", type=str, default=None, help="绑定 display（默认读取 kk.bind_background.display）")
+    parser.add_argument("--mouse", type=str, default=None, help="绑定 mouse（默认读取 kk.bind_background.mouse）")
+    parser.add_argument("--keypad", type=str, default=None, help="绑定 keypad（默认读取 kk.bind_background.keypad）")
+    parser.add_argument("--mode", type=int, default=None, help="绑定 mode（默认读取 kk.bind_background.mode）")
     args = parser.parse_args()
 
     setup_log_file("kk房主流程测试")
@@ -398,15 +398,15 @@ def main() -> int:
 
     # 加载配置
     kk_cfg = config.load_task("kk").get("kk", {})
-    bind_multi = copy.deepcopy(kk_cfg.get("bind_multi", {}))
+    bind_background = copy.deepcopy(kk_cfg.get("bind_background", {}))
     if args.display is not None:
-        bind_multi["display"] = args.display
+        bind_background["display"] = args.display
     if args.mouse is not None:
-        bind_multi["mouse"] = args.mouse
+        bind_background["mouse"] = args.mouse
     if args.keypad is not None:
-        bind_multi["keypad"] = args.keypad
+        bind_background["keypad"] = args.keypad
     if args.mode is not None:
-        bind_multi["mode"] = args.mode
+        bind_background["mode"] = args.mode
 
     # 地图名
     map_name = args.map_name
@@ -424,7 +424,7 @@ def main() -> int:
 
     logger.info(f"地图名: {map_name}")
     logger.info(f"房间密码: {password}")
-    logger.info(f"绑定配置: {bind_multi}")
+    logger.info(f"绑定配置: {bind_background}")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -433,7 +433,7 @@ def main() -> int:
     inf = get_inference_client(load_chest=False, load_combat=False)
 
     try:
-        room_hwnd = run_host_flow(dm, kk_cfg, bind_multi, map_name, password, inf)
+        room_hwnd = run_host_flow(dm, kk_cfg, bind_background, map_name, password, inf)
         if room_hwnd:
             logger.info(f"房主流程测试通过，房间窗口: hwnd={room_hwnd}")
             return 0

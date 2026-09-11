@@ -32,6 +32,11 @@ mini_map_signal_delta_color = '202020'
 
 check_interval_time = 2 # 检测间隔
 
+# 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
+#   - 顶层任务可在自身 [this] 中设置 bind_mode 覆盖此默认值
+#   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
+bind_mode = "foreground"
+
 # 等待 war3 窗口出现超时（bind_war3_window / wait_for_game_window）
 [this.wait_for_game_window]
 timeout = 60
@@ -41,22 +46,18 @@ timeout = 60
 method = "image"       # "image"=图色检测（使用 mini_map_signal_* 配置）, "none"=纯等待不检测
 timeout = 120          # 等待进入游戏的超时时间（秒），超时可能卡在加载界面
 
-# 大漠窗口绑定模式
-# bind_mode：foreground（前台）或 background（后台）
-#   - 非组队/单成员组队：按此配置选择前台或后台
-#   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
-[this.bind]
-bind_mode = "foreground"  # foreground（前台）/ background（后台，用 bind_multi）
+# 前台绑定参数（bind_mode = foreground 时生效）
+[this.bind_foreground]
 display = "normal"     # 可选：normal / gdi / gdi2 / dx / dx2 / dx3
 mouse = "normal"       # 可选：normal / windows / windows2 / windows3
 keypad = "normal"      # 可选：normal / windows
 mode = 0               # 大漠 BindWindow 附加模式
 
-# 后台绑定配置（bind_mode = background 或多成员组队时使用）
+# 后台绑定参数（bind_mode = background 或多成员组队时生效）
 # War3 是 DirectX 渲染窗口，用 dx2 后台截图
 # dx2 + windows3 + windows 需要管理员权限
 # 注意：dx2 模式要求窗口有一部分在屏幕外（Win7/Vista 不需要），且不可连续操作需加 10ms 延时
-[this.bind_multi]
+[this.bind_background]
 display = "dx2"        # DirectX 后台截图，窗口进程崩溃风险低于 dx
 mouse = "dx.mouse.position.lock.api"     # Windows 后台鼠标，支持多子窗口
 keypad = "windows"     # Windows 后台键盘

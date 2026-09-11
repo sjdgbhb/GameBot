@@ -168,8 +168,8 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
         self._inject_inventory_slots(result)
         # 将 inventory 中的 item 物品名解析为 item_id
         self._resolve_inventory_item_names(result)
-        # 根据 bind_mode 切换前台/后台绑定配置
-        self._apply_bind_mode(result)
+        # 根据 bind_mode 切换前台/后台绑定配置（任务级 this.bind_mode 可覆盖）
+        self._apply_bind_mode(result, task_name)
 
         # 缓存任务结果（含 user_configs.json 的 mtime，用于缓存失效检测）
         self._task_configs[task_name] = (result, current_mtime)
@@ -184,7 +184,7 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
             self._apply_user_overrides(rebuilt, user_cfg, task_name)
         self._inject_inventory_slots(rebuilt)
         self._resolve_inventory_item_names(rebuilt)
-        self._apply_bind_mode(rebuilt)
+        self._apply_bind_mode(rebuilt, task_name)
         self._config.clear()
         self._config.update(rebuilt)
         return result
@@ -225,37 +225,36 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
                 else:
                     logging.getLogger(__name__).warning(f"物品名 '{name}' 未在物品定义表中找到，请检查 items 配置")
 
-    def _apply_bind_mode(self, config: dict):
-        """根据 bind_mode 切换前台/后台绑定配置。
+    def _apply_bind_mode(self, config: dict, task_name: str = None):
+        """按 bind_mode 解析前台/后台绑定参数，结果写入 config[ns]["bind"]。
 
-        优先级：team.team_task.bind_mode > war3.bind.bind_mode / kk.bind.bind_mode
+        优先级：顶层任务的 [this].bind_mode > 平台级 war3.bind_mode / kk.bind_mode。
         bind_mode 取值：
-        - "foreground"：使用 bind 配置（前台，默认）
-        - "background"：用 bind_multi 覆盖 bind（后台）
+        - "foreground"：用 bind_foreground 参数（默认）
+        - "background"：用 bind_background 参数
         多成员组队由组队框架（team/base.py）按成员数强制后台，此处不处理。
         """
-        # 组队配置的 bind_mode 优先级最高
-        team_bind_mode = config.get("team", {}).get("team_task", {}).get("bind_mode")
-        if team_bind_mode == "background":
-            self._swap_bind_to_multi(config, "war3")
-            self._swap_bind_to_multi(config, "kk")
-            return
-        if team_bind_mode == "foreground":
-            return  # 保持 bind 不变
+        # 任务级覆盖：当前加载任务的自身 bind_mode 优先
+        task_mode = None
+        if task_name:
+            node = config
+            for part in task_name.split("."):
+                if not isinstance(node, dict):
+                    node = None
+                    break
+                node = node.get(part)
+            if isinstance(node, dict):
+                task_mode = node.get("bind_mode")
 
-        # 各平台自身的 bind_mode
         for ns in ("war3", "kk"):
-            bind_cfg = config.get(ns, {}).get("bind", {})
-            mode = bind_cfg.get("bind_mode", "foreground")
-            if mode == "background":
-                self._swap_bind_to_multi(config, ns)
-
-    @staticmethod
-    def _swap_bind_to_multi(config: dict, ns: str):
-        """将 config[ns]["bind_multi"] 覆盖到 config[ns]["bind"]。"""
-        ns_cfg = config.get(ns, {})
-        if "bind_multi" in ns_cfg:
-            ns_cfg["bind"] = copy.deepcopy(ns_cfg["bind_multi"])
+            ns_cfg = config.get(ns, {})
+            mode = task_mode or ns_cfg.get("bind_mode", "foreground")
+            src_key = "bind_background" if mode == "background" else "bind_foreground"
+            src_cfg = ns_cfg.get(src_key)
+            if src_cfg is not None:
+                ns_cfg["bind"] = copy.deepcopy(src_cfg)
+                # 解析结果记录当前生效模式，供业务层判断（如后台时跳过活动窗口检测）
+                ns_cfg["bind"]["bind_mode"] = mode
 
     def get_section(self, section: str, task_name: str = None) -> dict:
         """获取配置段（已含任务级覆盖），返回字典。

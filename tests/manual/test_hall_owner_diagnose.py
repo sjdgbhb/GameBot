@@ -88,7 +88,7 @@ def main():
     profile_icon = main_cfg.get("profile_icon_coords", [0, 0])
     username_area = main_cfg.get("username_area_coords", [0, 0, 0, 0])
     dropdown_wait = main_cfg.get("dropdown_wait_time", 1)
-    bind_multi = kk_cfg.get("bind_multi", {})
+    bind_background = kk_cfg.get("bind_background", {})
     min_size = kk_cfg.get("min_business_window_size", [200, 200])
 
     logger.info(f"头像图标坐标: {profile_icon}")
@@ -150,7 +150,7 @@ def main():
         logger.info(f"[步骤2] 绑定主窗口并点击头像图标 {profile_icon}")
         try:
             dm.set_client_size(hwnd, *main_size)
-            with dm.bind_window(hwnd, bind_cfg=bind_multi):
+            with dm.bind_window(hwnd, bind_cfg=bind_background):
                 dm.move_to(*profile_icon)
                 time.sleep(0.3)
                 dm.left_click()
@@ -198,7 +198,7 @@ def main():
 
                         # 5b. GDI2 后台截图（绑定下拉框窗口）
                         try:
-                            with dm.bind_window(nhwnd, bind_cfg=bind_multi):
+                            with dm.bind_window(nhwnd, bind_cfg=bind_background):
                                 gdi_dd = out_dir / f"{nlabel}_4_gdi.bmp"
                                 if dm.capture_region(0, 0, nw, nh, str(gdi_dd)):
                                     logger.info(f"  下拉框 GDI2 截图: {gdi_dd}")

@@ -416,7 +416,9 @@ def main():
     parser.add_argument(
         "--input-mouse", type=str, default=None, help="输入阶段单独指定 mouse 模式（如 windows / windows3 / normal）"
     )
-    parser.add_argument("--mode", type=int, default=None, help="输入阶段单独指定大漠 mode（默认读取 bind_multi.mode）")
+    parser.add_argument(
+        "--mode", type=int, default=None, help="输入阶段单独指定大漠 mode（默认读取 bind_background.mode）"
+    )
     parser.add_argument(
         "--dialog-open",
         action="store_true",
@@ -434,9 +436,9 @@ def main():
         type=str,
         default="foreground",
         choices=["foreground", "background"],
-        help="绑定模式：foreground(前台 bind) / background(后台 bind_multi)",
+        help="绑定模式：foreground(前台 bind) / background(后台 bind_background)",
     )
-    parser.add_argument("--bind-multi", action="store_true", help="强制使用 bind_multi（模拟后台）")
+    parser.add_argument("--bind-multi", action="store_true", help="强制使用 bind_background（模拟后台）")
     args = parser.parse_args()
 
     setup_log_file("测试创建房间")
@@ -452,10 +454,10 @@ def main():
     kk_cfg = cfg.get("kk", {})
 
     # 绑定配置选择逻辑与生产代码（team/base.py）一致：
-    # foreground 用 bind（前台），background 或 --bind-multi 用 bind_multi（后台）
+    # foreground 用 bind（前台），background 或 --bind-multi 用 bind_background（后台）
     bind_mode = args.bind_mode
-    if bind_mode == "background" or args.bind_multi:
-        bind_cfg = copy.deepcopy(kk_cfg.get("bind_multi", {}))
+    if bind_mode == "background" or args.bind_background:
+        bind_cfg = copy.deepcopy(kk_cfg.get("bind_background", {}))
         if not bind_cfg:
             bind_cfg = copy.deepcopy(kk_cfg.get("bind", {}))
     else:

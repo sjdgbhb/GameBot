@@ -162,7 +162,7 @@ class TeamMemberBase(abc.ABC):
             cfg["hero"]["inventory_slots"] = member_slots
 
         # bind_mode 决定绑定配置：foreground（前台）或 background（后台）
-        # 多成员组队强制后台（bind_multi），单成员按配置选择
+        # 多成员组队强制后台（bind_background），单成员按配置选择
         bind_mode = team_cfg.get("bind_mode", "foreground")
         members = team_cfg.get("members", [])
         use_background = bind_mode == "background" or len(members) > 1
@@ -171,12 +171,14 @@ class TeamMemberBase(abc.ABC):
         hero_cfg = cfg.get("hero", {})
         kk_cfg = cfg.get("kk", {})
 
-        # 多成员时切换到 bind_multi（后台绑定配置）
+        # 多成员时切换到 bind_background（后台绑定参数）
         if use_background:
-            if "bind_multi" in kk_cfg:
-                kk_cfg["bind"] = kk_cfg["bind_multi"]
-            if "bind_multi" in war3_cfg:
-                war3_cfg["bind"] = war3_cfg["bind_multi"]
+            if "bind_background" in kk_cfg:
+                kk_cfg["bind"] = dict(kk_cfg["bind_background"])
+                kk_cfg["bind"]["bind_mode"] = "background"
+            if "bind_background" in war3_cfg:
+                war3_cfg["bind"] = dict(war3_cfg["bind_background"])
+                war3_cfg["bind"]["bind_mode"] = "background"
 
         self.war3 = self._create_war3(war3_cfg)
         self.kk = self._create_kk(kk_cfg)

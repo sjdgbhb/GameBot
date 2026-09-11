@@ -62,10 +62,10 @@ PW_CLIENT_FULL = PW_CLIENTONLY | PW_RENDERFULLCONTENT  # 0x3
 
 
 def load_bind_cfg(kk_cfg: dict) -> dict:
-    """从 kk_cfg 读取后台绑定配置，优先使用 bind_multi。"""
-    if "bind_multi" in kk_cfg:
-        cfg = dict(kk_cfg["bind_multi"])
-        logger.info(f"使用 bind_multi 后台绑定: {cfg}")
+    """从 kk_cfg 读取后台绑定配置，优先使用 bind_background。"""
+    if "bind_background" in kk_cfg:
+        cfg = dict(kk_cfg["bind_background"])
+        logger.info(f"使用 bind_background 后台绑定: {cfg}")
         return cfg
     bind_cfg = dict(kk_cfg.get("bind", {}))
     logger.info(f"使用 bind 配置: {bind_cfg}")
