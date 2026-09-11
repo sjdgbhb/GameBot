@@ -22,7 +22,7 @@ reselect_idle_time = 10      # 连续无技能就绪超过该秒数时按一次 
 # 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
 #   - 顶层任务可在自身 [this] 中设置 bind_mode 覆盖此默认值
 #   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
-bind_mode = "background"
+bind_mode = "foreground"
 
 # 技能图标检测参数（冷却时图标变灰，与就绪态图片不匹配）
 icon_sim = 0.95              # 找图相似度

@@ -31,19 +31,15 @@ class InputControllerMixin:
         time.sleep(seconds)
         return False
 
-    def send_msg(
-        self, msg: str, is_english: bool = True, is_all: bool = False, stop_event: Optional[threading.Event] = None
-    ):
+    def send_msg(self, msg: str, is_all: bool = False, stop_event: Optional[threading.Event] = None):
         """
-        向游戏里发送消息
-        :param msg:
-        :param is_english: 默认发送英文
+        向游戏里发送消息。字符通过大漠绑定窗口的键盘通道注入，不经过系统输入法，
+        因此不需要（也不应该）切换系统输入法。
+        :param msg: 消息文本（如 -delh）
         :param is_all: 默认发送给盟友
         :param stop_event: 停止事件，设置时中断等待
         :return:
         """
-        if is_english:
-            self.set_english_input()
         if is_all:
             self.dm.key_down_char("shift")
             self.interruptible_wait(0.1, stop_event)

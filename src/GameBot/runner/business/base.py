@@ -24,19 +24,6 @@ class Base(ABC):
         """检查大漠对象是否可用（如 Ver 方法）"""
         return self.dm.version != ""
 
-    @staticmethod
-    def set_english_input():
-        """将当前活动窗口的输入法切换为美式键盘"""
-        import win32api
-        import win32con
-        import win32gui
-
-        hwnd = win32gui.GetForegroundWindow()
-        # '00000409' 是美式键盘的语言代码
-        hkl = win32api.LoadKeyboardLayout("00000409", win32con.KLF_ACTIVATE)
-        win32api.SendMessage(hwnd, win32con.WM_INPUTLANGCHANGEREQUEST, 0, hkl)
-        return hwnd
-
     def ocr_lines(
         self, dm: DmClient, hwnd: int, ocr_cfg: dict, bind_cfg: dict = None, merge_lines: bool = True
     ) -> list:
