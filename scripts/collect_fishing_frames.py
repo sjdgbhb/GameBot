@@ -8,12 +8,13 @@
 3. 红色三角形填充的出现/消失时间线（events.txt）
 
 使用方法：
-  .venv-dm/Scripts/python.exe scripts/collect_fishing_frames.py
+  uv run python scripts/collect_fishing_frames.py
 运行后 5 秒内切换到游戏窗口，脚本会自动抛竿并连拍。
 采集期间不收竿，直到采集时长结束才按 S 收竿。
 帧保存到 data/fishing_frames/<时间戳>/，文件名为相对抛竿时刻的毫秒数。
 注意：帧序列约 100~200MB，分析完成后可删除。
 """
+
 import ctypes
 import os
 import sys
@@ -22,14 +23,14 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src"))
 
 from GameBot.config import config
-from GameBot.utils.logger import logger
-from GameBot.runner.dm_client import DmClient
 from GameBot.runner.business.war3 import War3Business
+from GameBot.runner.driver import create_dm_client
+from GameBot.utils.logger import logger
 
-EXPAND_X = 150           # 采集区域相对检测区域左右扩展的像素（覆盖整排圈圈）
-EXPAND_Y = 40            # 采集区域相对检测区域上下扩展的像素
-FRAME_INTERVAL = 0.03    # 连拍间隔（秒），约 30fps
-CAPTURE_SECONDS = 15     # 总采集时长（秒），需覆盖至少一个完整填充循环
+EXPAND_X = 150  # 采集区域相对检测区域左右扩展的像素（覆盖整排圈圈）
+EXPAND_Y = 40  # 采集区域相对检测区域上下扩展的像素
+FRAME_INTERVAL = 0.03  # 连拍间隔（秒），约 30fps
+CAPTURE_SECONDS = 15  # 总采集时长（秒），需覆盖至少一个完整填充循环
 
 
 def main():
@@ -37,7 +38,7 @@ def main():
     fishing_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("tasks", {}).get("others", {}).get("fishing", {})
     check_cfg = fishing_cfg.get("check", {})
 
-    dm = DmClient()
+    dm = create_dm_client()
     war3 = War3Business(dm, cfg.get("war3", {}))
 
     logger.info("5 秒内请切换到游戏窗口...")
@@ -46,7 +47,9 @@ def main():
     hwnd = dm.get_active_window()
     out_dir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "data", "fishing_frames", time.strftime("%Y%m%d%H%M%S"),
+        "data",
+        "fishing_frames",
+        time.strftime("%Y%m%d%H%M%S"),
     )
     os.makedirs(out_dir, exist_ok=True)
 
@@ -63,7 +66,7 @@ def main():
     cap_x2 = min(client_size[0], x2 + EXPAND_X)
     cap_y2 = min(client_size[1], y2 + EXPAND_Y)
 
-    red_events = []   # [(时刻ms, "出现"/"消失", x, y), ...]
+    red_events = []  # [(时刻ms, "出现"/"消失", x, y), ...]
     red_visible = False
     frame_count = 0
 
@@ -88,10 +91,7 @@ def main():
         time.sleep(0.05)
 
         t_cast = time.perf_counter()
-        logger.info(
-            f"开始连拍 {CAPTURE_SECONDS}s，采集区域 ({cap_x1},{cap_y1},{cap_x2},{cap_y2})，"
-            f"保存到 {out_dir}"
-        )
+        logger.info(f"开始连拍 {CAPTURE_SECONDS}s，采集区域 ({cap_x1},{cap_y1},{cap_x2},{cap_y2})，保存到 {out_dir}")
 
         while True:
             now_ms = (time.perf_counter() - t_cast) * 1000
@@ -105,7 +105,13 @@ def main():
 
             # 用与钓鱼任务一致的找图逻辑检测红色三角形填充，记录出现/消失事件
             index, rx, ry = dm.find_pic(
-                x1, y1, x2, y2, hook_image, sim=sim, delta_color=delta_color,
+                x1,
+                y1,
+                x2,
+                y2,
+                hook_image,
+                sim=sim,
+                delta_color=delta_color,
             )
             found = index != -1
             if found != red_visible:

@@ -2,9 +2,9 @@
 宝箱检测拾取测试 — 与 patrol_loot 任务脚本逻辑一致的独立测试。
 检测地面宝箱 → OCR 识别物品名称 → 拾取目标物品，最多 3 轮。
 
-使用方法（大漠脚本环境 .venv-dm）：
+使用方法（主环境（uv run））：
   1. 英雄已在游戏内且处于脱战状态
-  2. .venv-dm/Scripts/python.exe -m tests.test_chest_detect
+  2. uv run python -m tests.test_chest_detect
   3. 5 秒内切回游戏窗口
   4. Ctrl+C 停止
 """
@@ -17,10 +17,10 @@ from typing import Optional
 from PIL import Image, ImageDraw
 
 from GameBot.config import config
-from GameBot.inference import get_inference_client, get_ocr_client
-from GameBot.runner import DmClient
+from GameBot.inference import get_inference_client
 from GameBot.runner.business.war3 import TextMonitor, War3Business
 from GameBot.runner.business.war3.jiubing2 import get_inventory_hotkey
+from GameBot.runner.driver import create_dm_client
 from GameBot.utils import logger
 from GameBot.utils.exception_handler import setup_global_exception_hook
 
@@ -34,7 +34,7 @@ class ChestDetectTest:
     def __init__(self, cfg: dict):
         self.task_cfg = cfg
         self.cfg = cfg["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]
-        self.dm = DmClient()
+        self.dm = create_dm_client()
 
         war3_cfg = self.task_cfg.get("war3", {})
         hero_cfg = self.task_cfg.get("hero", {})
@@ -73,7 +73,7 @@ class ChestDetectTest:
             self.war3.set_client_size(hwnd)
             logger.info("正在初始化推理子进程（OCR + AI 模型）...")
             get_inference_client()
-            get_ocr_client()
+            get_inference_client()
             logger.info("模型初始化完成")
             monitor = self._make_monitor(hwnd)
             try:
@@ -237,7 +237,7 @@ class ChestDetectTest:
             text_y + half_h,
         ]
         bbox = self.war3._compute_ocr_bbox({"area_coords": area_coords}, self.hwnd)
-        text = get_ocr_client().ocr_screen(bbox)
+        text = get_inference_client().ocr_screen(bbox)
         normalized = self.war3._normalize_ocr(text)
         logger.debug(f"OCR原始: '{text}' → 规范化: '{normalized}'")
 

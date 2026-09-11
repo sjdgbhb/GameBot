@@ -1,21 +1,22 @@
-﻿"""
-刷装备自动化 EXE 入口 — 32 位 Python 3.8 + 大漠插件 COM
+"""
+刷装备自动化 EXE 入口 — 64 位 Python 3.12（进程内推理 + dm_bridge 子进程调大漠 COM）
 
 功能：巡逻杀怪 + AI 宝箱检测 + OCR 物品识别 + 自动拾取。
-推理子进程（OCR/AI）由同目录下的 inference/inference_worker.exe 提供（64 位）。
+推理在主进程内直接进行（onnxruntime/rapidocr），大漠 COM 经同目录下的
+dm_bridge/dm_bridge.exe（32 位）子进程调用。
 用户配置：编辑同目录下的 刷装备_config.toml 文件。
 """
+
 import sys
-import os
 from pathlib import Path
 
 # ===== 1. 确定路径 =====
-if getattr(sys, 'frozen', False):
+if getattr(sys, "frozen", False):
     EXE_DIR = Path(sys.executable).parent
-    BUNDLED_DIR = Path(sys._MEIPASS) / 'config' / 'data'
+    BUNDLED_DIR = Path(sys._MEIPASS) / "config" / "data"
 else:
     EXE_DIR = Path(__file__).parent
-    BUNDLED_DIR = EXE_DIR.parent / 'src' / 'GameBot' / 'config' / 'data'
+    BUNDLED_DIR = EXE_DIR.parent / "src" / "GameBot" / "config" / "data"
 
 # ===== 2. 初始化配置系统（必须在导入其他 GameBot 模块之前）=====
 from GameBot.config import config
@@ -24,10 +25,10 @@ config.config_path = BUNDLED_DIR
 config._project_root_override = EXE_DIR
 
 # ===== 3. 导入业务模块 =====
-from GameBot.utils import setup_global_exception_hook, logger
 from GameBot.config import config as cfg_singleton
 from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
 from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import logger, setup_global_exception_hook
 
 try:
     import tomli
@@ -41,7 +42,7 @@ def _load_user_config() -> dict:
     if not user_cfg_path.exists():
         logger.warning(f"未找到用户配置文件: {user_cfg_path}，将使用默认配置")
         return {}
-    with open(user_cfg_path, 'rb') as f:
+    with open(user_cfg_path, "rb") as f:
         return tomli.load(f)
 
 
@@ -57,7 +58,8 @@ def _deep_merge(base: dict, override: dict):
 def _apply_overrides(task_cfg: dict, user_cfg: dict):
     """将用户 config.toml 的覆盖应用到任务配置字典和全局配置。
 
-    同时设置 exe 环境的路径配置（dm、resources、inference 子进程）。
+    同时设置 exe 环境的路径配置（dm、dm_bridge、resources）。
+    推理在主进程内进行，无需配置推理子进程路径。
     """
     # 1. 覆盖任务配置中的用户可调参数
     _deep_merge(task_cfg, user_cfg)
@@ -69,33 +71,27 @@ def _apply_overrides(task_cfg: dict, user_cfg: dict):
     if "dm" not in cfg_singleton._config:
         cfg_singleton._config["dm"] = {}
     cfg_singleton._config["dm"]["dll_path"] = "dm"
+    # dm_bridge 子进程路径（exe 版使用打包的 dm_bridge.exe，32 位大漠 COM 桥接）
+    cfg_singleton._config["dm"]["python_path"] = "dm_bridge/dm_bridge.exe"
     if "paths" not in cfg_singleton._config:
         cfg_singleton._config["paths"] = {}
     cfg_singleton._config["paths"]["resources_path"] = "resources"
 
     if "dm" in task_cfg:
         task_cfg["dm"]["dll_path"] = "dm"
+        task_cfg["dm"]["python_path"] = "dm_bridge/dm_bridge.exe"
     if "paths" in task_cfg:
         task_cfg["paths"]["resources_path"] = "resources"
 
-    # 4. 配置推理子进程路径（exe 版使用打包的 inference_worker.exe）
+    # 4. 配置推理路径（进程内推理，模型目录指向 resources/models）
     if "inference" not in cfg_singleton._config:
         cfg_singleton._config["inference"] = {}
-    inf_cfg = cfg_singleton._config["inference"]
-    inf_cfg["python_path"] = "inference/inference_worker.exe"
-    inf_cfg["worker_script"] = ""  # 空值 = worker exe 模式（不传 script 参数）
-    inf_cfg["models_dir"] = "resources/models"
+    cfg_singleton._config["inference"]["models_dir"] = "resources/models"
 
     if "inference" in task_cfg:
-        task_cfg["inference"]["python_path"] = "inference/inference_worker.exe"
-        task_cfg["inference"]["worker_script"] = ""
         task_cfg["inference"]["models_dir"] = "resources/models"
     else:
-        task_cfg["inference"] = {
-            "python_path": "inference/inference_worker.exe",
-            "worker_script": "",
-            "models_dir": "resources/models",
-        }
+        task_cfg["inference"] = {"models_dir": "resources/models"}
 
 
 def main():
@@ -111,11 +107,11 @@ def main():
         logger.error("请确保 dm/dm.dll 文件与 刷装备.exe 在同一目录下")
         sys.exit(1)
 
-    # 检查推理子进程
-    worker_exe = EXE_DIR / "inference" / "inference_worker.exe"
-    if not worker_exe.exists():
-        logger.error(f"推理子进程不存在: {worker_exe}")
-        logger.error("请确保 inference/inference_worker.exe 与 patrol_loot.exe 在同一目录下")
+    # 检查 dm_bridge 子进程
+    bridge_exe = EXE_DIR / "dm_bridge" / "dm_bridge.exe"
+    if not bridge_exe.exists():
+        logger.error(f"dm_bridge 子进程不存在: {bridge_exe}")
+        logger.error("请确保 dm_bridge/dm_bridge.exe 与 刷装备.exe 在同一目录下")
         sys.exit(1)
 
     # 检查模型文件
@@ -136,8 +132,7 @@ def main():
     def task_wrapper(stop_event, progress_callback=None, **kwargs):
         cfg = config.load_task("war3.jiubing2.tasks.others.patrol_loot")
         _apply_overrides(cfg, user_cfg)
-        task = PatrolLootTask(cfg, stop_event=stop_event,
-                              progress_lines_callback=kwargs.get('progress_lines_callback'))
+        task = PatrolLootTask(cfg, stop_event=stop_event, progress_lines_callback=kwargs.get("progress_lines_callback"))
         task.run()
 
     route_scheme = user_cfg.get("tasks", {}).get("others", {}).get("patrol_loot", {}).get("route_scheme", "")

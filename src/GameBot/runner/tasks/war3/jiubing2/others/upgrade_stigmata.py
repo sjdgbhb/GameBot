@@ -12,7 +12,7 @@ import re
 import time
 
 from GameBot.config import config
-from GameBot.inference import get_ocr_client
+from GameBot.inference import get_inference_client
 from GameBot.runner.tasks.war3.jiubing2.atomic.blackstone_gate_harassment import GateHarassmentTask
 from GameBot.runner.tasks.war3.jiubing2.base import AtomicLoopTask
 from GameBot.runner.ui import run_with_float_window
@@ -44,7 +44,14 @@ class UpgradeStigmataTask(AtomicLoopTask):
     @property
     def _npc(self) -> dict:
         """圣痕升级 NPC 配置（来自依赖闭包的 blackstone_city 场景）。"""
-        return self.full_cfg.get("scenes", {}).get("blackstone_city", {}).get("npcs", {}).get("stigmata", {})
+        return (
+            self.full_cfg.get("war3", {})
+            .get("jiubing2", {})
+            .get("scenes", {})
+            .get("blackstone_city", {})
+            .get("npcs", {})
+            .get("stigmata", {})
+        )
 
     @property
     def _board(self) -> dict:
@@ -92,7 +99,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
         """构建城门骚扰原子任务的有效配置（使用原子任务自身的路线点）。"""
         return copy.deepcopy(self.atomic_cfg)
 
-    def _run_one_atomic(self, at_npc: bool = False, walk_time=None, monitor=None) -> bool:
+    def _run_one_atomic(self, walk_time=None, monitor=None) -> bool:
         """执行一次城门骚扰原子任务，返回是否成功。"""
         task = self.atomic_task_cls(
             self.dm,
@@ -100,7 +107,6 @@ class UpgradeStigmataTask(AtomicLoopTask):
             self.ui,
             self.combat,
             self._build_atomic_cfg(),
-            at_npc=at_npc,
             walk_time=walk_time,
             monitor=monitor,
             nearby_cleaner=self.nearby_cleaner,
@@ -133,26 +139,18 @@ class UpgradeStigmataTask(AtomicLoopTask):
 
         logger.info(f"{self.task_name}开始：词条上限配置 {term_limit}")
 
-        # 若配置了技能 action 但未选择英雄，后续 resolve_point_skills 会自然失败，这里仅记录
-        if any(
-            any(a.get("type") == "skill" for a in (pt.get("actions") or [])) for pt in self.cfg.get("points", [])
-        ) and not self.hero_cfg.get("skills"):
-            logger.error("路线点配置了技能但未选择有技能的英雄")
-            return
-
         hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
 
-        with self.dm.bind_window(hwnd):
+        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
             self.war3.set_client_size(hwnd)
-            get_ocr_client(load_chest=False, load_combat=False)  # 预热 OCR 子进程（仅需 OCR，不加载 AI 模型）
+            get_inference_client(load_chest=False, load_combat=False)  # 预热 OCR 子进程（仅需 OCR，不加载 AI 模型）
             # 启动持续文字监测线程（整段脚本运行期间常驻，城门骚扰完成与升级结果共用）
             monitor = self._make_monitor(hwnd)
             try:
                 attempts = 0
-                at_guard_captain = False  # 英雄是否在守卫队长旁（首轮不在，后续轮在）
                 while True:
                     # 1) 读取圣痕面板，找到未达上限的词条
                     stats = self.read_stigmata_stats(hwnd)
@@ -174,9 +172,8 @@ class UpgradeStigmataTask(AtomicLoopTask):
                     )
 
                     # 2) 完成一次城门骚扰以获得升级机会（机会不可叠加，故每次必先做任务）
-                    #    首轮英雄不在守卫队长旁，需行走；
-                    #    后续轮英雄已在守卫队长旁（上轮升级后走回），at_npc=True 跳过行走。
-                    if not self._run_one_atomic(at_npc=at_guard_captain, walk_time=None, monitor=monitor):
+                    #    每次先走到守卫队长附近，再开始接任务
+                    if not self._run_one_atomic(walk_time=None, monitor=monitor):
                         logger.warning("城门骚扰未完成，未获得升级机会，重试")
                         self._interruptible_sleep(loop_interval)
                         continue
@@ -195,7 +192,6 @@ class UpgradeStigmataTask(AtomicLoopTask):
 
                     # 5) 返回守卫队长旁，为下一轮城门骚扰做准备
                     self._walk_to_point(walk_to_guard)
-                    at_guard_captain = True
 
                     self._interruptible_sleep(loop_interval)
             except StopTaskError:
@@ -343,7 +339,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
         self._interruptible_wait(self.war3_cfg.get("small_window_response_time", 0.5))
 
         # OCR 读取圣痕词条区域
-        client = get_ocr_client()
+        client = get_inference_client()
         lines = client.ocr_lines(screen_bbox)
         logger.debug(f"圣痕面板 OCR 原始行(首次): {lines}")
 

@@ -27,56 +27,29 @@ class _UserEdgeConfigTestBase(unittest.TestCase):
         self.tmp_root = Path(tempfile.mkdtemp(prefix="jiubing2_user_edge_"))
         self.config_dir = self.tmp_root / "a" / "b" / "c" / "config"
         self.config_dir.mkdir(parents=True)
-
         _write_toml(
-            self.config_dir,
-            "base.toml",
-            """
-[paths]
-resources_path = "resources"
-""",
+            self.config_dir, "base.toml", '\nname = "base"\nextends = []\n[paths]\nresources_path = "resources"\n'
         )
         _write_toml(
             self.config_dir,
             "war3/war3.toml",
-            """
-dependencies = ["base"]
-[war3]
-window_title = "Warcraft III"
-""",
+            '\nname = "war3.war3"\nextends = ["base"]\n[war3]\nwindow_title = "Warcraft III"\n',
         )
         _write_toml(
             self.config_dir,
-            "war3/jiubing2/base.toml",
-            """
-dependencies = ["war3"]
-[hero]
-inventory = ["A", "B", "C"]
-""",
+            "war3/jiubing2/jiubing2.toml",
+            '\nname = "war3.jiubing2.jiubing2"\nextends = ["war3"]\n[hero]\ninventory = ["A", "B", "C"]\n',
         )
         _write_toml(
             self.config_dir,
             "war3/jiubing2/heroes/mk.toml",
-            """
-[hero]
-inventory = ["D", "E", "F"]
-attack = 100
-""",
+            '\nname = "war3.jiubing2.heroes.mk"\nextends = ["war3.jiubing2"]\n[hero]\ninventory = ["D", "E", "F"]\nattack = 100\n',
         )
         _write_toml(
             self.config_dir,
             "war3/jiubing2/tasks/reputation/daily_reputation.toml",
-            """
-dependencies = ["war3.jiubing2"]
-
-[war3.jiubing2.tasks.reputation.daily_reputation.blackstone]
-name = "黑石声望"
-
-[war3.jiubing2.tasks.reputation.daily_reputation.forest]
-name = "森林声望"
-""",
+            '\nname = "war3.jiubing2.tasks.reputation.daily_reputation"\nextends = ["war3.jiubing2"]\n\n[this.blackstone]\nname = "黑石声望"\n\n[this.forest]\nname = "森林声望"\n',
         )
-
         self.cfg = Config(str(self.config_dir))
 
     def tearDown(self):
@@ -91,11 +64,9 @@ class TestLoadUserConfigEdge(_UserEdgeConfigTestBase):
         """不传入 task_name 时应返回 user_configs.json 内容的深拷贝。"""
         user_cfg = {"inventory": ["X", "Y"], "points": [[1, 2]]}
         (self.cfg.project_root / "user_configs.json").write_text(json.dumps(user_cfg), encoding="utf-8")
-
         result = self.cfg._load_user_config()
         self.assertEqual(result, user_cfg)
         self.assertIsNot(result, user_cfg)
-        # 修改返回值不应影响内部缓存逻辑
         result["inventory"].append("Z")
         result2 = self.cfg._load_user_config()
         self.assertEqual(result2["inventory"], ["X", "Y"])
@@ -108,28 +79,24 @@ class TestLoadUserConfigEdge(_UserEdgeConfigTestBase):
             ),
             encoding="utf-8",
         )
-
         result = self.cfg._load_user_config("war3.jiubing2.tasks.others.fishing")
         self.assertEqual(result.get("inventory"), ["B", "C"])
 
     def test_invalid_json_in_user_configs_ignored(self):
         """user_configs.json 为非法 JSON 时应静默忽略并返回空 dict。"""
         (self.cfg.project_root / "user_configs.json").write_text("not a json {", encoding="utf-8")
-
         result = self.cfg._load_user_config("war3.jiubing2.tasks.others.fishing")
         self.assertEqual(result, {})
 
     def test_invalid_json_in_old_user_config_ignored(self):
         """旧 user_config.json 为非法 JSON 时应静默忽略并返回空 dict。"""
         (self.cfg.project_root / "user_config.json").write_text("not a json {", encoding="utf-8")
-
         result = self.cfg._load_user_config("war3.jiubing2.tasks.others.fishing")
         self.assertEqual(result, {})
 
     def test_non_dict_user_config_returns_empty(self):
         """user_configs.json 内容非 dict（如 list）时应返回空 dict。"""
         (self.cfg.project_root / "user_configs.json").write_text(json.dumps(["invalid"]), encoding="utf-8")
-
         result = self.cfg._load_user_config("war3.jiubing2.tasks.others.fishing")
         self.assertEqual(result, {})
 
@@ -150,9 +117,7 @@ class TestApplyUserOverridesEdge(_UserEdgeConfigTestBase):
                 }
             },
         }
-
         self.cfg._apply_user_overrides(config, user_cfg, "war3.jiubing2.tasks.others.patrol_loot")
-
         bs_cfg = config["war3"]["jiubing2"]["tasks"]["atomic"]["blackstone_gate_harassment"]
         forest_cfg = config["war3"]["jiubing2"]["tasks"]["atomic"]["swift_beast"]
         self.assertEqual(bs_cfg["points"], [[10, 20], [30, 40]])
@@ -171,9 +136,7 @@ class TestApplyUserOverridesEdge(_UserEdgeConfigTestBase):
             }
         }
         user_cfg = {"combat_mode": "cast_skills"}
-
         self.cfg._apply_user_overrides(config, user_cfg, "war3.jiubing2.tasks.reputation.daily_reputation")
-
         daily_cfg = config["war3"]["jiubing2"]["tasks"]["reputation"]["daily_reputation"]
         self.assertEqual(daily_cfg["blackstone"]["combat_mode"], "cast_skills")
         self.assertEqual(daily_cfg["forest"]["combat_mode"], "cast_skills")

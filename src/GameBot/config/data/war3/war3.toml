@@ -1,7 +1,8 @@
 # War3 窗口/界面交互配置 (随游戏版本可能调整)
-dependencies = ["base"]
+name = "war3"
+extends = ["base"]
 
-[war3]
+[this]
 window_class = "Warcraft III"
 window_title = "Warcraft III"
 client_size = [1902, 1033] # 窗口客户区大小 [宽，高]——所有坐标均以此尺寸标定，运行时强制对齐
@@ -31,7 +32,41 @@ mini_map_signal_delta_color = '202020'
 
 check_interval_time = 2 # 检测间隔
 
+# 等待 war3 窗口出现超时（bind_war3_window / wait_for_game_window）
+[this.wait_for_game_window]
+timeout = 60
+
 # 进游戏检测配置
-[war3.in_game_detect]
+[this.in_game_detect]
 method = "image"       # "image"=图色检测（使用 mini_map_signal_* 配置）, "none"=纯等待不检测
 timeout = 120          # 等待进入游戏的超时时间（秒），超时可能卡在加载界面
+
+# 大漠窗口绑定模式
+# bind_mode：foreground（前台）或 background（后台）
+#   - 非组队/单成员组队：按此配置选择前台或后台
+#   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
+[this.bind]
+bind_mode = "foreground"  # foreground（前台）/ background（后台，用 bind_multi）
+display = "normal"     # 可选：normal / gdi / gdi2 / dx / dx2 / dx3
+mouse = "normal"       # 可选：normal / windows / windows2 / windows3
+keypad = "normal"      # 可选：normal / windows
+mode = 0               # 大漠 BindWindow 附加模式
+
+# 后台绑定配置（bind_mode = background 或多成员组队时使用）
+# War3 是 DirectX 渲染窗口，用 dx2 后台截图
+# dx2 + windows3 + windows 需要管理员权限
+# 注意：dx2 模式要求窗口有一部分在屏幕外（Win7/Vista 不需要），且不可连续操作需加 10ms 延时
+[this.bind_multi]
+display = "dx2"        # DirectX 后台截图，窗口进程崩溃风险低于 dx
+mouse = "dx.mouse.position.lock.api"     # Windows 后台鼠标，支持多子窗口
+keypad = "windows"     # Windows 后台键盘
+public = "dx.public.active.api"  # 公共窗口检测
+mode = 0               # 推荐模式 0
+bind_delay = 1.5       # 绑定后延时 1.5 秒等待后台生效（DX 绑定较慢）
+
+# 多开识别配置
+[this.multi_instance]
+
+[this.multi_instance.loading_page]
+area_coords = [231,295,1532,581]  # 加载页面玩家列表 OCR 区域
+exclude_keywords = []  # 需过滤的非玩家名文本关键词（如称号前缀等），留空则仅按位置取第一个非空行

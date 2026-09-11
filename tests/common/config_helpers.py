@@ -27,7 +27,7 @@ def write_toml(directory: Path, relative_path: str, content: str):
 def make_test_config_dir() -> Path:
     """创建标准测试用临时 config 目录。
 
-    包含：base.toml、war3/war3.toml、war3/jiubing2/base.toml、
+    包含：base.toml、war3/war3.toml、war3/jiubing2/jiubing2.toml、
     两个英雄配置、两个任务配置、循环依赖文件。
     """
     tmp = Path(tempfile.mkdtemp(prefix="jiubing2_test_cfg_"))
@@ -37,6 +37,8 @@ def make_test_config_dir() -> Path:
         tmp,
         "base.toml",
         """
+name = "base"
+extends = []
 [paths]
 log_path = "logs"
 
@@ -50,9 +52,10 @@ version = "3.1233"
         tmp,
         "war3/war3.toml",
         """
-dependencies = ["base"]
+name = "war3"
+extends = ["base"]
 
-[war3]
+[this]
 window_class = "War3Class"
 window_title = "Warcraft III"
 client_size = [1902, 1033]
@@ -61,12 +64,13 @@ general_time = 0.3
 """,
     )
 
-    # war3/jiubing2/base.toml — 依赖 war3
+    # war3/jiubing2/jiubing2.toml — 依赖 war3
     write_toml(
         tmp,
-        "war3/jiubing2/base.toml",
+        "war3/jiubing2/jiubing2.toml",
         """
-dependencies = ["war3"]
+name = "war3.jiubing2"
+extends = ["war3"]
 
 [game]
 load_war3_time = 33
@@ -84,6 +88,8 @@ inventory = ["A", "B", "C"]
         tmp,
         "war3/jiubing2/heroes/mk.toml",
         """
+name = "war3.jiubing2.heroes.mk"
+extends = []
 [hero]
 inventory = ["D", "E", "F"]
 attack = 100
@@ -95,6 +101,8 @@ attack = 100
         tmp,
         "war3/jiubing2/heroes/lancer.toml",
         """
+name = "war3.jiubing2.heroes.lancer"
+extends = []
 [hero]
 inventory = ["G", "H", "I"]
 attack = 80
@@ -107,9 +115,10 @@ defense = 50
         tmp,
         "war3/jiubing2/tasks/others/fishing.toml",
         """
-dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
+name = "war3.jiubing2.tasks.others.fishing"
+extends = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
-[war3.jiubing2.tasks.others.fishing]
+[this]
 name = "钓鱼"
 task_times = 5
 loop_interval_time = 2.0
@@ -121,9 +130,10 @@ loop_interval_time = 2.0
         tmp,
         "war3/jiubing2/tasks/others/patrol_loot.toml",
         """
-dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]
+name = "war3.jiubing2.tasks.others.patrol_loot"
+extends = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]
 
-[war3.jiubing2.tasks.others.patrol_loot]
+[this]
 name = "巡逻拾取"
 task_times = 3
 patrol_rounds = 10
@@ -135,9 +145,10 @@ patrol_rounds = 10
         tmp,
         "war3/jiubing2/tasks/endless/endless_single.toml",
         """
-dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
+name = "war3.jiubing2.tasks.endless.endless_single"
+extends = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
-[war3.jiubing2.tasks.endless.endless_single]
+[this]
 name = "单局无尽"
 task_times = 1
 """,
@@ -148,7 +159,8 @@ task_times = 1
         tmp,
         "circular_a.toml",
         """
-dependencies = ["circular_b"]
+name = "circular_a"
+extends = ["circular_b"]
 [x]
 val = 1
 """,
@@ -157,7 +169,8 @@ val = 1
         tmp,
         "circular_b.toml",
         """
-dependencies = ["circular_a"]
+name = "circular_b"
+extends = ["circular_a"]
 [y]
 val = 2
 """,

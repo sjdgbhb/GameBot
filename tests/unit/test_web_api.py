@@ -155,13 +155,13 @@ class TestHeroExportEndpoint:
     def test_export_hero_success(self, web_client, monkeypatch):
         """正常导出英雄配置应返回 TOML 文本。"""
         monkeypatch.setattr(
-            services, "export_hero_config", lambda _: '[[hero.inventory]]\nslot = 0\nid = 1\nhotkey = "1"\n'
+            services, "export_hero_config", lambda _: "[hero]\ninventory = [\n  {slot = 0, item_id = 1},\n]\n"
         )
 
         resp = web_client.get("/api/hero_export/paladin")
         assert resp.status_code == 200
         assert "text/plain" in resp.headers.get("content-type", "")
-        assert "[[hero.inventory]]" in resp.text
+        assert "inventory = [" in resp.text
 
     def test_export_hero_invalid_id(self, web_client, monkeypatch):
         """非法英雄 ID 应返回 400。"""
@@ -202,7 +202,7 @@ class TestSaveHeroInventoryEndpoint:
             "/api/save_hero_inventory",
             json={
                 "hero_id": "paladin",
-                "inventory": [{"slot": 0, "id": 1, "hotkey": "1"}],
+                "inventory": [{"slot": 0, "item_id": 1}],
             },
         )
         assert resp.status_code == 200
@@ -395,7 +395,7 @@ class TestServicesHelpers:
         """_find_task_section 应深入嵌套命名空间找到含 name 的节点。"""
         from GameBot.web.api.services import _find_task_section
 
-        data = {"war3": {"jiubing2": {"tasks": {"others": {"fishing": {"name": "钓鱼"}}}}}}
+        data = {"this": {"name": "钓鱼"}}
         result = _find_task_section(data)
         assert result.get("name") == "钓鱼"
 

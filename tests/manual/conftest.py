@@ -1,6 +1,6 @@
 """手动测试公共钩子。
 
-仅在 .venv-dm 32 位 Python 3.8 环境中执行，依赖大漠插件 COM。
+在主环境 3.12 中执行（大漠经 dm_bridge 子进程调用），依赖大漠插件 COM。
 """
 
 import pytest

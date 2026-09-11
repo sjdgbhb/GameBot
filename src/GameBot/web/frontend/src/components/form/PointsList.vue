@@ -256,12 +256,13 @@ const useItemOptions = computed<{ value: number; label: string }[]>(() => {
   const seen = new Set<number>()
   const arr: { value: number; label: string }[] = []
   for (const slot of props.inventory!) {
-    if ((slot.id ?? -1) <= 0) continue
-    if (seen.has(slot.id)) continue
-    seen.add(slot.id)
-    const item = props.items?.find(it => it.id === slot.id)
-    const name = item ? item.name : `物品 ${slot.id}`
-    arr.push({ value: slot.id, label: name })
+    const itemId = slot.item_id != null ? slot.item_id : slot.id
+    if ((itemId ?? -1) <= 0) continue
+    if (seen.has(itemId)) continue
+    seen.add(itemId)
+    const item = props.items?.find(it => it.id === itemId)
+    const name = item ? item.name : `物品 ${itemId}`
+    arr.push({ value: itemId, label: name })
   }
   return sortByPinyin(arr, o => o.label)
 })

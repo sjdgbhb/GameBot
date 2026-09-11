@@ -212,31 +212,6 @@ class TestRunLoop(unittest.TestCase):
         # 2 次循环，只在第 1 次后 sleep（i < times 时才 sleep）
         self.assertEqual(task._interruptible_sleep.call_count, 1)
 
-    def test_run_loop_at_npc_flag(self):
-        """上一轮成功时 at_npc 应传 True 给下一轮。"""
-        task = self._make_task()
-        task._run_one_atomic = MagicMock(return_value=True)
-        task._interruptible_sleep = MagicMock()
-
-        task._run_loop(3, 0.01)
-        # 第 1 次 at_npc=False，第 2/3 次 at_npc=True
-        calls = task._run_one_atomic.call_args_list
-        self.assertFalse(calls[0].kwargs["at_npc"])
-        self.assertTrue(calls[1].kwargs["at_npc"])
-        self.assertTrue(calls[2].kwargs["at_npc"])
-
-    def test_run_loop_at_npc_resets_on_failure(self):
-        """上一轮失败时 at_npc 应传 False 给下一轮。"""
-        task = self._make_task()
-        task._run_one_atomic = MagicMock(side_effect=[True, False, True])
-        task._interruptible_sleep = MagicMock()
-
-        task._run_loop(3, 0.01)
-        calls = task._run_one_atomic.call_args_list
-        self.assertFalse(calls[0].kwargs["at_npc"])
-        self.assertTrue(calls[1].kwargs["at_npc"])  # 第 1 次成功
-        self.assertFalse(calls[2].kwargs["at_npc"])  # 第 2 次失败
-
 
 class TestReputationEffectiveTimes(unittest.TestCase):
     """测试 ReputationTask._effective_times 次数反推逻辑。"""

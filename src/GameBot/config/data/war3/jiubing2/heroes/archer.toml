@@ -1,23 +1,10 @@
 ############## 弓箭手 ##############
-dependencies = ["war3.jiubing2"]
+name = "war3.jiubing2.heroes.archer"
+extends = ["war3.jiubing2"]
 
 [hero]
 name = "弓箭手"
 floor_key = "P"
-
-# ------------------------------ 物品栏配置（背包1-6格） ------------------------------
-[[hero.inventory]]
-slot = 0
-id = 1
-hotkey = "1"
-
-[[hero.inventory]]
-slot = 1
-id = 1
-hotkey = "2"
-
-[[hero.inventory]]
-slot = 5
-id = 0
-hotkey = "6"
-
+mini_coords = [186,900]
+coords = [907,384]
+load_save = "-load1"

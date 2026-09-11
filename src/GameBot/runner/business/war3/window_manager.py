@@ -72,7 +72,8 @@ class WindowManagerMixin:
     def wait_for_game_window(self, stop_event=None, timeout: int = 60) -> int:
         """等待 War3 窗口出现（从 KK 启动后），返回 hwnd 或 None。
 
-        等待期间不重复截图，超时后保存一张当前屏幕截图供用户查看。
+        用 find_window 查找窗口是否存在，不要求 War3 是活动窗口
+        （多开时 War3 窗口可能不是前台窗口）。
 
         :param stop_event: 停止事件，设置时中断等待
         :param timeout: 最大等待时间（秒）
@@ -82,13 +83,12 @@ class WindowManagerMixin:
         while time.time() - start < timeout:
             if stop_event is not None and stop_event.is_set():
                 return None
-            hwnd = self.dm.get_active_window(
+            hwnd = self.dm.find_window(
                 self.war3_cfg.get("window_class", ""),
                 self.war3_cfg.get("window_title", ""),
-                capture=False,
             )
             if hwnd:
-                logger.info("已找到 War3 窗口")
+                logger.info(f"已找到 War3 窗口: hwnd={hwnd}")
                 return hwnd
             time.sleep(0.5)
         logger.warning(f"等待 War3 窗口超时（{timeout}s），已保存截图")
@@ -145,24 +145,142 @@ class WindowManagerMixin:
         return index > -1
 
     def quit_game(self):
-        """退出游戏回到房间（Alt+F4 或菜单退出）"""
-        # 简单实现：按 F10 -> E -> Q
+        """退出游戏回到房间，发送 F10/E/Q 后检测结算页面。
+
+        调用方需确保已在 bind_window 上下文内绑定 War3 窗口。
+        """
         logger.info("退出游戏")
         small_window_response_time = self.war3_cfg["small_window_response_time"]
-        self.dm.key_press_char("F10")
-        time.sleep(small_window_response_time)
-        self.dm.key_press_char("E")
-        time.sleep(small_window_response_time)
-        self.dm.key_press_char("Q")
         quit_war3_time = self.war3_cfg["quit_war3_time"]
-        time.sleep(quit_war3_time)
-        # 判断是否出现结尾资源统计画面，如果出现则需关闭该画面
-        index, x, y = self.dm.find_pic(
-            *self.war3_cfg["end_statistics_area_coords"],
-            self.war3_cfg["end_statistics_img"],
-            self.war3_cfg["end_statistics_sim"],
-            self.war3_cfg["end_statistics_delta_color"],
+        try:
+            self.dm.key_press_char("F10")
+            time.sleep(small_window_response_time)
+            self.dm.key_press_char("E")
+            time.sleep(small_window_response_time)
+            self.dm.key_press_char("Q")
+            time.sleep(quit_war3_time)
+            # 检测结算页面（仍然是 war3 窗口，无需重新绑定）
+            try:
+                index, x, y = self.dm.find_pic(
+                    *self.war3_cfg["end_statistics_area_coords"],
+                    self.war3_cfg["end_statistics_img"],
+                    self.war3_cfg["end_statistics_sim"],
+                    self.war3_cfg["end_statistics_delta_color"],
+                )
+                if index > -1:
+                    logger.info("检测到结算页面，按回车确认")
+                    self.dm.key_press_char("enter")
+                    time.sleep(quit_war3_time)
+                else:
+                    logger.info("未检测到结算页面，已回到 KK 房间")
+            except Exception as e:
+                logger.warning(f"结算页面检测失败：{e}")
+        except Exception as e:
+            logger.warning(f"退出游戏流程异常：{e}")
+
+    def identify_war3_owner(self, hwnd: int, known_players: list = None) -> str:
+        """通过 War3 加载页面玩家列表 OCR 识别窗口归属玩家。
+
+        仅在游戏加载页面有效，其他时机 OCR 区域无玩家列表。
+        调用时机：wait_for_game_window 返回 hwnd 后、wait_enter_game 之前。
+
+        OCR 结果按行(y)再列(x)排序，排除含 exclude_keywords 的文本行，
+        第一个非空且未被过滤的行即为最前面的玩家名。
+
+        多开时 OCR 可能把相邻的多个玩家名识别为一行文本（如"善木木岁月神偷"），
+        此时用 known_players 子串匹配拆分，取位置最靠前（x_center 最小）的玩家名。
+
+        :param hwnd: War3 窗口句柄
+        :param known_players: 已知玩家名列表，用于拆分 OCR 拼接的文本
+        :return: 排在最前面的玩家用户名，识别失败返回空字符串
+        """
+        multi_cfg = self.war3_cfg.get("multi_instance", {})
+        loading_cfg = multi_cfg.get("loading_page", {})
+        exclude_keywords = loading_cfg.get("exclude_keywords", [])
+
+        lines = self.ocr_lines(self.dm, hwnd, loading_cfg, bind_cfg=self.war3_cfg.get("bind", {}))
+        # 按 (y_center, x_center) 排序：先按行排列，再按列排列
+        sorted_lines = sorted(lines, key=lambda l: (l.get("y_center", 0), l.get("x_center", 0)))
+        for line in sorted_lines:
+            text = line.get("text", "").strip()
+            if not text:
+                continue
+            # 排除含关键词的非玩家名文本（称号等）
+            if any(kw in text for kw in exclude_keywords):
+                logger.debug(f"War3 加载页面排除非玩家名文本：{text}")
+                continue
+            # 如果提供了已知玩家名列表，尝试从拼接文本中拆分出玩家名
+            if known_players:
+                matched = []
+                for player in known_players:
+                    if player and player in text:
+                        matched.append(player)
+                if matched:
+                    # 取在文本中最先出现的玩家名（位置最靠前）
+                    matched.sort(key=lambda p: text.index(p))
+                    owner = matched[0]
+                    logger.info(f"War3 窗口 {hwnd} 归属玩家：{owner}（OCR 原文：{text}）")
+                    return owner
+            logger.info(f"War3 窗口 {hwnd} 归属玩家：{text}")
+            return text
+        return ""
+
+    def find_target_war3_hwnd(self, target_player: str = "", known_players: list = None) -> int:
+        """查找目标 War3 窗口（支持多开识别）。
+
+        单开时直接返回唯一窗口；多开时通过 OCR 识别窗口归属玩家，
+        返回匹配 target_player 的窗口。
+
+        :param target_player: 目标玩家 ID，为空时返回第一个窗口
+        :param known_players: 已知玩家名列表，用于拆分 OCR 拼接的文本
+        :return: War3 窗口句柄，未找到返回 0
+        """
+        wins = self.dm.find_windows(
+            self.war3_cfg.get("window_class", ""),
+            self.war3_cfg.get("window_title", ""),
         )
-        if index > -1:
-            self.dm.key_press_char("enter")
-        time.sleep(quit_war3_time)
+        if len(wins) == 1:
+            return wins[0]["hwnd"]
+        if len(wins) > 1:
+            if not target_player:
+                logger.error("检测到多开 War3 但未配置 target_player，无法识别目标窗口")
+                return 0
+            for w in wins:
+                hwnd = w["hwnd"]
+                owner = self.identify_war3_owner(hwnd, known_players=known_players)
+                if owner == target_player:
+                    return hwnd
+            logger.error(f"未找到归属玩家 {target_player} 的 War3 窗口")
+            return 0
+        return 0
+
+    def bind_war3_window(
+        self, target_player: str = "", stop_event=None, timeout: int = 60, known_players: list = None
+    ) -> int:
+        """等待 War3 窗口出现并绑定准备（多开时验证归属），返回窗口句柄。
+
+        封装了 wait_for_game_window → 多开验证 → set_client_size 的完整流程，
+        供组队任务和单局任务复用。调用方拿到 hwnd 后自行 bind_window 执行后续操作。
+
+        :param target_player: 目标玩家 ID，多开时用于窗口归属验证
+        :param stop_event: 停止事件
+        :param timeout: 等待 War3 窗口超时秒数
+        :param known_players: 已知玩家名列表，用于拆分 OCR 拼接的文本
+        :return: War3 窗口句柄，失败返回 0
+        """
+        hwnd = self.wait_for_game_window(stop_event, timeout=timeout)
+        if not hwnd:
+            return 0
+        # 多开时验证窗口归属
+        if target_player:
+            owner = self.identify_war3_owner(hwnd, known_players=known_players)
+            if owner != target_player:
+                logger.warning(f"War3 窗口归属 {owner} 与目标 {target_player} 不匹配，尝试查找目标窗口")
+                target_hwnd = self.find_target_war3_hwnd(target_player, known_players=known_players)
+                if target_hwnd:
+                    hwnd = target_hwnd
+                else:
+                    logger.error(f"未找到归属 {target_player} 的 War3 窗口")
+                    return 0
+        self.set_client_size(hwnd)
+        return hwnd

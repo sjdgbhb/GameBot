@@ -1,5 +1,6 @@
 ############## 火枪 ##############
-dependencies = ["war3.jiubing2"]
+name = "war3.jiubing2.heroes.musketeer"
+extends = ["war3.jiubing2"]
 
 
 [hero]

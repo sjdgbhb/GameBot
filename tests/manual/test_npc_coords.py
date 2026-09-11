@@ -1,13 +1,13 @@
 """
 测试 NPC 坐标准确性：点击小地图 → 鼠标移动到 coords → 观察是否到达目标位置。
-用法：.venv-dm/Scripts/python.exe tests/test_npc_coords.py
+用法：uv run python tests/test_npc_coords.py
 """
 
 import time
 
 from GameBot.config import config
-from GameBot.runner import DmClient
 from GameBot.runner.business.war3 import War3Business
+from GameBot.runner.driver import create_dm_client
 
 
 def main():
@@ -20,11 +20,11 @@ def main():
     time.sleep(3)
 
     cfg = config.load_task("war3.jiubing2.scenes.kami_village")
-    # 合并 war3 配置（load_task 会自动展开 dependencies，kami_village 依赖 jiubing2 → war3 → base）
+    # 合并 war3 配置（load_task 会自动展开 extends，kami_village 继承 jiubing2 → war3 → base）
     if "war3" not in cfg:
         war3_cfg = config.load_task("war3")
         cfg.update(war3_cfg)
-    dm = DmClient()
+    dm = create_dm_client()
     war3_cfg = cfg.get("war3", {})
     war3 = War3Business(dm, war3_cfg)
 

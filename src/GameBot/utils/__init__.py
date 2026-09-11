@@ -7,6 +7,7 @@ from .exception_handler import (
     TaskTimeoutError,
     WindowLostError,
     retry,
+    safe_call,
     setup_global_exception_hook,
 )
 from .logger import get_logger, logger, setup_log_file
@@ -25,5 +26,6 @@ __all__ = [
     "StopTaskError",
     "WindowLostError",
     "retry",
+    "safe_call",
     "setup_global_exception_hook",
 ]

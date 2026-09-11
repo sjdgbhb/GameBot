@@ -1,4 +1,4 @@
-﻿"""
+"""
 自动采集战斗状态训练样本
 
 利用帧差法 + 红色像素过滤自动标注：
@@ -6,23 +6,23 @@
 - 帧差法无闪烁 → 保存到 data/non_combat/
 
 使用方法：
-  .venv-dm/Scripts/python.exe scripts/collect_combat_samples.py --hero hxd
-  .venv-dm/Scripts/python.exe scripts/collect_combat_samples.py --hero hxd --interval 2 --max 100
+  uv run python scripts/collect_combat_samples.py --hero hxd
+  uv run python scripts/collect_combat_samples.py --hero hxd --interval 2 --max 100
 
 切换英雄后重新运行，指定 --hero 参数即可。
 按 Ctrl+C 停止。
 """
-import os
-import sys
-import time
+
 import argparse
+import os
 import tempfile
+import time
 
 from PIL import Image
 
-from GameBot.utils import logger
 from GameBot.config import config
-from GameBot.runner import DmClient
+from GameBot.runner.driver import create_dm_client
+from GameBot.utils import logger
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "combat_samples")
 
@@ -34,7 +34,7 @@ def main():
     parser.add_argument("--interval", type=float, default=1.0, help="采集间隔秒数（默认1.0）")
     args = parser.parse_args()
 
-    logger.info(f"===== 战斗样本自动采集 =====")
+    logger.info("===== 战斗样本自动采集 =====")
     logger.info(f"英雄: {args.hero}, 每类上限: {args.max}, 采集间隔: {args.interval}s")
     logger.info(f"数据目录: {DATA_DIR}")
     time.sleep(5)
@@ -58,10 +58,8 @@ def main():
     non_combat_count = len([f for f in os.listdir(non_combat_dir) if f.endswith(".bmp")])
     logger.info(f"已有样本: combat={combat_count}, non_combat={non_combat_count}")
 
-    dm = DmClient()
-    hwnd = dm.get_active_window(
-        war3_cfg["window_class"], war3_cfg["window_title"]
-    )
+    dm = create_dm_client()
+    hwnd = dm.get_active_window(war3_cfg["window_class"], war3_cfg["window_title"])
     if not hwnd:
         logger.error("未找到 war3 窗口")
         return
@@ -78,9 +76,7 @@ def main():
 
         try:
             while combat_count < args.max or non_combat_count < args.max:
-                imgs, max_changed = _capture_frames(
-                    dm, area, tmp_bmp, frame_count, frame_interval, diff_threshold
-                )
+                imgs, max_changed = _capture_frames(dm, area, tmp_bmp, frame_count, frame_interval, diff_threshold)
 
                 if imgs is None:
                     time.sleep(args.interval)
@@ -114,9 +110,7 @@ def main():
                     )
                 else:
                     red_count = _count_red_pixels(imgs[-1])
-                    logger.debug(
-                        f"跳过 | 闪烁={is_blinking} 变化像素={max_changed} 红色像素={red_count}"
-                    )
+                    logger.debug(f"跳过 | 闪烁={is_blinking} 变化像素={max_changed} 红色像素={red_count}")
 
                 time.sleep(args.interval)
         except KeyboardInterrupt:
@@ -153,9 +147,11 @@ def _capture_frames(dm, area, tmp_bmp, frame_count, frame_interval, diff_thresho
     for i in range(1, len(pixel_data)):
         changed = 0
         for px1, px2 in zip(pixel_data[i - 1], pixel_data[i]):
-            if abs(px1[0] - px2[0]) > diff_threshold or \
-               abs(px1[1] - px2[1]) > diff_threshold or \
-               abs(px1[2] - px2[2]) > diff_threshold:
+            if (
+                abs(px1[0] - px2[0]) > diff_threshold
+                or abs(px1[1] - px2[1]) > diff_threshold
+                or abs(px1[2] - px2[2]) > diff_threshold
+            ):
                 changed += 1
         if changed > max_changed:
             max_changed = changed

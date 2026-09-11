@@ -73,6 +73,18 @@ def setup_log_file(script_name: str):
         logger.remove(sink_id)
     _default_file_sinks = []
 
+    # 清理可能已创建的空全局日志文件
+    import datetime as _dt
+
+    _today = _dt.date.today().strftime("%Y-%m-%d")
+    for _name in (f"{_today}.log", f"error_{_today}.log"):
+        _f = log_dir / _name
+        if _f.exists() and _f.stat().st_size == 0:
+            try:
+                _f.unlink()
+            except OSError:
+                pass
+
     # 按脚本名命名日志文件
     logger.add(
         log_dir / f"{{time:YYYY-MM-DD}}_{script_name}.log",

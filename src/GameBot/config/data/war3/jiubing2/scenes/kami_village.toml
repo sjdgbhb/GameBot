@@ -3,11 +3,12 @@
 # 供卡米村相关任务（毒蛇、蛇蛋、小炎蛇等）共享使用
 # 依赖 jiubing2 以获取 skill_panel 坐标计算公式
 # =============================================================================
-dependencies = ["war3.jiubing2"]
+name = "war3.jiubing2.scenes.kami_village"
+extends = ["war3.jiubing2"]
 
 # -------------------------------- 村民杰菲特 ----------------------------------
 # 发布"毒蛇"、"蛇蛋"、"小炎蛇（LV4）"等日常任务的 NPC
-[war3.jiubing2.scenes.kami_village.npcs.jephite]
+[this.npcs.jephite]
 desc = "村民杰菲特"
 mini_coords = [332,845]        # 小地图坐标
 coords = [1146,245]             # npc 坐标

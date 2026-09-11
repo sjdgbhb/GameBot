@@ -455,17 +455,20 @@ class TestKKBusiness(unittest.TestCase):
             }
         return KKBusiness(dm, kk_cfg)
 
+    def _dialog_window(self, hwnd=12345, size=(0, 0, 440, 260)):
+        return {"hwnd": hwnd, "title": "KKTitle", "class": "DialogClass", "rect": size}
+
     def test_no_window_found(self):
         """未找到窗口时应返回 False。"""
         kk = self._make_kk()
-        kk.dm.find_window.return_value = 0
+        kk.dm.find_windows.return_value = []
         result = kk.handle_disconnect_dialog(kk.dm)
         self.assertFalse(result)
 
     def test_window_size_matches_dialog(self):
         """窗口尺寸匹配弹窗尺寸时应处理并返回 True。"""
         kk = self._make_kk()
-        kk.dm.find_window.return_value = 12345
+        kk.dm.find_windows.return_value = [self._dialog_window()]
         kk.dm.get_client_rect.return_value = (0, 0, 440, 260)
 
         result = kk.handle_disconnect_dialog(kk.dm)
@@ -477,7 +480,7 @@ class TestKKBusiness(unittest.TestCase):
     def test_window_size_does_not_match(self):
         """窗口尺寸不匹配时应返回 False。"""
         kk = self._make_kk()
-        kk.dm.find_window.return_value = 12345
+        kk.dm.find_windows.return_value = [self._dialog_window()]
         kk.dm.get_client_rect.return_value = (0, 0, 1328, 945)  # 主窗口尺寸
 
         result = kk.handle_disconnect_dialog(kk.dm)
@@ -487,7 +490,7 @@ class TestKKBusiness(unittest.TestCase):
     def test_get_client_rect_exception_returns_false(self):
         """get_client_rect 抛异常时应返回 False。"""
         kk = self._make_kk()
-        kk.dm.find_window.return_value = 12345
+        kk.dm.find_windows.return_value = [self._dialog_window()]
         kk.dm.get_client_rect.side_effect = Exception("COM error")
 
         result = kk.handle_disconnect_dialog(kk.dm)
@@ -501,7 +504,7 @@ class TestKKBusiness(unittest.TestCase):
             "create_room_window_class": "DialogClass",
         }
         kk = self._make_kk(kk_cfg)
-        kk.dm.find_window.return_value = 12345
+        kk.dm.find_windows.return_value = [self._dialog_window()]
         kk.dm.get_client_rect.return_value = (0, 0, 440, 260)
 
         result = kk.handle_disconnect_dialog(kk.dm)
@@ -516,7 +519,7 @@ class TestKKBusiness(unittest.TestCase):
             "disconnect_dialog": {"window_size": [440, 260]},
         }
         kk = self._make_kk(kk_cfg)
-        kk.dm.find_window.return_value = 12345
+        kk.dm.find_windows.return_value = [self._dialog_window()]
         kk.dm.get_client_rect.return_value = (0, 0, 440, 260)
 
         kk.handle_disconnect_dialog(kk.dm)

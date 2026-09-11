@@ -3,13 +3,20 @@
 # endless.py  创建好密码房即可运行
 # endless_single.py  英雄在3点石笋位置即可运行
 # =============================================================================
-# dependencies 负责把依赖的 TOML 加载到 cfg 树中，代码负责从各命名空间分别取值
-dependencies = ["war3.jiubing2.tasks.endless.endless_single", "kk", "war3.jiubing2.heroes.hxd", "war3.jiubing2.scenes.menethil", "war3.jiubing2.scenes.palace"]   # heroes.hxd 传递依赖 jiubing2
+# extends 负责把依赖的 TOML 加载到 cfg 树中，代码负责从各命名空间分别取值
+name = "war3.jiubing2.tasks.endless.endless"
+extends = [
+    "war3.jiubing2.tasks.endless.endless_single",
+    "kk",
+    "war3.jiubing2.scenes.menethil",
+    "war3.jiubing2.scenes.palace"
+]   # heroes.hxd 传递依赖 jiubing2
 
-[war3.jiubing2.tasks.endless.endless]
+[this]
 name = "多局无尽"
-games = 10
+games = 8
 wait_time = 180  # 重置 cd 等待时间（秒）
+target_player = ""  # 多开时目标玩家 ID，单开留空
 
 # 圣痕
 [hero.stigmata]
@@ -22,7 +29,7 @@ is_open = true  # 是否装备卡牌
 use_index = [
     [1, 1],
     [1, 2],
-#    [2, 2],
+    [2, 2],
     [5, 2],
     [5, 5],
     [4, 5],
@@ -34,10 +41,21 @@ is_open = true  # 是否装备神碎
 is_resonance = true  # 是否激活神碎共鸣
 is_absorb = true  # 是否吸收覆盖神碎
 max_pages = 3  # 神碎最大可用页数
+
+# 小号
+# use_index = [
+#     [1, 1],
+#     [1, 2],
+#     [1, 3],
+#     [2, 4]
+# ]  # 示例：[1, 2] 即第1页第2行
+# absorb_index = [2, 3]  # 在第几页第几行吸收神碎，会自动覆盖当前位置神碎，务必慎重！！！
+
+# 大号
 use_index = [
-    [1, 2],
-    [1, 3],
-    [2, 2],
-    [2, 3]
+   [1, 2],
+   [1, 3],
+   [1, 4],
+   [3, 1]
 ]  # 示例：[1, 2] 即第1页第2行
-absorb_index = [1, 1]  # 在第几页第几行吸收神碎，会自动覆盖当前位置神碎
+absorb_index = [1, 1]  # 在第几页第几行吸收神碎，会自动覆盖当前位置神碎，务必慎重！！！

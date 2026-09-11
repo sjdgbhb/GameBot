@@ -1,14 +1,13 @@
 """推理子包 — 统一管理 AI 推理相关模块。
 
 子模块：
-- client.py          — 推理子进程客户端（主进程调用）
-- worker.py          — 64 位推理子进程（OCR / 目标检测 / 分类）
-- chest_detector.py  — 宝箱检测（YOLOv8）
-- combat_detector.py — 战斗状态分类
-- ocr_compat.py      — OCR 兼容层（get_ocr_client 转发）
+- model_loader.py — ONNX 模型加载与全局缓存
+- local.py        — 进程内推理客户端（唯一实现）
+- client.py       — 单例工厂 get_inference_client()
+- worker.py       — 推理子进程 worker（exe 打包用）
 """
 
-from .client import InferenceClient, get_inference_client
-from .ocr_compat import get_ocr_client
+from .client import get_inference_client
+from .local import LocalInferenceClient
 
-__all__ = ["InferenceClient", "get_inference_client", "get_ocr_client"]
+__all__ = ["LocalInferenceClient", "get_inference_client"]

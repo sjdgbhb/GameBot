@@ -1,39 +1,21 @@
 ############## 枪斗 ##############
-dependencies = ["war3.jiubing2"]
+name = "war3.jiubing2.heroes.lancer"
+extends = ["war3.jiubing2"]
 
 
 [hero]
 name = "枪斗"
 floor_key = "P"
-
 # ------------------------------ 物品栏配置（背包1-6格） ------------------------------
-[[hero.inventory]]
-slot = 0
-id = 1
-hotkey = "1"
-
-[[hero.inventory]]
-slot = 1
-id = 1
-hotkey = "2"
-
-[[hero.inventory]]
-slot = 2
-id = 4
-hotkey = "3"
-
-[[hero.inventory]]
-slot = 3
-id = 1
-hotkey = "4"
-
-[[hero.inventory]]
-slot = 4
-id = 9
-hotkey = "5"
-
-[[hero.inventory]]
-slot = 5
-id = 0
-hotkey = "6"
+# slot: 格子编号 0~5 对应第 1~6 格
+# item: 物品名（映射表在 jiubing2.toml 的 items 中），也可用 item_id = 数字
+# 快捷键从 kk.toml 的 inventory_slots 查找
+inventory = [
+  {slot = 0, item = "血瓶"},
+  {slot = 1, item = "血瓶"},
+  {slot = 2, item = "米奈希尔传送卷轴"},
+  {slot = 3, item = "血瓶"},
+  {slot = 4, item = "宠物食物"},
+  {slot = 5, item = "拾取"},
+]
 

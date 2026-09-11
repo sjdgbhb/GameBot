@@ -8,6 +8,12 @@ import time
 from GameBot.utils import logger
 
 
+class BossDeathTimeoutError(Exception):
+    """BOSS 死亡提示检测超时"""
+
+    pass
+
+
 class EndlessRunner:
     """无尽副本流程编排器。
 
@@ -48,15 +54,17 @@ class EndlessRunner:
         """
         self._war3.wait_enter_game(task, stop_event)
 
-    def do_preparation_phase(self, task_cfg: dict = None, stop_event=None):
+    def do_preparation_phase(self, task_cfg: dict = None, stop_event=None, skip_select_difficulty: bool = False):
         """完整准备阶段。
 
         顺序：选难度 → 等游戏初始化 → 选英雄 → 读档 → 圣痕 → 卡牌 → 神碎 → 学技能。
 
         :param task_cfg: 任务配置（含 difficulty 字段，传给 select_difficulty）
         :param stop_event: 停止事件，设置时中断等待
+        :param skip_select_difficulty: 是否跳过选难度（组队时由队长单独选）
         """
-        self._ui.select_difficulty(task_cfg)
+        if not skip_select_difficulty:
+            self._ui.select_difficulty(task_cfg)
         logger.info(f"初始化...（等待 {self.game_cfg['init_game_time']}s）")
         self._war3.interruptible_wait(self.game_cfg["init_game_time"], stop_event)
         self._ui.select_hero()
@@ -121,6 +129,8 @@ class EndlessRunner:
                 progress_callback(f"第 {game_idx}/{total_games} 局 - 楼层 {floor}/{max_level}")
             else:
                 progress_callback(f"楼层 {floor}/{max_level}")
+            # 启动后台 OCR 监测，在路径遍历期间持续检测 BOSS 死亡提示
+            boss_death_event = self._start_boss_death_watcher(endless_cfg)
             feed_timer = time.time()  # 记录喂食时间
             for idx, pt in enumerate(path_points):
                 # 每隔一定时间喂一次宠物
@@ -136,34 +146,64 @@ class EndlessRunner:
                 logger.info(f"任务进度：局数：{game_idx} / {total_games} - 层数：{floor} / {max_level}")
             else:
                 logger.info(f"任务进度：层数：{floor} / {max_level}")
-            # 记录 BOSS 死亡时间（所有层）
-            self._wait_boss_dead(task, endless_cfg)
+            # 检查后台监测结果，未检测到则回退到前台轮询
+            self._wait_boss_dead(task, endless_cfg, boss_death_event)
             # 等待本层刷新计时器结束（非最后一层）
             if floor < max_level:
                 remaining = endless_cfg["refresh_timer"] - (time.time() - task.boss_death_time)
                 if remaining > 0:
                     self._war3.interruptible_wait(remaining, stop_event)
 
-    def _wait_boss_dead(self, task, endless_cfg: dict):
-        """等待 BOSS 死亡（OCR 检测屏幕提示），记录 boss_death_time。
+    def _start_boss_death_watcher(self, endless_cfg: dict):
+        """启动后台 OCR 监测线程，在路径遍历期间持续检测 BOSS 死亡提示。
 
-        BOSS 死亡后游戏会提示"开始挑战下一层"，通过 OCR 检测该提示
-        精确获取 BOSS 死亡时刻，替代原来 time.time()+5 的粗糙估算。
-        超时未检测到则用当前时间兜底。
+        BOSS 在路径中途被击杀后，"开始挑战"提示会向上滚动，等走完所有点位
+        再检测时文本可能已滚出 OCR 区域。后台线程在遍历期间持续监测，避免遗漏。
+
+        :return: threading.Event，检测到文本时被 set；无 prompt_text 配置时返回 None
+        """
+        if not self._prompt_text_cfg:
+            return None
+        boss_death_text = endless_cfg.get("boss_death_text", "开始挑战")
+        return self._war3.start_text_watcher(self._prompt_text_cfg, boss_death_text, interval=1.0)
+
+    def _wait_boss_dead(self, task, endless_cfg: dict, boss_death_event=None):
+        """等待 BOSS 死亡（后台 OCR 监测），记录 boss_death_time。
+
+        后台监测线程在路径遍历期间持续检测，走完路径后检查结果。
+        未检测到则等待额外超时时间（处理 BOSS 在最后点位才被击杀的情况），
+        超时未检测到则保存截图并抛出 BossDeathTimeoutError。
 
         :param task: 任务对象（需有 boss_death_time 属性）
         :param endless_cfg: 无尽配置（boss_death_text / boss_death_timeout）
+        :param boss_death_event: 后台监测线程返回的 Event（可选）
+        :raises BossDeathTimeoutError: BOSS 死亡提示检测超时
         """
-        boss_death_text = endless_cfg.get("boss_death_text", "开始挑战")
         timeout = endless_cfg.get("boss_death_timeout", 60)
         stop_event = getattr(task, "_stop_event", None)
-        if self._prompt_text_cfg:
-            logger.info(f"等待 BOSS 死亡提示：{boss_death_text}")
-            if self._war3.wait_for_text(self._prompt_text_cfg, boss_death_text, timeout=timeout, stop_event=stop_event):
+        if self._prompt_text_cfg and boss_death_event is not None:
+            # 后台已检测到 → 直接记录
+            if boss_death_event.is_set():
+                self._war3.stop_text_watcher(boss_death_event)
                 task.boss_death_time = time.time()
-                logger.info("检测到 BOSS 死亡提示")
+                logger.info("检测到 BOSS 死亡")
                 return
-            logger.warning("等待 BOSS 死亡提示超时，使用当前时间兜底")
+            # 后台未检测到 → 额外等待超时时间（BOSS 可能在最后点位才被击杀）
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                if stop_event is not None and stop_event.is_set():
+                    break
+                if boss_death_event.wait(timeout=1.0):
+                    break
+            detected = boss_death_event.is_set()
+            self._war3.stop_text_watcher(boss_death_event)
+            if detected:
+                task.boss_death_time = time.time()
+                logger.info("检测到 BOSS 死亡")
+                return
+            logger.warning("等待 BOSS 死亡超时，保存截图")
+            self.dm.save_screenshot(label="boss_death_timeout", force=True)
+            raise BossDeathTimeoutError("BOSS 死亡提示超时")
         task.boss_death_time = time.time()
 
     def _navigate_to_point(self, pt: dict, stop_event=None):

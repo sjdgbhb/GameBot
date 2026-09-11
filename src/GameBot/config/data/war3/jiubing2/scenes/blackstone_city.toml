@@ -3,11 +3,12 @@
 # 供黑石城相关任务（声望、城门骚扰等）共享使用
 # 依赖 jiubing2 以获取 skill_panel 坐标计算公式
 # =============================================================================
-dependencies = ["war3.jiubing2"]
+name = "war3.jiubing2.scenes.blackstone_city"
+extends = ["war3.jiubing2"]
 
 # -------------------------------- 黑石城守卫队长 --------------------------------
 # 发布"城门骚扰"等日常任务的 NPC
-[war3.jiubing2.scenes.blackstone_city.npcs.guard_captain]
+[this.npcs.guard_captain]
 desc = "黑石城守卫队长"
 mini_coords = [254,867]  # 小地图坐标
 coords = [1018,369]  # npc坐标
@@ -19,7 +20,7 @@ harassment_grid = [1, 1]  # 技能面板中「城门骚扰」任务的格子 [�
 
 # -------------------------------- 圣痕升级npc --------------------------------
 # 圣痕升级npc
-[war3.jiubing2.scenes.blackstone_city.npcs.stigmata]
+[this.npcs.stigmata]
 desc = "圣痕npc"
 mini_coords = [209,887]  # 小地图坐标
 coords = [1096,339]  # npc坐标
@@ -30,10 +31,10 @@ time = 5
 # 第1页：上位=第1行、核心=第2行、中位=第3行；翻到第2页后：下位=第1行
 # 列号 = 词条索引(idx, 0-based) + 1；翻页按钮固定在 [行, 列] = flip_grid
 # 选中圣痕npc后翻页重置为第1页，故下位每次都需重新点一次翻页
-[war3.jiubing2.scenes.blackstone_city.npcs.stigmata.board]
+[this.npcs.stigmata.board]
 flip_grid = [3, 4]  # 翻页按钮 [行, 列]（1-based）
 
-[war3.jiubing2.scenes.blackstone_city.npcs.stigmata.board.layout]
+[this.npcs.stigmata.board.layout]
 upper = [1, 1]   # [页, 行]
 core = [1, 2]
 middle = [1, 3]

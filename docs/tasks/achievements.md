@@ -5,7 +5,7 @@
 - **类名**：`PersonalAchievementTask`
 - **源码**：`src/GameBot/runner/tasks/achievements/personal.py`
 - **配置**：`config/data/tasks/achievements/personal.toml`
-- **运行命令**：`.venv-dm/Scripts/python.exe -m GameBot.runner.tasks.achievements.personal`
+- **运行命令**：`uv run python -m GameBot.runner.tasks.achievements.personal`
 - **依赖**：`tasks.atomic.venomous_snake` + `tasks.atomic.snake_egg` + `tasks.atomic.little_flame_snake` + `heroes.hxd`
 - **继承**：`MultiAtomicLoopTask`
 

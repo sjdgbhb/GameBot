@@ -7,10 +7,12 @@ def __getattr__(name):
         "EndlessTask",
         "EndlessSingleTask",
         "PatrolLootTask",
+        "PaladinWindDragonTask",
         "UpgradeStigmataTask",
         "DailyReputationTask",
         "BlackstoneReputationTask",
         "ForestReputationTask",
+        "IngameSpecialTask",
     ):
         from GameBot.runner.tasks.war3 import jiubing2
 
@@ -23,8 +25,10 @@ __all__ = [
     "EndlessTask",
     "EndlessSingleTask",
     "PatrolLootTask",
+    "PaladinWindDragonTask",
     "UpgradeStigmataTask",
     "DailyReputationTask",
     "BlackstoneReputationTask",
     "ForestReputationTask",
+    "IngameSpecialTask",
 ]

@@ -1,0 +1,117 @@
+# =============================================================================
+# 组队任务配置 — 队长+队员多开协作框架
+# 通用框架，不绑定特定游戏（War3/Y3 等）
+# 每个成员通过 steps 编排自己的任务流程
+# =============================================================================
+name = "team.team_task"
+extends = ["kk", "war3.jiubing2"]  # 仅提供团队共享配置（KK 窗口、地图名等）
+
+[this]
+name = "组队任务"
+game = "war3.jiubing2"  # 游戏标识，任务模块和配置路径由此推导
+rounds = 1  # 总局数，0=无限循环
+
+# 绑定模式：foreground（前台）/ background（后台）
+# foreground：用 [xx.bind]，适合单开调试
+# background：用 [xx.bind_multi]，适合多开或需要后台操作的场合
+# 注意：多成员组队（成员数 > 1）强制 background，忽略此配置
+bind_mode = "foreground"
+
+# ── IPC 配置 ──
+[this.ipc]
+poll_interval = 0.5           # 队员轮询房间信息间隔（秒）
+ipc_dir = "logs/team_ipc"     # IPC 文件目录（相对项目根）
+ready_timeout = 120           # 等待队员准备超时（秒）
+room_info_wait_timeout = 120  # 队员等待队长广播 room_info 超时（秒）
+join_retry_max = 3            # 队员入房失败重试次数
+join_retry_interval = 5       # 入房重试间隔（秒）
+
+# ── 同步配置 ──
+[this.sync]
+safe_stop_threshold = 3       # 连续失败停止阈值
+progress_report_interval = 2  # 各成员进度上报间隔（秒）
+sync_source = "善木木"         # 同步源 target_player（默认队长为同步源）
+max_restart = 3               # 关键进程最大重启次数，超限则停止全部
+in_game_wait_timeout = 60     # 队长等待所有队员进入游戏超时（秒）
+
+# ── 队伍成员 ──
+# role: leader（队长）/ follower（队员），队长由 role 字段判断
+# target_player: War3 窗口归属玩家 ID（多开时用于窗口匹配），禁止重复
+# hero: 英雄配置名（对应 war3.jiubing2.heroes.英雄名），同一局中各成员必须选择不同英雄
+# steps: 任务阶段编排列表，按序执行，每项可以是：
+#   "preparation"                   — 准备阶段（如英雄选择、学习技能等）
+#   "task_name.xx"               — 去任务的初始位置（如 "others.fishing.position_init"）
+#   "task_name"                     — 任务（如 "others.fishing"）
+#   "pre_exit"                    — 退出前需要做的动作（如刷装备需要存档，这个需要仔细配置，避免出问题）
+
+# a 玩家
+[[this.members]]
+role = "leader"  # 房主
+target_player = "善木木"  # 玩家用户名
+hero = "hxd"  # 英雄：异界之人（请确保所选英雄配置含 floor_key/coords 等必要字段）
+# 物品栏格子快捷键（组队模式下最高优先级），与kk平台一致
+# slot：格子编号 0~5 对应第 1~6 格
+# hotkey：快捷键
+inventory_slots = [
+  {slot = 0, hotkey = "1"},
+  {slot = 1, hotkey = "2"},
+  {slot = 2, hotkey = "3"},
+  {slot = 3, hotkey = "4"},
+  {slot = 4, hotkey = "5"},
+  {slot = 5, hotkey = "6"},
+]
+# 装备（组队模式下最高优先级），根据自己的任务所需装备来配置
+# slot：格子编号 0~5 对应第 1~6 格
+# item：物品名（映射表在 jiubing2.toml 的 items 中），也可用 item_id = 数字
+inventory = [
+  {slot = 0, item = "血瓶"},
+  {slot = 1, item = "水晶"},
+  {slot = 2, item = "米奈希尔传送卷轴"},
+  {slot = 3, item = "跳刀"},
+  {slot = 4, item = "宠物食物"},
+  {slot = 5, item = "拾取"},
+]
+# 游戏里的步骤编排
+steps = [
+    "preparation",  # 准备阶段（英雄）
+    "endless.endless_single.position_init",  # 进无尽（做无尽任务）
+    "endless.endless_single",  # 开始无尽
+]
+
+# b 玩家
+[[this.members]]
+role = "follower"  # 其他人
+target_player = "岁月神偷"
+hero = "mk"  # 英雄：矮子
+# 物品栏格子快捷键（组队模式下最高优先级），与kk平台一致
+# slot：格子编号 0~5 对应第 1~6 格
+# hotkey：快捷键
+inventory_slots = [
+  {slot = 0, hotkey = "1"},
+  {slot = 1, hotkey = "2"},
+  {slot = 2, hotkey = "3"},
+  {slot = 3, hotkey = "4"},
+  {slot = 4, hotkey = "5"},
+  {slot = 5, hotkey = "6"},
+]
+# 装备（组队模式下最高优先级），根据自己的任务所需装备来配置
+# slot：格子编号 0~5 对应第 1~6 格
+# item：物品名（映射表在 jiubing2.toml 的 items 中），也可用 item_id = 数字
+inventory = [
+    {slot = 2, item = "米奈希尔传送卷轴"},  # 通过复活石传送到奇异之地/未知洞穴（荒漠废墟路线）
+#    {slot = 3, item = "跳刀"},  # 荒漠废墟路线才需要跳刀，奇异之地不用
+    {slot = 4, item = "宠物食物"},
+    {slot = 5, item = "拾取"},
+]
+# 游戏里的步骤编排
+steps = [
+    "preparation",  # 准备阶段（英雄）
+    "endless.endless_single.position_init",  # 进无尽（混积分）
+    "others.patrol_loot.position_init",  # 去刷装备初始位置
+    "others.patrol_loot",  # 开始刷装备
+    "others.patrol_loot.pre_exit"  # 退出前保存（刷装备任务需要保存）
+]
+
+# ── 浮窗配置 ──
+[float_window]
+title = "组队任务"

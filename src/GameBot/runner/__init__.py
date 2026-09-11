@@ -1,23 +1,22 @@
-"""大漠脚本运行器 — 32 位 Python 3.8 环境下的自动化脚本包。
+"""大漠脚本运行器 — 自动化脚本包（64 位主环境经 dm_bridge 调用大漠 COM）。
 
 包含：
-- dm_client.py       — 大漠插件 COM 封装
+- driver/            — 大漠驱动（bridge RPC 子进程，工厂 create_dm_client）
 - resource_manager.py — 资源路径管理
-- ui/                — 浮窗、热键等用户界面
+- ui/                — 浮窗等用户界面
 - business/          — 游戏业务逻辑（KK、War3、九种兵器2）
 - tasks/             — 任务编排
 
-注意：DmClient 延迟导入，避免在主环境（3.12，无 pywin32）中
-import GameBot.runner 时触发 win32com 依赖。
+注意：大漠客户端通过 create_dm_client 工厂创建，返回 DmBridgeClient 实例。
 """
 
 
 def __getattr__(name):
-    if name == "DmClient":
-        from .dm_client import DmClient
+    if name == "create_dm_client":
+        from .driver import create_dm_client
 
-        return DmClient
+        return create_dm_client
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-__all__ = ["DmClient"]
+__all__ = ["create_dm_client"]

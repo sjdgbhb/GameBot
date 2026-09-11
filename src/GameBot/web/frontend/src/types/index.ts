@@ -37,8 +37,9 @@ export interface CommandDef {
 }
 
 export interface InventorySlot {
-  id: number
-  hotkey: string
+  slot?: number
+  item_id: number
+  hotkey?: string
 }
 
 export interface DesiredItem {

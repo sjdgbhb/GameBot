@@ -1,57 +1,35 @@
 # =============================================================================
 # 英雄配置：月骑
 # =============================================================================
-dependencies = ["war3.jiubing2"]
+name = "war3.jiubing2.heroes.moon_rider"
+extends = ["war3.jiubing2"]
 
 
 [hero]
 name = "月骑"
 floor_key = "O"
+# ------------------------------ 物品栏配置（背包1-6格） ------------------------------
+# slot: 格子编号 0~5 对应第 1~6 格
+# item: 物品名（映射表在 jiubing2.toml 的 items 中），也可用 item_id = 数字
+# 快捷键从 kk.toml 的 inventory_slots 查找
+inventory = [
+  {slot = 0, item = "血瓶"},
+  {slot = 1, item = "远古森林外围入口传送卷轴"},
+  {slot = 2, item = "米奈希尔传送卷轴"},
+  {slot = 3, item = "无敌"},
+  {slot = 4, item = "宠物食物"},
+]
 # ------------------------------ 技能 ------------------------------
 # id: 技能唯一标识，路线点通过 id 引用技能
 # key: 游戏内快捷键
 # target_type: self(自身/无指向) | ground(地面目标) | enemy(锁头敌方) | ally(锁头友军)
 # position: target_area(目标区域) 、target（目标），具体坐标需自行抓取后在路线点设置
-[[hero.skills]]
-id = 0
-desc = '回旋利刃'
-key = "W"
-target_type = "ground"
-position = "target_area"
-
-[[hero.skills]]
-id = 1
-desc = '跳跃'
-key = "W"
-target_type = "self"
+skills = [
+  {id = 0, desc = '回旋利刃', key = "W", target_type = "ground", position = "target_area"},
+  {id = 1, desc = '跳跃', key = "W", target_type = "self"},
+]
 
 # ------------------------------ 学习技能列表（按学习顺序） ------------------------------
-
-# ------------------------------ 物品栏配置（背包1-6格） ------------------------------
-[[hero.inventory]]
-slot = 0
-id = 1
-hotkey = "1"
-
-[[hero.inventory]]
-slot = 1
-id = 5
-hotkey = "2"
-
-[[hero.inventory]]
-slot = 2
-id = 4
-hotkey = "3"
-
-[[hero.inventory]]
-slot = 3
-id = 3
-hotkey = "4"
-
-[[hero.inventory]]
-slot = 4
-id = 9
-hotkey = "5"
 
 # ------------------------------ 圣痕 ------------------------------
 

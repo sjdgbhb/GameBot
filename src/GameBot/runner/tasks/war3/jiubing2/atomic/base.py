@@ -18,9 +18,9 @@ from typing import TYPE_CHECKING, Optional
 from GameBot.utils import StopTaskError, logger
 
 if TYPE_CHECKING:
-    from GameBot.runner import DmClient
     from GameBot.runner.business.war3 import TextMonitor, War3Business
     from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI, NearbyCleaner
+    from GameBot.runner.driver.base import DmClientBase as DmClient
 
 
 class AtomicTaskBase:
@@ -42,7 +42,6 @@ class AtomicTaskBase:
         ui: "GameUI",
         combat: "CombatHelper",
         task_cfg: dict,
-        at_npc: bool = False,
         walk_time: Optional[float] = None,
         monitor: "TextMonitor" = None,
         nearby_cleaner: "NearbyCleaner" = None,
@@ -52,8 +51,6 @@ class AtomicTaskBase:
         self.ui = ui
         self.combat = combat
         self.cfg = task_cfg
-        # 英雄是否已在任务 NPC 附近（如上一轮提交后停在 NPC 旁），为真则跳过接取前的行走
-        self.at_npc = at_npc
         # 走到任务 NPC 的等待时间覆盖（None 则用 npc 配置的 time）
         self.walk_time = walk_time
         # 持续文字监测器（TextMonitor）；为 None 时回退到 war3 的起停式 watcher/wait_for_text
@@ -105,15 +102,15 @@ class AtomicTaskBase:
         self._interruptible_wait(gt)
         coords = npc["coords"]
         offset = npc.get("walk_offset", [0, 0])
-        if not self.at_npc:
-            wait_time = self.walk_time if self.walk_time is not None else npc.get("time", 5)
-            self.war3.move_to_minimap_point(
-                npc["mini_coords"],
-                [coords[0] + offset[0], coords[1] + offset[1]],
-                mode=npc.get("walk_mode", 1),
-                wait_time=wait_time,
-                stop_event=self._stop_event,
-            )
+        # 先走到 NPC 附近，再点击接任务
+        wait_time = self.walk_time if self.walk_time is not None else npc.get("time", 5)
+        self.war3.move_to_minimap_point(
+            npc["mini_coords"],
+            [coords[0] + offset[0], coords[1] + offset[1]],
+            mode=npc.get("walk_mode", 1),
+            wait_time=wait_time,
+            stop_event=self._stop_event,
+        )
         # 点击任务 NPC
         self.dm.move_to(*coords)
         self._interruptible_wait(gt)
@@ -148,7 +145,14 @@ class AtomicTaskBase:
         不中断、走完整等待时间）以自动提交；路线正常走完则最后一点已执行，无需再走。
         """
         complete_text = self.combat.cfg.get("atomic_task", {}).get("complete_text", "")
-        complete_event = self.monitor.watch(complete_text)
+        if self.monitor is not None:
+            complete_event = self.monitor.watch(complete_text)
+        else:
+            # 无持续监测器时回退到起停式后台监测线程
+            interval = self.combat.cfg.get("atomic_task", {}).get("monitor_interval", 0.2)
+            complete_event = self.war3.start_text_watcher(
+                self.combat.cfg.get("prompt_text"), complete_text, interval=interval
+            )
         # 组合事件：complete_event 或用户 stop_event 任一触发即中断行走
         combined_event = _CombinedEvent(complete_event, self._stop_event)
         points = self.cfg.get("points", [])

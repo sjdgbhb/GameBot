@@ -81,10 +81,10 @@ class TestResolvePoints(unittest.TestCase):
         preset_points = [{"desc": "preset点1"}, {"desc": "preset点2"}]
         task = self._make_task(
             cfg={},
-            route_scheme="荒漠废墟",
+            route_scheme="unknown_cave",
             route_presets=[
-                {"name": "奇异之地", "points": [{"desc": "奇异"}]},
-                {"name": "荒漠废墟", "points": preset_points},
+                {"name": "strange_land", "points": [{"desc": "奇异"}]},
+                {"name": "unknown_cave", "points": preset_points},
             ],
         )
         result = task._resolve_points()

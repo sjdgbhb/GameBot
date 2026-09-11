@@ -1,5 +1,6 @@
 ############## 萌萌哒 ##############
-dependencies = ["war3.jiubing2"]
+name = "war3.jiubing2.heroes.moe"
+extends = ["war3.jiubing2"]
 
 
 [hero]

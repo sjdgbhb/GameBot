@@ -2,25 +2,24 @@
 九种兵器2 自动化工具 — 统一打包脚本
 
 将钓鱼、刷装备、每日声望、升级圣痕四个任务打包到同一目录。
-四个 EXE 共享 dm/、inference/、resources/ 和 _internal/。
+主 EXE 为 64 位 Python 3.12（进程内推理），大漠 COM 经 32 位 dm_bridge 子进程调用。
+四个主 EXE 共享 dm/、dm_bridge/、resources/ 和 _internal/。
 
-用法（需在两个环境中分步运行）：
+用法（单步构建，自动分两步调用对应环境）：
 
-    # 步骤 1：主环境（64 位 3.12）打包推理子进程
-    uv run python exe/build_all.py --worker
+    uv run python exe/build_all.py
 
-    # 步骤 2：大漠环境（32 位 3.8）打包四个主程序 + 组装
-    .venv-dm/Scripts/python.exe exe/build_all.py --main
+    # 仅组装（主 EXE 和 dm_bridge 已打包好时）
+    uv run python exe/build_all.py --assemble
 
-    # 仅组装（四个 EXE 已打包好时）
-    .venv-dm/Scripts/python.exe exe/build_all.py --assemble
+    # 仅更新单个任务到已有包
+    uv run python exe/build_all.py --update <任务名>
 """
-import os
+
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-
 
 # ── 任务定义 ──────────────────────────────────────────────────────────
 TASKS = [
@@ -29,7 +28,7 @@ TASKS = [
         "spec": "exe/fishing/fishing_exe.spec",
         "config_src": "exe/fishing/config.toml",
         "config_dst": "钓鱼_config.toml",
-        "needs_inference": False,
+        "needs_inference": True,
         "needs_models": False,
         "needs_images": True,
         "images": ["hook_status.bmp"],
@@ -73,7 +72,7 @@ TASKS = [
         "spec": "exe/coords_test/coords_test_exe.spec",
         "config_src": None,
         "config_dst": None,
-        "needs_inference": False,
+        "needs_inference": True,
         "needs_models": False,
         "needs_images": False,
         "images": [],
@@ -87,6 +86,7 @@ PACKAGE_NAME = "九兵2脚本集合"
 def _ensure_pyinstaller():
     try:
         import PyInstaller  # noqa: F401
+
         return
     except ImportError:
         pass
@@ -106,8 +106,17 @@ def _ensure_pyinstaller():
 
 def _run_pyinstaller(project_root: Path, spec_file: str, exe_dir: Path):
     result = subprocess.run(
-        [sys.executable, "-m", "PyInstaller", spec_file, "--noconfirm",
-         "--distpath", str(exe_dir / "dist"), "--workpath", str(exe_dir / "build")],
+        [
+            sys.executable,
+            "-m",
+            "PyInstaller",
+            spec_file,
+            "--noconfirm",
+            "--distpath",
+            str(exe_dir / "dist"),
+            "--workpath",
+            str(exe_dir / "build"),
+        ],
         cwd=str(project_root),
     )
     if result.returncode != 0:
@@ -115,22 +124,11 @@ def _run_pyinstaller(project_root: Path, spec_file: str, exe_dir: Path):
         sys.exit(1)
 
 
-# ── 步骤 1：打包推理子进程（64 位） ─────────────────────────────────
-def build_worker(project_root: Path, exe_dir: Path):
-    print("=" * 60)
-    print("步骤 1：打包推理子进程 inference_worker.exe（64 位）")
-    print("=" * 60)
-    _ensure_pyinstaller()
-    spec_file = str(exe_dir / "patrol_loot" / "inference_worker.spec")
-    _run_pyinstaller(project_root, spec_file, exe_dir)
-    print("推理子进程打包完成。")
-
-
-# ── 步骤 2：打包四个主程序（32 位） ─────────────────────────────────
+# ── 步骤 1：打包主程序 EXE（64 位 3.12，进程内推理） ────────────────
 def build_mains(project_root: Path, exe_dir: Path):
     print()
     print("=" * 60)
-    print("步骤 2：打包四个主程序 EXE（32 位）")
+    print("步骤 1：打包主程序 EXE（64 位 Python 3.12，进程内推理）")
     print("=" * 60)
     _ensure_pyinstaller()
     for task in TASKS:
@@ -138,6 +136,38 @@ def build_mains(project_root: Path, exe_dir: Path):
         spec_file = str(project_root / task["spec"])
         _run_pyinstaller(project_root, spec_file, exe_dir)
         print(f"  {task['name']} 打包完成")
+
+
+# ── 步骤 2：打包 dm_bridge 子进程（32 位 3.8，大漠 COM） ────────────
+def build_dm_bridge(project_root: Path, exe_dir: Path):
+    print()
+    print("=" * 60)
+    print("步骤 2：打包 dm_bridge 子进程 dm_bridge.exe（32 位 Python 3.8）")
+    print("=" * 60)
+    dm_python = project_root / ".venv-dm" / "Scripts" / "python.exe"
+    if not dm_python.exists():
+        print(f"错误：32 位大漠环境 Python 不存在: {dm_python}")
+        print("请先创建 .venv-dm：uv venv .venv-dm --python 3.8（需 32 位 Python 3.8）")
+        sys.exit(1)
+    spec_file = str(exe_dir / "dm_bridge.spec")
+    result = subprocess.run(
+        [
+            str(dm_python),
+            "-m",
+            "PyInstaller",
+            spec_file,
+            "--noconfirm",
+            "--distpath",
+            str(exe_dir / "dist"),
+            "--workpath",
+            str(exe_dir / "build"),
+        ],
+        cwd=str(project_root),
+    )
+    if result.returncode != 0:
+        print(f"打包失败: {spec_file}")
+        sys.exit(1)
+    print("dm_bridge 子进程打包完成。")
 
 
 # ── 步骤 3：组装到同一目录 ──────────────────────────────────────────
@@ -176,7 +206,7 @@ def assemble(project_root: Path, exe_dir: Path):
                 # 第一个任务：直接复制整个 _internal/
                 shutil.copytree(task_internal, pkg_dir / "_internal")
                 base_internal = pkg_dir / "_internal"
-                print(f"  复制: _internal/ (基础)")
+                print("  复制: _internal/ (基础)")
             else:
                 # 后续任务：合并（只补充不存在的文件）
                 _merge_internal(task_internal, base_internal)
@@ -190,7 +220,7 @@ def assemble(project_root: Path, exe_dir: Path):
     if full_config_data.exists() and pkg_config_data.exists():
         shutil.rmtree(pkg_config_data)
         shutil.copytree(full_config_data, pkg_config_data)
-        print(f"  覆盖: _internal/config/data/ (主仓库完整配置)")
+        print("  覆盖: _internal/config/data/ (主仓库完整配置)")
 
     # 3.2 复制 dm/ 目录
     dm_src = project_root / "external" / "dm"
@@ -204,23 +234,23 @@ def assemble(project_root: Path, exe_dir: Path):
     else:
         print(f"  警告：大漠插件目录不存在: {dm_src}")
 
-    # 3.3 复制 inference/ 目录（刷装备/每日声望/升级圣痕需要）
-    worker_dist = exe_dir / "dist" / "inference_worker"
-    if worker_dist.exists():
-        inference_dst = pkg_dir / "inference"
-        inference_dst.mkdir(parents=True, exist_ok=True)
-        worker_exe = worker_dist / "inference_worker.exe"
-        if worker_exe.exists():
-            shutil.copy2(worker_exe, inference_dst / "inference_worker.exe")
-        worker_internal = worker_dist / "_internal"
-        if worker_internal.exists():
-            internal_dst = inference_dst / "_internal"
+    # 3.3 复制 dm_bridge 子进程目录（32 位大漠 COM 桥接，所有任务共享）
+    bridge_dist = exe_dir / "dist" / "dm_bridge"
+    if bridge_dist.exists():
+        bridge_dst = pkg_dir / "dm_bridge"
+        bridge_dst.mkdir(parents=True, exist_ok=True)
+        bridge_exe = bridge_dist / "dm_bridge.exe"
+        if bridge_exe.exists():
+            shutil.copy2(bridge_exe, bridge_dst / "dm_bridge.exe")
+        bridge_internal = bridge_dist / "_internal"
+        if bridge_internal.exists():
+            internal_dst = bridge_dst / "_internal"
             if internal_dst.exists():
                 shutil.rmtree(internal_dst)
-            shutil.copytree(worker_internal, internal_dst)
-        print(f"  复制: inference/ (OCR 推理子进程)")
+            shutil.copytree(bridge_internal, internal_dst)
+        print("  复制: dm_bridge/ (32 位大漠 COM 桥接子进程)")
     else:
-        print(f"  警告：推理子进程未打包，请先运行 --worker")
+        print("  警告：dm_bridge 子进程未打包，请先运行完整构建")
 
     # 3.4 复制 resources/ 目录
     resources_dst = pkg_dir / "resources"
@@ -271,7 +301,7 @@ def assemble(project_root: Path, exe_dir: Path):
     readme_src = exe_dir / "README.md"
     if readme_src.exists():
         shutil.copy2(readme_src, pkg_dir / "README.md")
-        print(f"  复制: README.md")
+        print("  复制: README.md")
 
     # 3.7 输出目录结构
     print()
@@ -304,12 +334,12 @@ def _print_tree(path: Path, prefix: str = "", max_depth: int = 2, depth: int = 0
         return
     items = sorted(path.iterdir(), key=lambda x: (not x.is_file(), x.name))
     for i, item in enumerate(items):
-        is_last = (i == len(items) - 1)
+        is_last = i == len(items) - 1
         connector = "└── " if is_last else "├── "
         if item.is_file():
             size_kb = item.stat().st_size / 1024
             if size_kb > 1024:
-                print(f"{prefix}{connector}{item.name}  ({size_kb/1024:.1f} MB)")
+                print(f"{prefix}{connector}{item.name}  ({size_kb / 1024:.1f} MB)")
             else:
                 print(f"{prefix}{connector}{item.name}  ({size_kb:.0f} KB)")
         else:
@@ -336,7 +366,7 @@ def update_task(project_root: Path, exe_dir: Path, task_name: str):
     pkg_dir = exe_dir / "dist" / PACKAGE_NAME
     if not pkg_dir.exists():
         print(f"错误：包目录不存在: {pkg_dir}")
-        print("请先运行完整构建：.venv-dm/Scripts/python.exe exe/build_all.py --main")
+        print("请先运行完整构建：uv run python exe/build_all.py")
         sys.exit(1)
 
     print("=" * 60)
@@ -374,7 +404,7 @@ def update_task(project_root: Path, exe_dir: Path, task_name: str):
             shutil.rmtree(pkg_config_data)
         pkg_config_data.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(full_config_data, pkg_config_data)
-        print(f"  覆盖: _internal/config/data/ (主仓库完整配置)")
+        print("  覆盖: _internal/config/data/ (主仓库完整配置)")
 
     # 4. 更新该任务的配置文件
     if task.get("config_src"):
@@ -425,21 +455,16 @@ def main():
     args = sys.argv[1:]
 
     if not args or "--all" in args:
-        is_64bit = sys.maxsize > 2**32
-        if is_64bit:
-            build_worker(project_root, exe_dir)
-            print("\n请切换到 32 位 Python 3.8 环境运行：")
-            print(f"  .venv-dm/Scripts/python.exe exe/build_all.py --main")
-        else:
-            build_mains(project_root, exe_dir)
-            assemble(project_root, exe_dir)
+        # 完整构建：主 EXE（64 位 3.12）+ dm_bridge（32 位 3.8）+ 组装
+        build_mains(project_root, exe_dir)
+        build_dm_bridge(project_root, exe_dir)
+        assemble(project_root, exe_dir)
         return
 
-    if "--worker" in args:
-        build_worker(project_root, exe_dir)
-    elif "--main" in args:
+    if "--main" in args:
         build_mains(project_root, exe_dir)
-        assemble(project_root, exe_dir)
+    elif "--bridge" in args:
+        build_dm_bridge(project_root, exe_dir)
     elif "--assemble" in args:
         assemble(project_root, exe_dir)
     elif "--update" in args:

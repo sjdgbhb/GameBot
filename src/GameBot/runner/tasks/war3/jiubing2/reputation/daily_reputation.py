@@ -43,12 +43,14 @@ class DailyReputationTask:
             lines = []
             if enable_blackstone:
                 bs_target = self.blackstone.cfg.get("target_reputation", 150)
-                progress_state["黑石城"] = f"黑石城：0/{bs_target}"
-                lines.append(progress_state["黑石城"])
+                bs_label = self.blackstone.cfg.get("progress_label", "黑石城")
+                progress_state[bs_label] = f"{bs_label}：0/{bs_target}"
+                lines.append(progress_state[bs_label])
             if enable_forest:
                 fs_target = self.forest.cfg.get("target_reputation", 150)
-                progress_state["森之城"] = f"森之城：0/{fs_target}"
-                lines.append(progress_state["森之城"])
+                fs_label = self.forest.cfg.get("progress_label", "森之城")
+                progress_state[fs_label] = f"{fs_label}：0/{fs_target}"
+                lines.append(progress_state[fs_label])
             progress_lines_callback(lines)
 
         # 将共享状态传给子任务，使各子任务只更新自己的行

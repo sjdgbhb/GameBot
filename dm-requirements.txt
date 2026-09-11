@@ -1,4 +1,4 @@
-# .venv-dm 环境依赖（32 位 Python 3.8）
+# dm_bridge 子进程环境依赖（32 位 Python 3.8）
 # 仅用于大漠插件 COM 自动化脚本（main.py、runner/tasks/ 下所有任务模块）
 # 与主环境（pyproject.toml，Python 3.12）完全隔离
 #

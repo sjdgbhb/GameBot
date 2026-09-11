@@ -20,7 +20,6 @@
 ### 关键特性
 
 - **事件中断移动**：`move_to_minimap_point` 接受 `stop_event` 参数，OCR 检测到完成立即中断
-- **at_npc 优化**：首轮后英雄停在 NPC 旁，跳过行走
 
 ## 城门骚扰
 

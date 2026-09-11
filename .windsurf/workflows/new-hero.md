@@ -16,29 +16,31 @@ description: 新增英雄配置 — 在 config/heroes/ 下创建英雄 TOML 配�
 
 ## 2. 创建英雄 TOML 配置文件
 
-在 `src/GameBot/config/heroes/` 下创建 `{hero_name}.toml`。
+在 `src/GameBot/config/data/war3/jiubing2/heroes/` 下创建 `{hero_name}.toml`。
 
 ### 最小配置（仅需物品栏）
 
 ```toml
 ############## {英雄中文名} ##############
-dependencies = ["jiubing2"]
+name = "war3.jiubing2.heroes.{hero_name}"
+extends = ["war3.jiubing2"]
 
 # ------------------------------ 物品栏配置（背包1-6格） ------------------------------
-[[hero.inventory]]
-id = 1  # 物品id，1=血瓶
-hotkey = "1"
+[hero]
+name = "{英雄中文名}"
 
-[[hero.inventory]]
-id = 0  # 拾取
-hotkey = "6"
+inventory = [
+  {slot = 0, item_id = 1},  # 血瓶
+  {slot = 5, item_id = 0},  # 拾取
+]
 ```
 
 ### 完整配置（含技能、连招、学习顺序等）
 
 ```toml
 ############## {英雄中文名} ##############
-dependencies = ["jiubing2"]
+name = "war3.jiubing2.heroes.{hero_name}"
+extends = ["war3.jiubing2"]
 
 [hero]
 floor_key = "X"           # 无尽楼层快捷键
@@ -140,7 +142,7 @@ absorb_index = [1, 4]
 
 ## 4. 验证
 
-- 检查 `dependencies = ["jiubing2"]` 是否存在
-- 检查物品栏是否包含 `id = 0`（拾取）项
-- 确认在任务配置中通过 `dependencies = ["heroes.{hero_name}"]` 引用此英雄
+- 检查 `name = "war3.jiubing2.heroes.{hero_name}"` 和 `extends = ["war3.jiubing2"]` 是否存在
+- 检查物品栏是否包含 `item_id = 0`（拾取）项
+- 确认在任务配置中通过 `extends = ["war3.jiubing2.heroes.{hero_name}"]` 引用此英雄
 - 英雄配置互斥：heroes.* 中最后加载的英雄独占生效

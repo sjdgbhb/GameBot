@@ -39,6 +39,8 @@ class SkillControllerMixin:
             self.dm.left_click()
         elif target_type == "self":
             self.dm.key_press_char(key)
+            # 按键后等待游戏处理输入，避免立即执行下一个动作打断施法前摇
+            self.interruptible_wait(cast_move_time, stop_event)
         else:
             raise ValueError(f"未知的 target_type: {target_type}")
 

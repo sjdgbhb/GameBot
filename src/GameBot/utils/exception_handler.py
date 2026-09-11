@@ -76,6 +76,42 @@ def retry(
     return decorator
 
 
+def safe_call(
+    default=None,
+    exceptions: Tuple[Type[Exception], ...] = (Exception,),
+    log_level: Optional[str] = "warning",
+    log_msg: str = "",
+) -> Callable:
+    """安全调用装饰器 — 捕获指定异常并返回默认值，不重试。
+
+    与 retry 互补：retry 在失败时重试，safe_call 在失败时返回默认值。
+    适用于"失败不致命、有合理兜底值"的场景（如加载配置文件、读取可选资源）。
+
+    Args:
+        default: 异常时返回的默认值。
+        exceptions: 捕获的异常类型元组，建议尽量收窄。
+        log_level: 日志级别（"debug"/"warning"/"error"/None 表示不记录）。
+        log_msg: 自定义日志消息前缀，默认使用函数名。
+    """
+
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs) -> T:
+            try:
+                return func(*args, **kwargs)
+            except exceptions as e:
+                if log_level:
+                    from GameBot.utils.logger import logger as _logger
+
+                    msg = log_msg or f"{func.__name__} 失败: {e}"
+                    getattr(_logger, log_level)(msg)
+                return default
+
+        return wrapper
+
+    return decorator
+
+
 def setup_global_exception_hook(logger: Optional[logging.Logger] = None):
     """安装全局未捕获异常钩子，将异常信息记录到日志。"""
 

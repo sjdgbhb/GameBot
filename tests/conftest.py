@@ -13,12 +13,11 @@ import pytest
 from GameBot.config import Config
 from tests.common.config_helpers import write_toml as _write_toml_helper
 
-# 自定义标记说明（与 pyproject.toml 保持一致，防止 --strict-markers 报错）
 _MARKERS = {
     "unit": "单元测试",
     "integration": "集成测试（真实文件 I/O，多模块协作）",
     "manual": "需人工介入的手动测试",
-    "dm": "依赖大漠插件 COM（仅 .venv-dm 32 位 Python 3.8）",
+    "dm": "依赖大漠插件 COM（经 dm_bridge 子进程调用）",
     "slow": "耗时较长的测试",
     "inference": "依赖 ONNX / AI 模型的推理测试",
     "web": "Web API / FastAPI 测试",
@@ -32,18 +31,17 @@ def pytest_configure(config):
         config.addinivalue_line("markers", f"{mark}: {desc}")
 
 
-# 检测大漠环境：在 .venv-dm 中 pythoncom 可导入，在主环境 3.12 中会失败
 _DM_AVAILABLE = False
 try:
     _DM_AVAILABLE = True
-except Exception:  # noqa: S110
+except Exception:
     pass
 
 
 def pytest_ignore_collect(collection_path, config):
-    """非大漠环境下不收集 tests/manual，避免 pythoncom 等 32 位依赖报错。"""
+    """非大漠环境下不收集 tests/manual，避免 dm_bridge 子进程启动失败。"""
     rel = str(collection_path).replace("\\", "/")
-    if "tests/manual" in rel and not _DM_AVAILABLE:
+    if "tests/manual" in rel and (not _DM_AVAILABLE):
         return True
     return None
 
@@ -95,13 +93,8 @@ def project_root_with_config(tmp_path, test_config_dir):
     fake_root = tmp_path / "project_root"
     fake_config_dir = fake_root / "a" / "b" / "c" / "config"
     fake_config_dir.mkdir(parents=True)
-
     _copy_tree(test_config_dir, fake_config_dir)
-
     yield fake_root
-
-
-# ------------------- 辅助函数 -------------------
 
 
 def _copy_tree(src: Path, dst: Path) -> None:
@@ -125,125 +118,43 @@ def _populate_standard_config(config_dir: Path) -> Path:
     _write_toml_helper(
         config_dir,
         "base.toml",
-        """
-[paths]
-log_path = "logs"
-
-[dm]
-version = "3.1233"
-""",
+        '\nname = "base"\nextends = []\n[paths]\nlog_path = "logs"\n\n[dm]\nversion = "3.1233"\n',
     )
-
     _write_toml_helper(
         config_dir,
         "war3/war3.toml",
-        """
-dependencies = ["base"]
-
-[war3]
-window_class = "War3Class"
-window_title = "Warcraft III"
-client_size = [1902, 1033]
-key_time = 0.05
-general_time = 0.3
-""",
+        '\nname = "war3.war3"\nextends = ["base"]\n\n[war3]\nwindow_class = "War3Class"\nwindow_title = "Warcraft III"\nclient_size = [1902, 1033]\nkey_time = 0.05\ngeneral_time = 0.3\n',
     )
-
     _write_toml_helper(
         config_dir,
-        "war3/jiubing2/base.toml",
-        """
-dependencies = ["war3"]
-
-[game]
-load_war3_time = 33
-
-[command]
-clear_nearby = "-delh"
-
-[hero]
-inventory = ["A", "B", "C"]
-""",
+        "war3/jiubing2/jiubing2.toml",
+        '\nname = "war3.jiubing2.jiubing2"\nextends = ["war3"]\n\n[game]\nload_war3_time = 33\n\n[command]\nclear_nearby = "-delh"\n\n[hero]\ninventory = ["A", "B", "C"]\n',
     )
-
     _write_toml_helper(
         config_dir,
         "war3/jiubing2/heroes/mk.toml",
-        """
-[hero]
-inventory = ["D", "E", "F"]
-attack = 100
-""",
+        '\nname = "war3.jiubing2.heroes.mk"\nextends = ["war3.jiubing2"]\n[hero]\ninventory = ["D", "E", "F"]\nattack = 100\n',
     )
-
     _write_toml_helper(
         config_dir,
         "war3/jiubing2/heroes/lancer.toml",
-        """
-[hero]
-inventory = ["G", "H", "I"]
-attack = 80
-defense = 50
-""",
+        '\nname = "war3.jiubing2.heroes.lancer"\nextends = ["war3.jiubing2"]\n[hero]\ninventory = ["G", "H", "I"]\nattack = 80\ndefense = 50\n',
     )
-
     _write_toml_helper(
         config_dir,
         "war3/jiubing2/tasks/others/fishing.toml",
-        """
-dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
-
-[war3.jiubing2.tasks.others.fishing]
-name = "钓鱼"
-task_times = 5
-loop_interval_time = 2.0
-""",
+        '\nname = "war3.jiubing2.tasks.others.fishing"\nextends = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]\n\n[this]\nname = "钓鱼"\ntask_times = 5\nloop_interval_time = 2.0\n',
     )
-
     _write_toml_helper(
         config_dir,
         "war3/jiubing2/tasks/others/patrol_loot.toml",
-        """
-dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]
-
-[war3.jiubing2.tasks.others.patrol_loot]
-name = "巡逻拾取"
-task_times = 3
-patrol_rounds = 10
-""",
+        '\nname = "war3.jiubing2.tasks.others.patrol_loot"\nextends = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]\n\n[this]\nname = "巡逻拾取"\ntask_times = 3\npatrol_rounds = 10\n',
     )
-
     _write_toml_helper(
         config_dir,
         "war3/jiubing2/tasks/endless/endless_single.toml",
-        """
-dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
-
-[war3.jiubing2.tasks.endless.endless_single]
-name = "单局无尽"
-task_times = 1
-""",
+        '\nname = "war3.jiubing2.tasks.endless.endless_single"\nextends = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]\n\n[this]\nname = "单局无尽"\ntask_times = 1\n',
     )
-
-    # 循环依赖测试文件
-    _write_toml_helper(
-        config_dir,
-        "circular_a.toml",
-        """
-dependencies = ["circular_b"]
-[x]
-val = 1
-""",
-    )
-
-    _write_toml_helper(
-        config_dir,
-        "circular_b.toml",
-        """
-dependencies = ["circular_a"]
-[y]
-val = 2
-""",
-    )
-
+    _write_toml_helper(config_dir, "circular_a.toml", '\nname = "circular_a"\nextends = ["circular_b"]\n[x]\nval = 1\n')
+    _write_toml_helper(config_dir, "circular_b.toml", '\nname = "circular_b"\nextends = ["circular_a"]\n[y]\nval = 2\n')
     return config_dir

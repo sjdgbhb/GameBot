@@ -33,6 +33,8 @@ def _make_edge_config_dir() -> Path:
         tmp,
         "base.toml",
         """
+name = "base"
+extends = []
 [paths]
 log_path = "logs"
 """,
@@ -42,18 +44,20 @@ log_path = "logs"
         tmp,
         "war3/war3.toml",
         """
-dependencies = ["base"]
+name = "war3"
+extends = ["base"]
 
-[war3]
+[this]
 window_class = "War3Class"
 """,
     )
 
     _write_toml(
         tmp,
-        "war3/jiubing2/base.toml",
+        "war3/jiubing2/jiubing2.toml",
         """
-dependencies = ["war3"]
+name = "war3.jiubing2"
+extends = ["war3"]
 
 [game]
 load_war3_time = 33
@@ -67,6 +71,8 @@ inventory = ["A", "B", "C"]
         tmp,
         "war3/jiubing2/heroes/mk.toml",
         """
+name = "war3.jiubing2.heroes.mk"
+extends = []
 [hero]
 inventory = ["D", "E", "F"]
 attack = 100
@@ -77,6 +83,8 @@ attack = 100
         tmp,
         "war3/jiubing2/heroes/lancer.toml",
         """
+name = "war3.jiubing2.heroes.lancer"
+extends = []
 [hero]
 inventory = ["G", "H", "I"]
 attack = 80
@@ -88,9 +96,10 @@ defense = 50
         tmp,
         "war3/jiubing2/tasks/others/fishing.toml",
         """
-dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
+name = "war3.jiubing2.tasks.others.fishing"
+extends = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
-[war3.jiubing2.tasks.others.fishing]
+[this]
 name = "钓鱼"
 task_times = 5
 """,
@@ -100,9 +109,10 @@ task_times = 5
         tmp,
         "war3/jiubing2/tasks/others/patrol_loot.toml",
         """
-dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]
+name = "war3.jiubing2.tasks.others.patrol_loot"
+extends = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]
 
-[war3.jiubing2.tasks.others.patrol_loot]
+[this]
 name = "巡逻拾取"
 task_times = 3
 """,
@@ -113,7 +123,8 @@ task_times = 3
         tmp,
         "self_circular.toml",
         """
-dependencies = ["self_circular"]
+name = "self_circular"
+extends = ["self_circular"]
 [x]
 val = 1
 """,
@@ -124,6 +135,8 @@ val = 1
         tmp,
         "diamond_a.toml",
         """
+name = "diamond_a"
+extends = []
 [a]
 val = 1
 """,
@@ -132,7 +145,8 @@ val = 1
         tmp,
         "diamond_b.toml",
         """
-dependencies = ["diamond_a"]
+name = "diamond_b"
+extends = ["diamond_a"]
 [b]
 val = 2
 """,
@@ -141,7 +155,8 @@ val = 2
         tmp,
         "diamond_c.toml",
         """
-dependencies = ["diamond_a", "diamond_b"]
+name = "diamond_c"
+extends = ["diamond_a", "diamond_b"]
 [c]
 val = 3
 """,
@@ -150,7 +165,8 @@ val = 3
         tmp,
         "diamond_d.toml",
         """
-dependencies = ["diamond_c"]
+name = "diamond_d"
+extends = ["diamond_c"]
 [d]
 val = 4
 """,
@@ -161,7 +177,8 @@ val = 4
         tmp,
         "empty_deps.toml",
         """
-dependencies = []
+name = "empty_deps"
+extends = []
 [e]
 val = 5
 """,
@@ -172,7 +189,8 @@ val = 5
         tmp,
         "control_only.toml",
         """
-dependencies = ["base"]
+name = "control_only"
+extends = ["base"]
 """,
     )
 
@@ -181,9 +199,10 @@ dependencies = ["base"]
         tmp,
         "war3/jiubing2/tasks/atomic/test_atomic.toml",
         """
-dependencies = ["war3.jiubing2"]
+name = "war3.jiubing2.tasks.atomic.test_atomic"
+extends = ["war3.jiubing2"]
 
-[war3.jiubing2.tasks.atomic.test_atomic]
+[this]
 name = "测试原子任务"
 """,
     )
@@ -193,6 +212,8 @@ name = "测试原子任务"
         tmp,
         "dir_same/dir_same.toml",
         """
+name = "dir_same"
+extends = []
 [same]
 val = 10
 """,
@@ -203,6 +224,8 @@ val = 10
         tmp,
         "dir_base/base.toml",
         """
+name = "dir_base.base"
+extends = []
 [base_fallback]
 val = 20
 """,
@@ -282,7 +305,7 @@ class TestSplitSectionsEdge(TestEdgeBase):
         self.assertEqual(namespaced, {})
 
     def test_control_only_file(self):
-        """仅含 dependencies 控制键的文件应返回两个空字典。"""
+        """仅含 name/extends 控制键的文件应返回两个空字典。"""
         raw = self.cfg._load_file("control_only")
         inheritable, namespaced = self.cfg._split_sections(raw)
         self.assertEqual(inheritable, {})
@@ -356,8 +379,8 @@ class TestResolveOrderEdge(TestEdgeBase):
         # a 只出现一次
         self.assertEqual(order.count("diamond_a"), 1)
 
-    def test_empty_dependencies(self):
-        """空依赖列表应正常加载，只包含自身。"""
+    def test_empty_extends(self):
+        """空 extends 列表应正常加载，只包含自身。"""
         order = []
         self.cfg._resolve_order("empty_deps", order, [], set())
         self.assertEqual(order, ["empty_deps"])
@@ -568,9 +591,10 @@ class TestHeroShallowMerge(TestEdgeBase):
             self.config_dir,
             "war3/jiubing2/tasks/others/fishing.toml",
             """
-dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
+name = "war3.jiubing2.tasks.others.fishing"
+extends = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
-[war3.jiubing2.tasks.others.fishing]
+[this]
 name = "钓鱼"
 task_times = 5
 

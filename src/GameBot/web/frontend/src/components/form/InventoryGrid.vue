@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import type { ItemDef } from '@/types'
-import { ElMessage } from 'element-plus'
 import { sortByPinyin } from '@/utils/pinyin'
 
 const props = defineProps<{
@@ -23,39 +22,31 @@ const carryableItems = computed(() => {
 
 function slotValue(idx: number): any {
   const arr = Array.isArray(props.modelValue) ? props.modelValue : []
-  return arr[idx] || { id: -1, hotkey: String(idx + 1) }
+  return arr[idx] || { slot: idx, item_id: -1, hotkey: String(idx + 1) }
 }
 
 function slotTitle(idx: number): string {
   const slot = slotValue(idx)
-  if (slot.id === -1) return '空'
-  if (slot.id === 0) return '拾取'
-  const item = carryableItems.value.find(it => it.id === slot.id)
-  return item ? item.name : String(slot.id)
+  const itemId = slot.item_id != null ? slot.item_id : slot.id
+  if (itemId === -1) return '空'
+  if (itemId === 0) return '拾取'
+  const item = carryableItems.value.find(it => it.id === itemId)
+  return item ? item.name : String(itemId)
 }
 
 function ensureSlots(arr: any[]): any[] {
-  while (arr.length < 6) arr.push({ slot: arr.length, id: -1, hotkey: String(arr.length + 1) })
+  while (arr.length < 6) arr.push({ slot: arr.length, item_id: -1, hotkey: String(arr.length + 1) })
   return arr
 }
 
-function updateSlot(idx: number, key: string, value: any) {
+function updateSlot(idx: number, value: any) {
   if (props.readonly) return
   const arr = Array.isArray(props.modelValue) ? JSON.parse(JSON.stringify(props.modelValue)) : []
   ensureSlots(arr)
-  if (arr[5].id !== 0) {
-    arr[5] = { slot: 5, id: 0, hotkey: arr[5].hotkey || '6' }
+  if (arr[5].item_id !== 0 && (arr[5].item_id != null ? arr[5].item_id : arr[5].id) !== 0) {
+    arr[5] = { slot: 5, item_id: 0, hotkey: arr[5].hotkey || '6' }
   }
-  // 快捷键不能重复：如果新快捷键已被其他格子使用，提示用户并阻止写入
-  if (key === 'hotkey' && value) {
-    for (let i = 0; i < 6; i++) {
-      if (i !== idx && arr[i].hotkey === value) {
-        ElMessage.warning(`快捷键 "${value}" 已被第 ${i + 1} 格使用，请更换其他快捷键`)
-        return
-      }
-    }
-  }
-  arr[idx] = { ...arr[idx], slot: idx, [key]: value }
+  arr[idx] = { ...arr[idx], slot: idx, item_id: Number(value) }
   emit('update:modelValue', arr)
 }
 
@@ -63,8 +54,8 @@ onMounted(() => {
   if (props.readonly) return
   const arr = Array.isArray(props.modelValue) ? JSON.parse(JSON.stringify(props.modelValue)) : []
   ensureSlots(arr)
-  if (arr[5].id !== 0) {
-    arr[5] = { slot: 5, id: 0, hotkey: arr[5].hotkey || '6' }
+  if (arr[5].item_id !== 0 && (arr[5].item_id != null ? arr[5].item_id : arr[5].id) !== 0) {
+    arr[5] = { slot: 5, item_id: 0, hotkey: arr[5].hotkey || '6' }
   }
   emit('update:modelValue', arr)
 })
@@ -77,7 +68,7 @@ onMounted(() => {
         v-for="i in 6"
         :key="i"
         class="inv-war3-slot"
-        :class="{ locked: i === 6, empty: i !== 6 && slotValue(i - 1).id === -1 }"
+        :class="{ locked: i === 6, empty: i !== 6 && (slotValue(i - 1).item_id != null ? slotValue(i - 1).item_id : slotValue(i - 1).id) === -1 }"
       >
         <div class="inv-war3-item">
           <el-select v-if="i === 6" :model-value="0" disabled style="width: 100%; height: 100%" title="拾取">
@@ -87,8 +78,8 @@ onMounted(() => {
           </el-select>
           <el-select
             v-else
-            :model-value="slotValue(i - 1).id"
-            @update:model-value="updateSlot(i - 1, 'id', Number($event))"
+            :model-value="slotValue(i - 1).item_id != null ? slotValue(i - 1).item_id : slotValue(i - 1).id"
+            @update:model-value="updateSlot(i - 1, $event)"
             :disabled="readonly"
             filterable
             style="width: 100%; height: 100%"
@@ -104,11 +95,10 @@ onMounted(() => {
         </div>
         <div class="inv-war3-key">
           <el-input
-            :model-value="slotValue(i - 1).hotkey"
-            @update:model-value="updateSlot(i - 1, 'hotkey', $event as string)"
+            :model-value="slotValue(i - 1).hotkey || String(i)"
+            disabled
             :maxlength="2"
-            :disabled="readonly"
-            title="此位置快捷键"
+            title="格子快捷键（在 KK 平台设置）"
           />
         </div>
       </div>

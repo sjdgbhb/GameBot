@@ -32,7 +32,11 @@ class ConfigResolverMixin:
         visiting.append(config_name)
         raw = self._load_file(config_name)
         # 递归解析所有依赖，依赖在前、自身在后（后序）
-        for dep_name in raw.get("dependencies", []):
+        if "dependencies" in raw:
+            raise ConfigurationError(f"{config_name}: dependencies 已废弃，请改用 extends")
+        if "extends" not in raw:
+            raise ConfigurationError(f"{config_name}: 必须声明 extends")
+        for dep_name in raw["extends"]:
             self._resolve_order(dep_name, order, visiting, visited)
         visiting.pop()
         visited.add(config_name)

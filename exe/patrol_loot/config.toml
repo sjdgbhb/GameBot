@@ -16,27 +16,19 @@ client_size = [1902, 1033]
 
 # ------------------------------ 物品栏装备 ------------------------------
 # slot: 0~5 对应物品栏第1~6格
-# hotkey: 对应的数字键
-[[hero.inventory]]
-slot = 3
-id = 6       # 跳刀（荒漠废墟路线需要，奇异之地不需要）
-hotkey = "4"
-
-[[hero.inventory]]
-slot = 4
-id = 9       # 宠物食物（必须装备，否则任务拒绝启动）
-hotkey = "5"
-
-[[hero.inventory]]
-slot = 5
-id = 0       # 拾取（固定第6格，勿修改）
-hotkey = "6"
+# item_id: 物品 id，快捷键从 kk.toml 的 inventory_slots 查找
+[hero]
+inventory = [
+  {slot = 3, item_id = 6},  # 跳刀（unknown_cave 路线需要，strange_land 不需要）
+  {slot = 4, item_id = 9},  # 宠物食物（必须装备，否则任务拒绝启动）
+  {slot = 5, item_id = 0},  # 拾取（固定第6格，勿修改）
+]
 
 
 # ------------------------------ 刷装备参数 ------------------------------
 [tasks.others.patrol_loot]
-# 路线方案：奇异之地 或 荒漠废墟
-route_scheme = "奇异之地"
+# 路线方案：strange_land 或 unknown_cave
+route_scheme = "strange_land"
 
 # 拾取目标物品及数量，达到指定数量后不再拾取该物品
 # count = 0 表示只识别不拾取（用于过滤）
@@ -59,7 +51,7 @@ rounds = 0   # 路线循环轮数，0 = 无限循环
 # 如需调整路线点坐标、等待时间等参数，在本文件中覆盖即可
 # （TOML 数组为整体替换，需写完整 points 列表）：
 # [[tasks.others.patrol_loot.route_presets]]
-# name = "奇异之地"
+# name = "strange_land"
 # [[tasks.others.patrol_loot.route_presets.points]]
 # desc = "裂隙上方第一个鱼人"
 # mini_coords = [121, 928]

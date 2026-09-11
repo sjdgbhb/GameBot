@@ -1,15 +1,15 @@
 """
-钓鱼 EXE 构建脚本 — 在 .venv-dm（32 位 Python 3.8）环境中运行
+钓鱼 EXE 构建脚本 — 在主环境（64 位 Python 3.12）中运行
 
 用法：
-    .venv-dm/Scripts/python.exe exe/fishing/build.py
+    uv run python exe/fishing/build.py
 
 功能：
     1. 调用 PyInstaller 打包 fishing_exe.py → dist/fishing/
     2. 复制外部文件（dm.dll、图片、config.toml、README.md）到 dist/fishing/
     3. 输出最终目录结构
 """
-import os
+
 import shutil
 import subprocess
 import sys
@@ -20,6 +20,7 @@ def _ensure_pyinstaller():
     """确保 PyInstaller 已安装，自动适配 uv/pip 环境。"""
     try:
         import PyInstaller  # noqa: F401
+
         return
     except ImportError:
         pass
@@ -52,8 +53,17 @@ def main():
     dist_path = str(exe_dir / "dist")
     work_path = str(exe_dir / "build")
     result = subprocess.run(
-        [sys.executable, "-m", "PyInstaller", spec_file, "--noconfirm",
-         "--distpath", dist_path, "--workpath", work_path],
+        [
+            sys.executable,
+            "-m",
+            "PyInstaller",
+            spec_file,
+            "--noconfirm",
+            "--distpath",
+            dist_path,
+            "--workpath",
+            work_path,
+        ],
         cwd=str(project_root),
     )
     if result.returncode != 0:
@@ -97,13 +107,13 @@ def main():
     config_src = exe_dir / "config.toml"
     config_dst = dist_dir / "config.toml"
     shutil.copy2(config_src, config_dst)
-    print(f"  复制: config.toml")
+    print("  复制: config.toml")
 
     # README.md
     readme_src = exe_dir / "README.md"
     readme_dst = dist_dir / "README.md"
     shutil.copy2(readme_src, readme_dst)
-    print(f"  复制: README.md")
+    print("  复制: README.md")
 
     # 3. 输出目录结构
     print()

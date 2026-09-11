@@ -3,11 +3,12 @@
 # 供森之城相关任务（声望、迅猛野兽等）共享使用
 # 依赖 jiubing2 以获取 skill_panel 坐标计算公式
 # =============================================================================
-dependencies = ["war3.jiubing2"]
+name = "war3.jiubing2.scenes.forest_city"
+extends = ["war3.jiubing2"]
 
 # -------------------------------- 月之女祭司狄安娜 --------------------------------
 # 发布"迅猛野兽"等日常任务的 NPC
-[war3.jiubing2.scenes.forest_city.npcs.diana]
+[this.npcs.diana]
 desc = "月之女祭司狄安娜"
 mini_coords = [230,986]     # TODO: 小地图坐标
 coords = [936,432]          # TODO: npc坐标

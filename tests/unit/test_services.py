@@ -31,10 +31,10 @@ def _write_hero(config_dir: Path, filename: str, content: str) -> None:
 
 
 def _write_base(config_dir: Path, content: str) -> None:
-    """在临时 config 目录下写入 base.toml。"""
+    """在临时 config 目录下写入 jiubing2.toml（load_items/load_commands 读取的目标文件）。"""
     jiubing2_dir = config_dir / "war3" / "jiubing2"
     jiubing2_dir.mkdir(parents=True, exist_ok=True)
-    (jiubing2_dir / "base.toml").write_text(content, encoding="utf-8")
+    (jiubing2_dir / "jiubing2.toml").write_text(content, encoding="utf-8")
 
 
 class TestLoadTasks:
@@ -45,20 +45,18 @@ class TestLoadTasks:
         _write_task(
             services_config_dir,
             "others/fishing.toml",
-            'dependencies = ["war3.jiubing2"]\n\n[war3.jiubing2.tasks.others.fishing]\nname = "钓鱼"\n',
+            'name = "war3.jiubing2.tasks.others.fishing"\nextends = ["war3.jiubing2"]\n\n[this]\nname = "钓鱼"\n',
         )
         _write_task(
             services_config_dir,
             "others/patrol_loot.toml",
-            'dependencies = ["war3.jiubing2"]\n\n[war3.jiubing2.tasks.others.patrol_loot]\nname = "巡逻拾取"\n',
+            'name = "war3.jiubing2.tasks.others.patrol_loot"\nextends = ["war3.jiubing2"]\n\n[this]\nname = "巡逻拾取"\n',
         )
-
         result = services.load_tasks()
         ids = [t["id"] for t in result]
-
         assert "others.fishing" in ids
         assert "others.patrol_loot" in ids
-        fishing = next(t for t in result if t["id"] == "others.fishing")
+        fishing = next((t for t in result if t["id"] == "others.fishing"))
         assert fishing["name"] == "钓鱼"
         assert fishing["short_id"] == "fishing"
         assert fishing["category"] == "others"
@@ -75,12 +73,18 @@ class TestLoadTasks:
 
     def test_load_tasks_skips_invalid_toml(self, services_config_dir):
         """损坏的 TOML 文件应被跳过。"""
-        _write_task(services_config_dir, "bad.toml", "not valid toml [[[")
-        _write_task(services_config_dir, "good.toml", '[war3.jiubing2.tasks.good]\nname = "好任务"\n')
-
+        _write_task(
+            services_config_dir,
+            "bad.toml",
+            'name = "war3.jiubing2.tasks.bad"\nextends = ["war3.jiubing2"]\nnot valid toml [[[',
+        )
+        _write_task(
+            services_config_dir,
+            "good.toml",
+            'name = "war3.jiubing2.tasks.good"\nextends = ["war3.jiubing2"]\n[this]\nname = "好任务"\n',
+        )
         result = services.load_tasks()
         ids = [t["id"] for t in result]
-
         assert "good" in ids
         assert "bad" not in ids
 
@@ -93,25 +97,34 @@ class TestLoadHeroes:
         _write_hero(
             services_config_dir,
             "mk.toml",
-            '[hero]\nname = "山丘之王"\nfloor_key = "P"\ninventory = ["A", "B"]\n[[hero.skills]]\nname = "风暴之锤"\n',
+            'name = "war3.jiubing2.heroes.mk"\nextends = ["war3.jiubing2"]\n[hero]\nname = "山丘之王"\nfloor_key = "P"\ninventory = ["A", "B"]\n[[hero.skills]]\nname = "风暴之锤"\n',
         )
-        _write_hero(services_config_dir, "lancer.toml", '[hero]\nname = "长枪兵"\nfloor_key = "O"\ninventory = ["C"]\n')
-
+        _write_hero(
+            services_config_dir,
+            "lancer.toml",
+            'name = "war3.jiubing2.heroes.lancer"\nextends = ["war3.jiubing2"]\n[hero]\nname = "长枪兵"\nfloor_key = "O"\ninventory = ["C"]\n',
+        )
         result = services.load_heroes()
         ids = [h["id"] for h in result]
-
         assert "mk" in ids
         assert "lancer" in ids
-        mk = next(h for h in result if h["id"] == "mk")
+        mk = next((h for h in result if h["id"] == "mk"))
         assert mk["name"] == "山丘之王"
         assert mk["floor_key"] == "P"
         assert mk["inventory"] == ["A", "B"]
 
     def test_load_heroes_sorted_by_floor(self, services_config_dir):
         """英雄应按楼层排序（P 在 O 之前）。"""
-        _write_hero(services_config_dir, "z_hero.toml", '[hero]\nname = "Z英雄"\nfloor_key = "O"\n')
-        _write_hero(services_config_dir, "a_hero.toml", '[hero]\nname = "A英雄"\nfloor_key = "P"\n')
-
+        _write_hero(
+            services_config_dir,
+            "z_hero.toml",
+            'name = "war3.jiubing2.heroes.z_hero"\nextends = ["war3.jiubing2"]\n[hero]\nname = "Z英雄"\nfloor_key = "O"\n',
+        )
+        _write_hero(
+            services_config_dir,
+            "a_hero.toml",
+            'name = "war3.jiubing2.heroes.a_hero"\nextends = ["war3.jiubing2"]\n[hero]\nname = "A英雄"\nfloor_key = "P"\n',
+        )
         result = services.load_heroes()
         assert result[0]["floor_key"] == "P"
         assert result[1]["floor_key"] == "O"
@@ -123,11 +136,12 @@ class TestLoadHeroes:
     def test_load_heroes_name_from_comment(self, services_config_dir):
         """无 name 字段时应从注释中提取英雄名。"""
         _write_hero(
-            services_config_dir, "test_hero.toml", '### 山丘之王 ###\n[hero]\nfloor_key = "P"\ninventory = []\n'
+            services_config_dir,
+            "test_hero.toml",
+            '### 山丘之王 ###\nname = "war3.jiubing2.heroes.test_hero"\nextends = ["war3.jiubing2"]\n[hero]\nfloor_key = "P"\ninventory = []\n',
         )
-
         result = services.load_heroes()
-        hero = next(h for h in result if h["id"] == "test_hero")
+        hero = next((h for h in result if h["id"] == "test_hero"))
         assert hero["name"] == "山丘之王"
 
 
@@ -151,7 +165,6 @@ class TestLoadItemsAndCommands:
         _write_base(services_config_dir, '[command]\nclear_nearby = "-delh"\nsuicide = "-kill"\n')
         result = services.load_commands()
         keys = {c["key"] for c in result}
-
         assert "clear_nearby" in keys
         assert "suicide" in keys
 
@@ -165,12 +178,8 @@ class TestUserConfigs:
 
     def test_load_user_configs_flat_format(self, services_user_config_path):
         """普通格式 user_configs.json 应直接返回字典。"""
-        services_user_config_path.write_text(
-            '{"hero": "mk", "inventory": ["A"]}',
-            encoding="utf-8",
-        )
+        services_user_config_path.write_text('{"hero": "mk", "inventory": ["A"]}', encoding="utf-8")
         result = services.load_user_configs()
-
         assert result["hero"] == "mk"
         assert result["inventory"] == ["A"]
 
@@ -189,17 +198,13 @@ class TestUserConfigs:
 
     def test_load_user_configs_invalid_json(self, services_user_config_path):
         """损坏的 JSON 应返回空字典。"""
-        services_user_config_path.write_text(
-            "not json {{{",
-            encoding="utf-8",
-        )
+        services_user_config_path.write_text("not json {{{", encoding="utf-8")
         assert services.load_user_configs() == {}
 
     def test_save_user_configs_writes_json(self, services_user_config_path):
         """save_user_configs 应写入 JSON 文件。"""
         services.save_user_configs({"hero": "mk", "patrol_rounds": 5})
         data = json.loads(services_user_config_path.read_text(encoding="utf-8"))
-
         assert data["hero"] == "mk"
         assert data["patrol_rounds"] == 5
 
@@ -212,13 +217,10 @@ class TestStartTask:
         mock_proc = MagicMock()
         mock_proc.pid = 12345
         mock_proc.poll.return_value = None
-
         popen_mock = MagicMock(return_value=mock_proc)
         monkeypatch.setattr(services.subprocess, "Popen", popen_mock)
         monkeypatch.setattr(services, "is_runnable_task", lambda _: True)
-
         result = services.start_task("others.fishing")
-
         assert result["ok"] is True
         assert result["pid"] == 12345
         assert "others.fishing" in services._running_processes
@@ -226,7 +228,6 @@ class TestStartTask:
     def test_start_task_not_found(self, monkeypatch):
         """不存在的任务应抛出 FileNotFoundError。"""
         monkeypatch.setattr(services, "is_runnable_task", lambda _: False)
-
         with pytest.raises(FileNotFoundError):
             services.start_task("nonexistent.task")
 
@@ -238,13 +239,10 @@ class TestStartTask:
         existing_proc.pid = 999
         existing_proc.poll.return_value = None
         services._running_processes["others.fishing"] = existing_proc
-
         monkeypatch.setattr(services, "is_runnable_task", lambda _: True)
         popen_mock = MagicMock()
         monkeypatch.setattr(services.subprocess, "Popen", popen_mock)
-
         result = services.start_task("others.fishing")
-
         assert result["ok"] is False
         assert result["running"] is True
         assert result["pid"] == 999
@@ -266,14 +264,11 @@ class TestGetRunningTasks:
         proc2 = MagicMock()
         proc2.pid = 222
         proc2.poll.return_value = None
-
         services._running_processes["task_a"] = proc1
         services._running_processes["task_b"] = proc2
-
         result = services.get_running_tasks()
         ids = {t["id"] for t in result}
         pids = {t["pid"] for t in result}
-
         assert ids == {"task_a", "task_b"}
         assert pids == {111, 222}
 
@@ -285,13 +280,10 @@ class TestGetRunningTasks:
         finished = MagicMock()
         finished.pid = 444
         finished.poll.return_value = 0
-
         services._running_processes["alive"] = running
         services._running_processes["dead"] = finished
-
         result = services.get_running_tasks()
         ids = {t["id"] for t in result}
-
         assert "alive" in ids
         assert "dead" not in ids
 
@@ -328,7 +320,6 @@ class TestIsRunnableTask:
         task_dir = services_project_root / "src" / "GameBot" / "runner" / "tasks" / "war3" / "jiubing2" / "others"
         task_dir.mkdir(parents=True)
         (task_dir / "fishing.py").write_text("# test", encoding="utf-8")
-
         assert services.is_runnable_task("others.fishing") is True
 
     def test_nonexistent_task(self, services_config_dir, services_project_root):
@@ -347,21 +338,22 @@ class TestFindTaskSection:
 
     def test_find_section_with_name(self):
         """含 name 的节点应被找到。"""
-        data = {"war3": {"jiubing2": {"tasks": {"others": {"fishing": {"name": "钓鱼"}}}}}}
+        data = {"this": {"name": "钓鱼"}}
         result = services._find_task_section(data)
         assert result["name"] == "钓鱼"
 
     def test_find_section_nested(self):
-        """多层嵌套时应递归找到含 name 的叶子节点。"""
-        data = {"war3": {"jiubing2": {"tasks": {"atomic": {"sub": {"name": "子任务"}}}}}}
+        """[this] 下可包含子表（如 patrol），整体作为任务节点返回。"""
+        data = {"this": {"name": "巡逻", "patrol": {"rounds": 10}}}
         result = services._find_task_section(data)
-        assert result["name"] == "子任务"
+        assert result["name"] == "巡逻"
+        assert result["patrol"]["rounds"] == 10
 
     def test_find_section_no_name(self):
-        """无 name 节点时应返回空字典。"""
-        data = {"war3": {"jiubing2": {"tasks": {"others": {"key": "val"}}}}}
+        """无 name 节点时仍返回 [this] 字典。"""
+        data = {"this": {"key": "val"}}
         result = services._find_task_section(data)
-        assert result == {}
+        assert result == {"key": "val"}
 
     def test_find_section_empty(self):
         """空字典应返回空字典。"""
@@ -372,24 +364,22 @@ class TestLoadTaskDefaults:
     """测试 load_task_defaults — 从任务 TOML 读取表单默认值。"""
 
     def test_load_defaults_hero_from_dependencies(self, services_config_dir):
-        """应从 dependencies 中提取英雄 ID。"""
+        """应从 extends 中提取英雄 ID。"""
         _write_task(
             services_config_dir,
             "others/test_task.toml",
-            'dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]\n\n'
-            '[war3.jiubing2.tasks.others.test_task]\nname = "测试"\n',
+            'name = "war3.jiubing2.tasks.others.test_task"\nextends = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]\n\n[this]\nname = "测试"\n',
         )
         _write_hero(
             services_config_dir,
             "lancer.toml",
-            '[hero]\nname = "长枪兵"\nfloor_key = "P"\ninventory = []\n[[hero.skills]]\nname = "穿刺"\n',
+            'name = "war3.jiubing2.heroes.lancer"\nextends = ["war3.jiubing2"]\n[hero]\nname = "长枪兵"\nfloor_key = "P"\ninventory = []\n[[hero.skills]]\nname = "穿刺"\n',
         )
         _write_hero(
             services_config_dir,
             "mk.toml",
-            '[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\n[[hero.skills]]\nname = "风暴之锤"\n',
+            'name = "war3.jiubing2.heroes.mk"\nextends = ["war3.jiubing2"]\n[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\n[[hero.skills]]\nname = "风暴之锤"\n',
         )
-
         result = services.load_task_defaults("others.test_task")
         assert result.get("hero") == "lancer"
 
@@ -398,16 +388,13 @@ class TestLoadTaskDefaults:
         _write_task(
             services_config_dir,
             "others/test_task.toml",
-            'dependencies = ["war3.jiubing2"]\n\n'
-            '[war3.jiubing2.tasks.others.test_task]\nname = "测试"\n'
-            'inventory = [{id = 1, hotkey = "1"}]\n',
+            'name = "war3.jiubing2.tasks.others.test_task"\nextends = ["war3.jiubing2"]\n\n[this]\nname = "测试"\ninventory = [{id = 1, hotkey = "1"}]\n',
         )
         _write_hero(
             services_config_dir,
             "mk.toml",
-            '[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\n[[hero.skills]]\nname = "风暴之锤"\n',
+            'name = "war3.jiubing2.heroes.mk"\nextends = ["war3.jiubing2"]\n[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\n[[hero.skills]]\nname = "风暴之锤"\n',
         )
-
         result = services.load_task_defaults("others.test_task")
         assert "inventory" in result
 
@@ -420,14 +407,13 @@ class TestLoadTaskDefaults:
         _write_task(
             services_config_dir,
             "others/test_task.toml",
-            'dependencies = ["war3.jiubing2"]\n\n'
-            '[war3.jiubing2.tasks.others.test_task]\nname = "测试"\n'
-            "[war3.jiubing2.tasks.others.test_task.patrol]\nrounds = 10\n",
+            'name = "war3.jiubing2.tasks.others.test_task"\nextends = ["war3.jiubing2"]\n\n[this]\nname = "测试"\n[this.patrol]\nrounds = 10\n',
         )
         _write_hero(
-            services_config_dir, "mk.toml", '[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n'
+            services_config_dir,
+            "mk.toml",
+            'name = "war3.jiubing2.heroes.mk"\nextends = ["war3.jiubing2"]\n[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n',
         )
-
         result = services.load_task_defaults("others.test_task")
         assert result.get("patrol_rounds") == 10
 
@@ -436,14 +422,13 @@ class TestLoadTaskDefaults:
         _write_task(
             services_config_dir,
             "others/test_task.toml",
-            'dependencies = ["war3.jiubing2"]\n\n'
-            '[war3.jiubing2.tasks.others.test_task]\nname = "测试"\n\n'
-            "[chest]\nai_conf = 0.8\n",
+            'name = "war3.jiubing2.tasks.others.test_task"\nextends = ["war3.jiubing2"]\n\n[this]\nname = "测试"\n\n[chest]\nai_conf = 0.8\n',
         )
         _write_hero(
-            services_config_dir, "mk.toml", '[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n'
+            services_config_dir,
+            "mk.toml",
+            'name = "war3.jiubing2.heroes.mk"\nextends = ["war3.jiubing2"]\n[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n',
         )
-
         result = services.load_task_defaults("others.test_task")
         assert "chest" in result
         assert result["chest"]["ai_conf"] == 0.8
@@ -453,18 +438,18 @@ class TestLoadTaskDefaults:
         _write_task(
             services_config_dir,
             "others/test_task.toml",
-            'dependencies = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]\n\n'
-            '[war3.jiubing2.tasks.others.test_task]\nname = "测试"\n',
+            'name = "war3.jiubing2.tasks.others.test_task"\nextends = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]\n\n[this]\nname = "测试"\n',
         )
         _write_hero(
-            services_config_dir, "mk.toml", '[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n'
+            services_config_dir,
+            "mk.toml",
+            'name = "war3.jiubing2.heroes.mk"\nextends = ["war3.jiubing2"]\n[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n',
         )
         _write_hero(
             services_config_dir,
             "lancer.toml",
-            '[hero]\nname = "长枪"\nfloor_key = "P"\ninventory = []\n[[hero.skills]]\nname = "穿刺"\n',
+            'name = "war3.jiubing2.heroes.lancer"\nextends = ["war3.jiubing2"]\n[hero]\nname = "长枪"\nfloor_key = "P"\ninventory = []\n[[hero.skills]]\nname = "穿刺"\n',
         )
-
         result = services.load_task_defaults("others.test_task")
         assert result["hero"] == "lancer"
 
@@ -477,17 +462,13 @@ class TestLoadFarmableItems:
         _write_task(
             services_config_dir,
             "others/patrol_loot.toml",
-            'dependencies = ["war3.jiubing2"]\n\n'
-            '[war3.jiubing2.tasks.others.patrol_loot]\nname = "巡逻"\n'
-            "desired_items = [\n"
-            '  {id = 1, name = "铁剑"},\n'
-            '  {id = 2, name = "木盾"},\n'
-            "]\n",
+            'name = "war3.jiubing2.tasks.others.patrol_loot"\nextends = ["war3.jiubing2"]\n\n[this]\nname = "巡逻"\ndesired_items = [\n  {id = 1, name = "铁剑"},\n  {id = 2, name = "木盾"},\n]\n',
         )
         _write_hero(
-            services_config_dir, "mk.toml", '[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n'
+            services_config_dir,
+            "mk.toml",
+            'name = "war3.jiubing2.heroes.mk"\nextends = ["war3.jiubing2"]\n[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n',
         )
-
         result = services.load_farmable_items()
         assert "铁剑" in result
         assert "木盾" in result
@@ -497,12 +478,13 @@ class TestLoadFarmableItems:
         _write_task(
             services_config_dir,
             "others/patrol_loot.toml",
-            'dependencies = ["war3.jiubing2"]\n\n[war3.jiubing2.tasks.others.patrol_loot]\nname = "巡逻"\n',
+            'name = "war3.jiubing2.tasks.others.patrol_loot"\nextends = ["war3.jiubing2"]\n\n[this]\nname = "巡逻"\n',
         )
         _write_hero(
-            services_config_dir, "mk.toml", '[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n'
+            services_config_dir,
+            "mk.toml",
+            'name = "war3.jiubing2.heroes.mk"\nextends = ["war3.jiubing2"]\n[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n',
         )
-
         assert services.load_farmable_items() == []
 
 
@@ -513,7 +495,6 @@ class TestExportHeroConfig:
         """应返回英雄 TOML 文件内容。"""
         content = '[hero]\nname = "山丘之王"\nfloor_key = "P"\n'
         _write_hero(services_config_dir, "mk.toml", content)
-
         result = services.export_hero_config("mk")
         assert result == content
 
@@ -537,7 +518,6 @@ class TestImportHeroBatch:
         heroes_dir.mkdir(parents=True)
         content = '[hero]\nname = "新英雄"\nfloor_key = "P"\n'
         result = services.import_hero_batch([{"hero_id": "new_hero", "content": content}])
-
         assert "new_hero" in result["saved"]
         assert result["errors"] == []
         hero_path = heroes_dir / "new_hero.toml"
@@ -554,40 +534,24 @@ class TestImportHeroBatch:
                 {"hero_id": "hero_b", "content": '[hero]\nname = "B"\n'},
             ]
         )
-
         assert len(result["saved"]) == 2
         assert result["errors"] == []
 
     def test_import_invalid_hero_id(self, services_config_dir):
         """非法英雄 ID 应记录错误。"""
-        result = services.import_hero_batch(
-            [
-                {"hero_id": "../bad", "content": '[hero]\nname = "bad"\n'},
-            ]
-        )
-
+        result = services.import_hero_batch([{"hero_id": "../bad", "content": '[hero]\nname = "bad"\n'}])
         assert result["saved"] == []
         assert len(result["errors"]) == 1
 
     def test_import_empty_content(self, services_config_dir):
         """空内容应记录错误。"""
-        result = services.import_hero_batch(
-            [
-                {"hero_id": "empty_hero", "content": ""},
-            ]
-        )
-
+        result = services.import_hero_batch([{"hero_id": "empty_hero", "content": ""}])
         assert result["saved"] == []
         assert len(result["errors"]) == 1
 
     def test_import_invalid_toml(self, services_config_dir):
         """非法 TOML 内容应记录错误。"""
-        result = services.import_hero_batch(
-            [
-                {"hero_id": "bad_hero", "content": "not valid toml [[["},
-            ]
-        )
-
+        result = services.import_hero_batch([{"hero_id": "bad_hero", "content": "not valid toml [[["}])
         assert result["saved"] == []
         assert len(result["errors"]) == 1
 
@@ -601,7 +565,6 @@ class TestImportHeroBatch:
                 {"hero_id": "bad_hero", "content": "invalid [[["},
             ]
         )
-
         assert "good_hero" in result["saved"]
         assert len(result["errors"]) == 1
 
@@ -610,76 +573,44 @@ class TestSaveHeroInventory:
     """测试 save_hero_inventory。"""
 
     def test_save_inventory_replaces_existing(self, services_config_dir):
-        """应替换已有的 inventory 块。"""
-        original = (
-            "### 山丘之王 ###\n\n"
-            "# ------------------------------ 物品栏配置 ------------------------------\n"
-            '[[hero.inventory]]\nslot = 0\nid = 1\nhotkey = "1"\n\n'
-            '[[hero.inventory]]\nslot = 1\nid = 2\nhotkey = "2"\n\n'
-            "# ============================== 分割线 ==============================\n"
-            '[hero]\nname = "山丘"\nfloor_key = "P"\n'
-        )
+        """应替换已有的 inventory 块为内联数组格式。"""
+        original = '### 山丘之王 ###\n\n# ------------------------------ 物品栏配置 ------------------------------\n[[hero.inventory]]\nslot = 0\nid = 1\nhotkey = "1"\n\n[[hero.inventory]]\nslot = 1\nid = 2\nhotkey = "2"\n\n# ============================== 分割线 ==============================\n[hero]\nname = "山丘"\nfloor_key = "P"\n'
         _write_hero(services_config_dir, "mk.toml", original)
-
-        services.save_hero_inventory(
-            "mk",
-            [
-                {"id": 3, "hotkey": "1"},
-                {"id": 4, "hotkey": "2"},
-            ],
-        )
-
+        services.save_hero_inventory("mk", [{"id": 3, "hotkey": "1"}, {"id": 4, "hotkey": "2"}])
         content = (services_config_dir / "war3" / "jiubing2" / "heroes" / "mk.toml").read_text(encoding="utf-8")
-        assert "[[hero.inventory]]" in content
-        assert "id = 3" in content
-        assert "id = 4" in content
-        assert "id = 1" not in content
-        assert "id = 2" not in content
+        assert "inventory = [" in content
+        assert "item_id = 3" in content
+        assert "item_id = 4" in content
+        assert "item_id = 1" not in content
+        assert "item_id = 2" not in content
 
     def test_save_inventory_appends_new_block(self, services_config_dir):
-        """无 inventory 块时应追加新块。"""
+        """无 inventory 块时应追加内联数组。"""
         original = '[hero]\nname = "无物品栏英雄"\nfloor_key = "P"\n'
         _write_hero(services_config_dir, "no_inv.toml", original)
-
-        services.save_hero_inventory(
-            "no_inv",
-            [
-                {"id": 1, "hotkey": "1"},
-            ],
-        )
-
+        services.save_hero_inventory("no_inv", [{"id": 1, "hotkey": "1"}])
         content = (services_config_dir / "war3" / "jiubing2" / "heroes" / "no_inv.toml").read_text(encoding="utf-8")
-        assert "[[hero.inventory]]" in content
-        assert "id = 1" in content
+        assert "inventory = [" in content
+        assert "item_id = 1" in content
 
     def test_save_inventory_filters_empty_slots(self, services_config_dir):
-        """空格子和无效 id 应被过滤。"""
+        """无效 id 应被过滤。"""
         original = '[hero]\nname = "测试"\nfloor_key = "P"\n'
         _write_hero(services_config_dir, "test.toml", original)
-
         services.save_hero_inventory(
-            "test",
-            [
-                {"id": 1, "hotkey": "1"},
-                {"id": -1, "hotkey": "2"},  # 空 id 应被过滤
-                {"id": 2, "hotkey": ""},  # 空 hotkey 应被过滤
-                {"id": None, "hotkey": "3"},  # None id 应被过滤
-            ],
+            "test", [{"id": 1, "hotkey": "1"}, {"id": -1, "hotkey": "2"}, {"id": None, "hotkey": "3"}]
         )
-
         content = (services_config_dir / "war3" / "jiubing2" / "heroes" / "test.toml").read_text(encoding="utf-8")
-        assert "id = 1" in content
-        assert "id = 2" not in content
+        assert "item_id = 1" in content
+        assert "item_id = -1" not in content
 
     def test_save_inventory_empty_list(self, services_config_dir):
-        """空物品栏列表应写入注释。"""
+        """空物品栏列表应写入空数组。"""
         original = '[hero]\nname = "空物品栏"\nfloor_key = "P"\n'
         _write_hero(services_config_dir, "empty.toml", original)
-
         services.save_hero_inventory("empty", [])
-
         content = (services_config_dir / "war3" / "jiubing2" / "heroes" / "empty.toml").read_text(encoding="utf-8")
-        assert "未配置物品栏" in content
+        assert "inventory = []" in content
 
     def test_save_inventory_invalid_hero_id(self, services_config_dir):
         """非法英雄 ID 应抛出 ValueError。"""
@@ -700,12 +631,13 @@ class TestGetTaskSchema:
         _write_task(
             services_config_dir,
             "others/fishing.toml",
-            'dependencies = ["war3.jiubing2"]\n\n[war3.jiubing2.tasks.others.fishing]\nname = "钓鱼"\n',
+            'name = "war3.jiubing2.tasks.others.fishing"\nextends = ["war3.jiubing2"]\n\n[this]\nname = "钓鱼"\n',
         )
         _write_hero(
-            services_config_dir, "mk.toml", '[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n'
+            services_config_dir,
+            "mk.toml",
+            'name = "war3.jiubing2.heroes.mk"\nextends = ["war3.jiubing2"]\n[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n',
         )
-
         result = services.get_task_schema("others.fishing")
         assert result is not None
         assert result["id"] == "others.fishing"
@@ -716,12 +648,13 @@ class TestGetTaskSchema:
         _write_task(
             services_config_dir,
             "others/patrol_loot.toml",
-            'dependencies = ["war3.jiubing2"]\n\n[war3.jiubing2.tasks.others.patrol_loot]\nname = "巡逻"\n',
+            'name = "war3.jiubing2.tasks.others.patrol_loot"\nextends = ["war3.jiubing2"]\n\n[this]\nname = "巡逻"\n',
         )
         _write_hero(
-            services_config_dir, "mk.toml", '[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n'
+            services_config_dir,
+            "mk.toml",
+            'name = "war3.jiubing2.heroes.mk"\nextends = ["war3.jiubing2"]\n[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n',
         )
-
         result = services.get_task_schema("patrol_loot")
         assert result is not None
         assert result["id"] == "patrol_loot"
@@ -735,14 +668,14 @@ class TestGetTaskSchema:
         _write_task(
             services_config_dir,
             "others/patrol_loot.toml",
-            'dependencies = ["war3.jiubing2"]\n\n[war3.jiubing2.tasks.others.patrol_loot]\nname = "巡逻"\n',
+            'name = "war3.jiubing2.tasks.others.patrol_loot"\nextends = ["war3.jiubing2"]\n\n[this]\nname = "巡逻"\n',
         )
         _write_hero(
-            services_config_dir, "mk.toml", '[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n'
+            services_config_dir,
+            "mk.toml",
+            'name = "war3.jiubing2.heroes.mk"\nextends = ["war3.jiubing2"]\n[hero]\nname = "山丘"\nfloor_key = "P"\ninventory = []\nskills = []\n',
         )
-
         result = services.get_task_schema("others.patrol_loot")
         original = services.TASK_SCHEMAS["patrol_loot"]
-        # 修改返回值不应影响原 schema
         result["test_modification"] = True
         assert "test_modification" not in original

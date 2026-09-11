@@ -1,12 +1,12 @@
 """
 跳刀目标坐标测试：移动到指定坐标 → 按快捷键 → 点击，验证跳刀落点是否正确。
-用法：切到魔兽窗口后运行 .venv-dm/Scripts/python.exe tests/test_jump_knife.py
+用法：切到魔兽窗口后运行 uv run python tests/test_jump_knife.py
 """
 
 import time
 
 from GameBot.config import config
-from GameBot.runner import DmClient
+from GameBot.runner.driver import create_dm_client
 from GameBot.utils.logger import logger
 
 
@@ -26,11 +26,11 @@ def main():
         logger.error("未在物品栏配置中找到跳刀（id=6）")
         return
 
-    # 从荒漠废墟路线的跳刀 action 读取目标坐标
+    # 从 unknown_cave 路线的跳刀 action 读取目标坐标
     patrol_cfg = cfg["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]
     jump_coords = None
     for preset in patrol_cfg.get("route_presets", []):
-        if preset.get("name") != "荒漠废墟":
+        if preset.get("name") != "unknown_cave":
             continue
         for pt in preset.get("points", []):
             for act in pt.get("actions", []):
@@ -47,7 +47,7 @@ def main():
     logger.info("请切到 war3 窗口，5 秒后开始查找窗口并测试...")
     time.sleep(5)
 
-    dm = DmClient()
+    dm = create_dm_client()
     hwnd = dm.get_active_window(war3_cfg["window_class"], war3_cfg["window_title"])
     if not hwnd:
         logger.error("未找到 war3 窗口")
