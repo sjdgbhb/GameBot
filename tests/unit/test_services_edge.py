@@ -18,10 +18,10 @@ def _write_hero(config_dir: Path, filename: str, content: str) -> None:
 
 
 def _write_base(config_dir: Path, content: str) -> None:
-    """在临时 config 目录下写入 base.toml。"""
+    """在临时 config 目录下写入 jiubing2.toml。"""
     jiubing2_dir = config_dir / "war3" / "jiubing2"
     jiubing2_dir.mkdir(parents=True, exist_ok=True)
-    (jiubing2_dir / "base.toml").write_text(content, encoding="utf-8")
+    (jiubing2_dir / "jiubing2.toml").write_text(content, encoding="utf-8")
 
 
 class TestLoadHeroesEdge:
@@ -69,32 +69,32 @@ class TestSaveHeroInventoryEdge:
         services.save_hero_inventory(
             "no_newline",
             [
-                {"id": 1, "hotkey": "1"},
+                {"slot": 0, "item_id": 1},
             ],
         )
 
         content = (services_config_dir / "war3" / "jiubing2" / "heroes" / "no_newline.toml").read_text(encoding="utf-8")
-        assert "[[hero.inventory]]" in content
-        assert "id = 1" in content
+        assert "inventory = [" in content
+        assert "item_id = 1" in content
 
     def test_save_inventory_stops_at_section_header(self, services_config_dir):
         """替换 inventory 块时应在下一个普通 section 前停止。"""
-        original = '[[hero.inventory]]\nslot = 0\nid = 1\nhotkey = "1"\n\n[hero]\nname = "测试"\nfloor_key = "P"\n'
+        original = '[hero]\nname = "测试"\nfloor_key = "P"\ninventory = [\n  {slot = 0, item_id = 1},\n]\n\n[war3]\nclient_size = [1, 1]\n'
         _write_hero(services_config_dir, "section_stop.toml", original)
 
         services.save_hero_inventory(
             "section_stop",
             [
-                {"id": 5, "hotkey": "1"},
+                {"slot": 0, "item_id": 5},
             ],
         )
 
         content = (services_config_dir / "war3" / "jiubing2" / "heroes" / "section_stop.toml").read_text(
             encoding="utf-8"
         )
-        assert "id = 5" in content
-        assert "id = 1" not in content
-        assert '[hero]\nname = "测试"' in content
+        assert "item_id = 5" in content
+        assert "item_id = 1" not in content
+        assert '[war3]' in content
 
     def test_save_inventory_filters_non_dict_items(self, services_config_dir):
         """非 dict 类型的物品项应被过滤。"""
@@ -103,7 +103,7 @@ class TestSaveHeroInventoryEdge:
         services.save_hero_inventory(
             "filter_inv",
             [
-                {"id": 1, "hotkey": "1"},
+                {"slot": 0, "item_id": 1},
                 "invalid string item",
                 123,
                 None,
@@ -111,7 +111,7 @@ class TestSaveHeroInventoryEdge:
         )
 
         content = (services_config_dir / "war3" / "jiubing2" / "heroes" / "filter_inv.toml").read_text(encoding="utf-8")
-        assert "id = 1" in content
+        assert "item_id = 1" in content
 
 
 class TestStartTaskEdge:
@@ -120,7 +120,7 @@ class TestStartTaskEdge:
     def test_start_task_reads_python_path_from_base_toml(
         self, services_config_dir, services_project_root, services_web_config, monkeypatch
     ):
-        """当 _WEB_CONFIG 未配置 dm_python_path 时，应从 base.toml [dm].python_path 读取。"""
+        """当 _WEB_CONFIG 未配置 dm_python_path 时，应从 jiubing2.toml [dm].python_path 读取。"""
         _write_base(services_config_dir, '[dm]\npython_path = "custom/python.exe"\n')
 
         expected_path = str(services_project_root / "custom" / "python.exe")

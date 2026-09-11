@@ -12,6 +12,6 @@ class ConfigurationError(Exception):
 EXCLUSIVE_NAMESPACES = frozenset({"war3.jiubing2.heroes"})
 
 # 文件级控制键，不参与合并结果
-# - dependencies: 声明依赖列表，解析完即丢弃
-# - inherit: 旧白名单机制的保留键，现已废弃并忽略
-CONTROL_KEYS = frozenset({"dependencies", "inherit"})
+# - extends: 声明依赖列表，解析完即丢弃
+# - name: 层的显式名称（可选，默认等于配置点路径）
+CONTROL_KEYS = frozenset({"extends", "name"})

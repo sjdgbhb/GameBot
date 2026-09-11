@@ -1,8 +1,8 @@
 """
-钓鱼 EXE 构建脚本 — 在 .venv-dm（32 位 Python 3.8）环境中运行
+钓鱼 EXE 构建脚本 — 在主环境（64 位 Python 3.12）中运行
 
 用法：
-    .venv-dm/Scripts/python.exe exe/fishing/build.py
+    uv run python exe/fishing/build.py
 
 功能：
     1. 调用 PyInstaller 打包 fishing_exe.py → dist/fishing/

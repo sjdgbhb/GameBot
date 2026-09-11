@@ -12,8 +12,8 @@ from __future__ import annotations
 import math
 import time
 
-from GameBot.inference import get_ocr_client
-from GameBot.runner import DmClient
+from GameBot.inference import get_inference_client
+from GameBot.runner import create_dm_client
 from GameBot.runner.business.war3 import TextMonitor, War3Business
 from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI, NearbyCleaner
 from GameBot.runner.tasks.war3.jiubing2.atomic import ATOMIC_TASK_REGISTRY
@@ -55,7 +55,7 @@ class AtomicLoopTask:
         )
 
         # 公共对象装配（配置均来自任务依赖闭包，不再读全局 config）
-        self.dm = DmClient()
+        self.dm = create_dm_client()
         war3_cfg = cfg.get("war3", {})
         hero_cfg = cfg.get("hero", {})
 
@@ -122,11 +122,11 @@ class AtomicLoopTask:
             logger.error("未找到 war3 窗口")
             return
 
-        with self.dm.bind_window(hwnd):
+        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
             self.war3.set_client_size(hwnd)
             # 预热 OCR 子进程（启动 + 加载 OCR 模型，约数秒），
             # 避免首次 wait_for_text 时占用超时
-            get_ocr_client(load_chest=False, load_combat=False)
+            get_inference_client(load_chest=False, load_combat=False)
             # 启动持续文字监测线程（整段脚本运行期间常驻，提升检测实时性）
             monitor = self._make_monitor(hwnd)
             try:
@@ -156,13 +156,10 @@ class AtomicLoopTask:
     def _run_loop(self, times: int, loop_interval: float, monitor=None) -> int:
         """循环执行原子任务，返回成功次数。"""
         done = 0
-        # 英雄当前是否已停在任务 NPC 旁：首轮必定不是（需通过小地图点击重置视角）；
-        # 仅当上一轮 run() 成功（提交后停在 NPC 旁）时，下一轮才跳过行走。
-        at_npc = False
         for i in range(1, times + 1):
             logger.info(f"===== 第 {i}/{times} 次{self.atomic_name}任务开始 =====")
             try:
-                ok = self._run_one_atomic(at_npc=at_npc, monitor=monitor)
+                ok = self._run_one_atomic(monitor=monitor)
             except StopTaskError:
                 logger.info("用户请求停止，终止循环")
                 break
@@ -174,9 +171,6 @@ class AtomicLoopTask:
             else:
                 logger.warning(f"第 {i}/{times} 次失败，继续下一次")
 
-            # 上一轮成功 -> 英雄已停在 NPC 旁，下一轮可跳过行走；否则下一轮仍需走过去
-            at_npc = ok
-
             if i < times:
                 self._interruptible_sleep(loop_interval)
 
@@ -186,10 +180,9 @@ class AtomicLoopTask:
         """子类可覆写：报告进度到浮窗（每次原子任务成功后调用）。"""
         pass
 
-    def _run_one_atomic(self, at_npc: bool = False, walk_time=None, monitor=None) -> bool:
+    def _run_one_atomic(self, walk_time=None, monitor=None) -> bool:
         """执行一次原子任务，返回是否成功。
 
-        :param at_npc: 英雄是否已在任务 NPC 旁（为真则跳过接取前的行走）。
         :param walk_time: 走到任务 NPC 的等待时间覆盖（None 用 npc 配置 time）。
         :param monitor: 持续文字监测器（None 时回退到起停式 watcher）。
         """
@@ -199,7 +192,6 @@ class AtomicLoopTask:
             self.ui,
             self.combat,
             self.atomic_cfg,
-            at_npc=at_npc,
             walk_time=walk_time,
             monitor=monitor,
             nearby_cleaner=self.nearby_cleaner,
@@ -247,7 +239,7 @@ class ReputationTask(AtomicLoopTask):
             effective["points"] = _copy.deepcopy(points)
         return effective
 
-    def _run_one_atomic(self, at_npc: bool = False, walk_time=None, monitor=None) -> bool:
+    def _run_one_atomic(self, walk_time=None, monitor=None) -> bool:
         """执行一次原子任务，返回是否成功。"""
         task = self.atomic_task_cls(
             self.dm,
@@ -255,7 +247,6 @@ class ReputationTask(AtomicLoopTask):
             self.ui,
             self.combat,
             self._build_atomic_cfg(),
-            at_npc=at_npc,
             walk_time=walk_time,
             monitor=monitor,
             nearby_cleaner=self.nearby_cleaner,
@@ -319,9 +310,9 @@ class MultiAtomicLoopTask(AtomicLoopTask):
             logger.error("未找到 war3 窗口")
             return
 
-        with self.dm.bind_window(hwnd):
+        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
             self.war3.set_client_size(hwnd)
-            get_ocr_client(load_chest=False, load_combat=False)
+            get_inference_client(load_chest=False, load_combat=False)
             monitor = self._make_monitor(hwnd)
             try:
                 done = self._run_multi_loop(rounds, n, loop_interval, times, monitor, hwnd)
@@ -476,9 +467,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
                 self.ui,
                 self.combat,
                 atomic_cfg,
-                at_npc=False,
                 walk_time=walk_time,
-                monitor=None,
                 nearby_cleaner=self.nearby_cleaner,
             )
 
@@ -632,9 +621,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
                 self.ui,
                 self.combat,
                 atomic_cfg,
-                at_npc=False,
                 walk_time=walk_time,
-                monitor=None,
                 nearby_cleaner=None,
             )
             npc_key = task._npc_key
@@ -705,14 +692,11 @@ class MultiAtomicLoopTask(AtomicLoopTask):
 
         # OCR 弹窗区域（逐行）
         area_coords = popup_cfg.get("area_coords", [600, 200, 1300, 600])
-        bbox = self.war3._compute_ocr_bbox({"area_coords": area_coords}, hwnd)
-        lines = get_ocr_client().ocr_lines(bbox)
+        ocr_cfg = {"area_coords": area_coords}
+        lines = self.war3.ocr_lines(self.war3.dm, hwnd, ocr_cfg, bind_cfg=self.war3.war3_cfg.get("bind", {}))
 
         window_kw = popup_cfg.get("window_keyword", "任务")
         close_kw = popup_cfg.get("close_keyword", "关闭")
-
-        # 客户区原点（OCR 返回的坐标是相对 bbox 的，需转成客户区坐标）
-        cx, cy, _, _ = self.dm.get_client_rect(hwnd)
 
         # 解析任务行，同时查找"关闭"按钮坐标
         task_lines = []
@@ -722,9 +706,9 @@ class MultiAtomicLoopTask(AtomicLoopTask):
             if i == 0 and window_kw in text:
                 continue
             if close_kw in text:
-                # OCR 坐标是相对截屏 bbox 的，转为客户区坐标
-                ox = bbox[0] - cx + int(line.get("x_center", 0))
-                oy = bbox[1] - cy + int(line.get("y_center", 0))
+                # OCR 坐标是相对截图区域的，转为客户区坐标
+                ox = area_coords[0] + int(line.get("x_center", 0))
+                oy = area_coords[1] + int(line.get("y_center", 0))
                 close_coords = (ox, oy)
                 continue
             task_lines.append(text)

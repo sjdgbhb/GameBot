@@ -10,7 +10,9 @@
 #time = 8
 
 # 地图中具有传送功能的相关配置
-[war3.jiubing2.scenes.menethil.teleport.palace_waygate]
+name = "war3.jiubing2.scenes.menethil"
+extends = []
+[this.teleport.palace_waygate]
 desc = "皇宫入口（传送圈）"
 trigger = "walk"     # 踩圈即传，其他值，如click 需右键物体
 mini_coords = [287,928]
@@ -18,10 +20,31 @@ coords = [1711,433]
 walk_mode = 2  # 通过右键移动到该位置
 time = 8
 
-[war3.jiubing2.scenes.menethil.teleport.forest_waygate]
+[this.teleport.forest_waygate]
 desc = "远古森林外围入口（传送圈）"
 trigger = "walk"    # 踩圈即传
 mini_coords = [161,931]
 coords = [790,532]
 walk_mode = 2  # 通过右键移动到该位置
 time = 2
+
+# ── 复活石 NPC（传送至各区域） ──
+[this.resurrection_stone.point]
+desc = "米奈希尔复活石 NPC 坐标（传送至米奈希尔并以英雄为中心时的窗口相对坐标）"
+mini_coords = [291,931]
+coords = [687,506]
+walk_mode = 2
+time = 2
+
+# 复活石传送技能格（1-based 行列索引，对应 GameUI.get_skill_coords）
+[this.resurrection_stone.skill]
+sky_island = [1, 3]              # 天空岛
+underground_fire_temple = [1, 4] # 地下火神殿
+ancient_forest = [2, 1]          # 远古森林
+ghost_hinterland = [2, 2]        # 幽魂腹地
+elwynn_forest = [2, 3]           # 艾尔文森林
+strange_land = [2, 4]            # 奇异之地
+unknown_cave = [3, 1]            # 未知洞穴
+underwater_altar = [3, 2]        # 海底祭坛
+ghost_outpost = [3, 3]           # 幽魂前哨
+gairok_volcano = [3, 4]          # 盖洛克火山

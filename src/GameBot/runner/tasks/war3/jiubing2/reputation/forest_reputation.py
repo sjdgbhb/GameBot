@@ -46,7 +46,7 @@ class ForestReputationTask(ReputationTask):
         if not hwnd:
             logger.error("未找到 war3 窗口，转场失败")
             return
-        with self.dm.bind_window(hwnd):
+        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
             self.nav.tp_enter_forest_city(self._stop_event)
 
 

@@ -1,6 +1,7 @@
-dependencies = ["base"]
+name = "war3"
+extends = ["base"]
 
-[war3]
+[this]
 window_class = "Warcraft III"
 window_title = "Warcraft III"
 client_size = [1902, 1033]

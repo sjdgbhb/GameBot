@@ -3,21 +3,25 @@
 """
 
 import time
+from typing import TYPE_CHECKING, Optional
 
 from GameBot.config import config as config
-from GameBot.runner import DmClient
+from GameBot.runner.driver import create_dm_client
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import NearbyCleaner, get_inventory_hotkey
 from GameBot.runner.ui import run_with_float_window
 from GameBot.utils import StopTaskError, logger, setup_global_exception_hook, setup_log_file
 
+if TYPE_CHECKING:
+    from GameBot.runner.driver.base import DmClientBase
+
 
 class FishingTask:
     __doc__ = "钓鱼业务"
 
-    def __init__(self, cfg: dict, stop_event=None, progress_callback=None):
+    def __init__(self, cfg: dict, stop_event=None, progress_callback=None, dm: Optional["DmClientBase"] = None):
         self.task_cfg = cfg
-        self.dm = DmClient()
+        self.dm: "DmClientBase" = dm or create_dm_client()
         self._stop_event = stop_event
         self._progress_callback = progress_callback or (lambda text: None)
         self.war3_cfg = cfg.get("war3", {})
@@ -53,9 +57,11 @@ class FishingTask:
 
     def test_check_area(self, duration=5):
         """抛竿后测试中钩检测区域：截图 + 检测 + 框选区域。"""
+        logger.info("测试模式：先抛竿再检测中钩区域")
+        self._cast_rod()
+        self._interruptible_wait(1)
         x1, y1, x2, y2 = self.check_cfg["status_area_coords"]
         detect_mode = self.fishing_cfg.get("mode", 0)
-        time.sleep(1)
         if detect_mode != 0:
             delta_color = self.check_cfg.get("hook_delta_color", "000000")
             sim = self.check_cfg["hook_sim"]
@@ -86,6 +92,7 @@ class FishingTask:
 
     def _cast_rod(self):
         # 双击 F1 以英雄为中心重置游戏窗口视角
+        logger.info(f"抛竿：F1×2 → 移动到 {self.fishing_cfg['hook_coords']} → 按键 {self.fishing_hotkey} → 左键点击")
         self.dm.key_press_char("f1")
         self._interruptible_wait(0.05)
         self.dm.key_press_char("f1")
@@ -200,8 +207,8 @@ class FishingTask:
 
         logger.warning(f"等待红色{'出现' if target else '消失'}超时（{timeout}s）— 请检查检测区域坐标和图片是否匹配")
 
-    def run(self):
-        """钓鱼主循环。"""
+    def run_fishing_loop(self):
+        """钓鱼主循环（不绑定窗口，需调用方已绑定）。"""
         logger.info("开始钓鱼")
         if self.fishing_cfg.get("is_test_check", False):
             self.test_check_area()
@@ -210,36 +217,39 @@ class FishingTask:
         max_times = self.fishing_cfg.get("max_times", 10000)
         interval = self.fishing_cfg.get("fishing_interval_time", 1)
 
+        for i in range(max_times):
+            if self._stop_event is not None and self._stop_event.is_set():
+                raise StopTaskError("用户请求停止任务")
+
+            logger.info(f"抛竿 {i + 1}/{max_times}")
+            self._progress_callback(f"抛竿 {i + 1}/{max_times}")
+            self._cast_rod()
+
+            hooked = self._wait_and_retract()
+            if not hooked:
+                self._hook_no_success_count += 1
+                logger.warning(f"未检测到中钩，连续 {self._hook_no_success_count} 次未成功")
+            else:
+                self._hook_no_success_count = 0
+
+            # 清理附近物品
+            if self.nearby_cleaner is not None:
+                self.nearby_cleaner.tick()
+
+            self._interruptible_wait(interval)
+
+        logger.info(f"钓鱼结束，共抛竿 {max_times} 次")
+
+    def run(self):
+        """钓鱼主入口 — 查找窗口、绑定、运行钓鱼循环。"""
         hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
 
-        with self.dm.bind_window(hwnd):
+        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
             self.war3.set_client_size(hwnd)
-
-            for i in range(max_times):
-                if self._stop_event is not None and self._stop_event.is_set():
-                    raise StopTaskError("用户请求停止任务")
-
-                logger.info(f"抛竿 {i + 1}/{max_times}")
-                self._progress_callback(f"抛竿 {i + 1}/{max_times}")
-                self._cast_rod()
-
-                hooked = self._wait_and_retract()
-                if not hooked:
-                    self._hook_no_success_count += 1
-                    logger.warning(f"未检测到中钩，连续 {self._hook_no_success_count} 次未成功")
-                else:
-                    self._hook_no_success_count = 0
-
-                # 清理附近物品
-                if self.nearby_cleaner is not None:
-                    self.nearby_cleaner.tick()
-
-                self._interruptible_wait(interval)
-
-        logger.info(f"钓鱼结束，共抛竿 {max_times} 次")
+            self.run_fishing_loop()
 
 
 def main():
@@ -256,3 +266,30 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ── 组队任务步骤 ────────────────────────────────────────────
+
+
+from GameBot.runner.business.war3.jiubing2.team_steps_base import Jiubing2TaskSteps
+
+
+class _FishingSteps(Jiubing2TaskSteps):
+    """钓鱼组队步骤 — preparation 继承九兵通用流程，run_task 执行钓鱼循环。"""
+
+    def run_task(self, member, stop_event=None, **kwargs):
+        """钓鱼主循环（窗口已由 _game_phase 绑定，直接使用 member.dm）。"""
+        fishing_task = FishingTask(
+            member.task_cfg,
+            stop_event=stop_event,
+            progress_callback=member.task_ctx._progress_callback,
+            dm=member.dm,
+        )
+        fishing_task.run_fishing_loop()
+
+
+_steps = _FishingSteps()
+preparation = _steps.preparation
+position_init = _steps.position_init
+pre_exit = _steps.pre_exit
+run_task = _steps.run_task

@@ -1,21 +1,36 @@
 # =============================================================================
 # 英雄配置：paladin (圣骑士)
 # =============================================================================
-dependencies = ["war3.jiubing2"]
+name = "war3.jiubing2.heroes.paladin"
+extends = ["war3.jiubing2"]
 
 
 [hero]
 name = "圣骑士"
 floor_key = "P"
 coords = [509, 20]
-is_load = true
 load_save = "-load2"
-
-# 注意：原配置中未提供 paladin 的技能学习列表和物品栏，此处留空。
-# 可根据实际需要按 hxd.toml 的格式添加 [[hero.learn_skills]] 和 [[hero.inventory]]。
-
 # ------------------------------ 物品栏配置（背包1-6格） ------------------------------
-[[hero.inventory]]
-slot = 4
-id = 5  # 物品id，传送至远古森林外围入口的卷轴
-hotkey = "5"
+# slot: 格子编号 0~5 对应第 1~6 格
+# item: 物品名（映射表在 jiubing2.toml 的 items 中），也可用 item_id = 数字
+# 快捷键从 kk.toml 的 inventory_slots 查找
+inventory = [
+  {slot = 4, item = "远古森林外围入口传送卷轴"},  # 传送至远古森林外围入口的卷轴
+]
+
+# ------------------------------ 技能 ------------------------------
+# id: 技能唯一标识，路线点通过 id 引用技能
+# key: 游戏内快捷键
+# target_type: self(自身/无指向) | ground(地面目标) | enemy(锁头敌方) | ally(锁头友军)
+# position: target_area(目标区域) 、target（目标），具体坐标需自行抓取后在路线点设置
+skills = [
+  {id = 0, desc = '降临', key = "Q", target_type = "self"},
+  {id = 1, desc = '光明礼赞', key = "W", target_type = "ground", position = "target_area"},
+  {id = 2, desc = '圣光闪耀', key = "W", target_type = "ally", position = "target"},
+  {id = 3, desc = '祝福之锤', key = "W", target_type = "self"},
+  {id = 4, desc = '辉耀之盾', key = "R", target_type = "self"},
+  {id = 5, desc = '牺牲', key = "R", target_type = "ally", position = "target"},
+  {id = 6, desc = '神圣复仇', key = "T", target_type = "self"},
+  {id = 7, desc = '生命甲胄', key = "T", target_type = "ally", position = "target"},
+  {id = 8, desc = '天堂拳', key = "T", target_type = "ground", position = "target_area"}
+]

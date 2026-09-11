@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     import threading
 
-    from GameBot.runner.dm_client import DmClient
+    from GameBot.runner.driver.base import DmClientBase as DmClient
 from GameBot.utils import logger
 
 from .combat_helper import get_inventory_hotkey
@@ -77,6 +77,59 @@ class SceneNavigator:
         self._war3.interruptible_wait(gt, stop_event)
         waygate = self.menethil_cfg["teleport"]["forest_waygate"]
         self._war3.go_through_teleport(waygate, stop_event)
+
+    # 中文路线名 → menethil.toml 中 resurrection_stone.skill 英文键名映射
+    ROUTE_SCHEME_TO_SKILL_KEY = {
+        "奇异之地": "strange_land",
+        "荒漠废墟": "unknown_cave",
+    }
+
+    def tp_to_patrol_area(self, route_scheme: str, stop_event: Optional["threading.Event"] = None):
+        """TP 至米奈希尔 → 走到复活石 NPC → 点击传送至对应区域。
+
+        :param route_scheme: 路线方案名称（中文，如 "奇异之地" 或 "荒漠废墟"，
+            通过 ROUTE_SCHEME_TO_SKILL_KEY 映射到 menethil.toml 中的英文技能键）
+        :param stop_event: 停止事件
+        """
+        logger.info(f"传送至巡逻区域：{route_scheme}")
+        # 1. 使用米奈希尔传送卷轴（物品 id=4）传送至米奈希尔
+        hotkey = get_inventory_hotkey(self.hero_cfg, 4)
+        if hotkey:
+            self.dm.key_press_char(hotkey)
+        self._war3.interruptible_wait(self.game_cfg["teleport_time"], stop_event)
+        gt = self.war3_cfg["general_time"]
+        self._war3.center_hero()
+        self._war3.interruptible_wait(gt, stop_event)
+
+        # 2. 走到复活石 NPC 并点击
+        stone_cfg = self.menethil_cfg.get("resurrection_stone", {})
+        point = stone_cfg.get("point", {})
+        coords = point.get("coords", [0, 0])
+        self._war3.move_to_minimap_point(
+            point.get("mini_coords"),
+            [coords[0] - 100, coords[1]],
+            point.get("walk_mode", 2),
+            point.get("time", 5),
+            stop_event,
+        )
+        self.dm.move_to(*coords)
+        self._war3.interruptible_wait(gt, stop_event)
+        self.dm.left_click()
+        self._war3.interruptible_wait(self.war3_cfg["small_window_response_time"], stop_event)
+
+        # 3. 点击对应技能格传送（技能格由 menethil.toml 中 resurrection_stone.skill 映射配置）
+        skill = stone_cfg.get("skill", {})
+        skill_key = self.ROUTE_SCHEME_TO_SKILL_KEY.get(route_scheme, route_scheme)
+        grid = skill.get(skill_key)
+        if not grid:
+            logger.error(f"复活石技能格映射中未找到路线方案「{route_scheme}」（技能键「{skill_key}」）")
+            return
+        target_coords = self._ui.get_skill_coords(*grid)
+        self.dm.move_to(*target_coords)
+        self._war3.interruptible_wait(gt, stop_event)
+        self.dm.left_click()
+        self._war3.interruptible_wait(gt, stop_event)
+        logger.info(f"已传送至{route_scheme}")
 
     def enter_endless(self, task, endless_cfg: dict, stop_event: Optional["threading.Event"] = None):
         """从皇宫走到无尽 NPC → 重置层数 → 进入无尽地图。

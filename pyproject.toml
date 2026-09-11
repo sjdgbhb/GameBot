@@ -19,6 +19,8 @@ dependencies = [
     "Pillow>=10.0.0",
     # ── 通用工具 ──
     "loguru>=0.7.3",
+    # ── Windows COM（IDE 静态分析需要；运行时走 bridge 驱动，不直接导入 win32com）──
+    "pywin32>=311; sys_platform == 'win32'",
 ]
 
 [project.scripts]
@@ -49,7 +51,7 @@ markers = [
     "unit: 单元测试",
     "integration: 集成测试（真实文件 I/O，多模块协作）",
     "manual: 需人工介入的手动测试",
-    "dm: 依赖大漠插件 COM（仅 .venv-dm 32 位 Python 3.8）",
+    "dm: 依赖大漠插件 COM（经 dm_bridge 子进程调用）",
     "slow: 耗时较长的测试",
     "inference: 依赖 ONNX / AI 模型的推理测试",
     "web: Web API / FastAPI 测试",

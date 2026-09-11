@@ -1,7 +1,8 @@
 ﻿"""
-钓鱼自动化 EXE 入口 — 32 位 Python 3.8 + 大漠插件 COM
+钓鱼自动化 EXE 入口 — 64 位 Python 3.12（dm_bridge 子进程调大漠 COM）
 
-功能：快速模式钓鱼（找色 + 预判收竿），不含 Web 配置端和 OCR 推理子进程。
+功能：快速模式钓鱼（找色 + 预判收竿），不含 Web 配置端和 OCR 推理。
+大漠 COM 经同目录下的 dm_bridge/dm_bridge.exe（32 位）子进程调用。
 用户配置：编辑同目录下的 钓鱼_config.toml 文件。
 """
 import sys
@@ -76,6 +77,8 @@ def _apply_overrides(task_cfg: dict, user_cfg: dict):
     if "dm" not in cfg_singleton._config:
         cfg_singleton._config["dm"] = {}
     cfg_singleton._config["dm"]["dll_path"] = "dm"
+    # dm_bridge 子进程路径（exe 版使用打包的 dm_bridge.exe，32 位大漠 COM 桥接）
+    cfg_singleton._config["dm"]["python_path"] = "dm_bridge/dm_bridge.exe"
     if "paths" not in cfg_singleton._config:
         cfg_singleton._config["paths"] = {}
     cfg_singleton._config["paths"]["resources_path"] = "resources"
@@ -83,6 +86,7 @@ def _apply_overrides(task_cfg: dict, user_cfg: dict):
     # 同步到 task_cfg 中的路径
     if "dm" in task_cfg:
         task_cfg["dm"]["dll_path"] = "dm"
+        task_cfg["dm"]["python_path"] = "dm_bridge/dm_bridge.exe"
     if "paths" in task_cfg:
         task_cfg["paths"]["resources_path"] = "resources"
 
@@ -109,6 +113,13 @@ def main():
     if not dm_dll.exists():
         logger.error(f"大漠插件 DLL 不存在: {dm_dll}")
         logger.error("请确保 dm/dm.dll 文件与 钓鱼.exe 在同一目录下")
+        sys.exit(1)
+
+    # 检查 dm_bridge 子进程
+    bridge_exe = EXE_DIR / "dm_bridge" / "dm_bridge.exe"
+    if not bridge_exe.exists():
+        logger.error(f"dm_bridge 子进程不存在: {bridge_exe}")
+        logger.error("请确保 dm_bridge/dm_bridge.exe 与 钓鱼.exe 在同一目录下")
         sys.exit(1)
 
     # 加载用户配置

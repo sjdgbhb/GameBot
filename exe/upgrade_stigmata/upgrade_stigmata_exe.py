@@ -1,8 +1,9 @@
 ﻿"""
-升级圣痕自动化 EXE 入口 — 32 位 Python 3.8 + 大漠插件 COM
+升级圣痕自动化 EXE 入口 — 64 位 Python 3.12（进程内推理 + dm_bridge 子进程调大漠 COM）
 
 功能：交替执行城门骚扰（获取升级机会）→ 走到圣痕 NPC → 自动选择未满词条升级，直至全部达标。
-推理子进程（OCR）由同目录下的 inference/inference_worker.exe 提供（64 位）。
+推理在主进程内直接进行（OCR），大漠 COM 经同目录下的
+dm_bridge/dm_bridge.exe（32 位）子进程调用。
 用户配置：编辑同目录下的 升级圣痕_config.toml 文件。
 """
 import sys
@@ -62,33 +63,27 @@ def _apply_overrides(task_cfg: dict, user_cfg: dict):
     if "dm" not in cfg_singleton._config:
         cfg_singleton._config["dm"] = {}
     cfg_singleton._config["dm"]["dll_path"] = "dm"
+    # dm_bridge 子进程路径（exe 版使用打包的 dm_bridge.exe，32 位大漠 COM 桥接）
+    cfg_singleton._config["dm"]["python_path"] = "dm_bridge/dm_bridge.exe"
     if "paths" not in cfg_singleton._config:
         cfg_singleton._config["paths"] = {}
     cfg_singleton._config["paths"]["resources_path"] = "resources"
 
     if "dm" in task_cfg:
         task_cfg["dm"]["dll_path"] = "dm"
+        task_cfg["dm"]["python_path"] = "dm_bridge/dm_bridge.exe"
     if "paths" in task_cfg:
         task_cfg["paths"]["resources_path"] = "resources"
 
-    # 配置推理子进程路径
+    # 配置推理路径（进程内推理，模型目录指向 resources/models）
     if "inference" not in cfg_singleton._config:
         cfg_singleton._config["inference"] = {}
-    inf_cfg = cfg_singleton._config["inference"]
-    inf_cfg["python_path"] = "inference/inference_worker.exe"
-    inf_cfg["worker_script"] = ""
-    inf_cfg["models_dir"] = "resources/models"
+    cfg_singleton._config["inference"]["models_dir"] = "resources/models"
 
     if "inference" in task_cfg:
-        task_cfg["inference"]["python_path"] = "inference/inference_worker.exe"
-        task_cfg["inference"]["worker_script"] = ""
         task_cfg["inference"]["models_dir"] = "resources/models"
     else:
-        task_cfg["inference"] = {
-            "python_path": "inference/inference_worker.exe",
-            "worker_script": "",
-            "models_dir": "resources/models",
-        }
+        task_cfg["inference"] = {"models_dir": "resources/models"}
 
 
 def main():
@@ -104,11 +99,11 @@ def main():
         logger.error("请确保 dm/dm.dll 文件与 升级圣痕.exe 在同一目录下")
         sys.exit(1)
 
-    # 检查推理子进程
-    worker_exe = EXE_DIR / "inference" / "inference_worker.exe"
-    if not worker_exe.exists():
-        logger.error(f"推理子进程不存在: {worker_exe}")
-        logger.error("请确保 inference/inference_worker.exe 与 升级圣痕.exe 在同一目录下")
+    # 检查 dm_bridge 子进程
+    bridge_exe = EXE_DIR / "dm_bridge" / "dm_bridge.exe"
+    if not bridge_exe.exists():
+        logger.error(f"dm_bridge 子进程不存在: {bridge_exe}")
+        logger.error("请确保 dm_bridge/dm_bridge.exe 与 升级圣痕.exe 在同一目录下")
         sys.exit(1)
 
     # 加载用户配置

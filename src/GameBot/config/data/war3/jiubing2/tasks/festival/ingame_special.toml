@@ -1,0 +1,48 @@
+# =============================================================================
+# 局内特殊任务配置 — 节日活动局内脚本
+# 起始位置：黑石城城门骚扰任务 NPC 附近（可直接接取任务的位置）
+# 流程：每日声望（黑石城 + 森之城）→ 森之城内步行至鱼点 → 钓鱼（默认 350 竿）
+# =============================================================================
+name = "war3.jiubing2.tasks.festival.ingame_special"
+extends = [
+    "war3.jiubing2.tasks.reputation.daily_reputation",  # 城门骚扰 + 迅猛野兽 + 场景闭包
+    "war3.jiubing2.tasks.others.fishing",               # 钓鱼检测参数
+]
+
+# 物品栏装备（本任务两段流程都需要：传送卷转场 + 鱼竿钓鱼）
+# [hero] 为浅合并，本文件的 inventory 整表覆盖继承值
+# slot: 格子编号 0~5 对应第 1~6 格；快捷键从 kk.toml 的 inventory_slots 查找
+[hero]
+inventory = [
+  {slot = 3, item = "鱼竿"},                     # 钓鱼用
+  {slot = 4, item = "远古森林外围入口传送卷轴"},  # 黑石城 → 森之城转场
+]
+
+[this]
+name = "局内特殊任务"
+description = "每日声望（黑石+森之城）→ 森之城鱼点钓鱼"
+enable_reputation = true   # 是否执行每日声望
+enable_fishing = true      # 是否执行钓鱼
+
+# 每日声望参数覆盖（深度合并到 tasks.reputation.daily_reputation 节点）
+[this.reputation]
+enable_blackstone = true   # 黑石城声望（城门骚扰）
+enable_forest = true       # 森之城声望（迅猛野兽）
+
+[this.reputation.blackstone]
+progress_label = "黑石城声望"   # 浮窗进度行标签
+
+[this.reputation.forest]
+progress_label = "森之城声望"   # 浮窗进度行标签
+
+# 鱼点步行点（森之城内）：小地图切视角 → 点击目标点移动
+[this.fishing_spot]
+desc = "森之城钓鱼点"
+mini_coords = [138,961]   # TODO: 鱼点小地图坐标（实测后填写）
+coords = [945,462]        # TODO: 切视角后鱼点旁目标点屏幕坐标（实测后填写）
+walk_mode = 2          # 0右键移动 / 1A+左键 / 2M+左键
+time = 15              # TODO: 步行等待时间（秒）
+
+# 钓鱼参数覆盖（深度合并到 tasks.others.fishing 节点）
+[this.fishing]
+max_times = 350            # 抛竿次数：钓鱼 300 次按 350 竿计

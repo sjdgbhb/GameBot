@@ -37,7 +37,8 @@ tmp_*
 .env.*
 
 # IDE 配置
-.vscode/
+.vscode/*
+!.vscode/launch.json
 .idea/
 
 # 编辑器临时文件

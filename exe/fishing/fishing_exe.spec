@@ -1,11 +1,11 @@
 ﻿# -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller 打包配置 — 钓鱼自动化 EXE
+"""PyInstaller 打包配置 — 钓鱼自动化 EXE（64 位 Python 3.12，dm_bridge 子进程调大漠 COM）
 
-在 .venv-dm（32 位 Python 3.8）环境中运行：
-    .venv-dm/Scripts/pyinstaller.exe exe/fishing/fishing_exe.spec --noconfirm
+在主环境（.venv，64 位 Python 3.12）中运行：
+    uv run python -m PyInstaller exe/fishing/fishing_exe.spec --noconfirm
 
 或使用构建脚本：
-    .venv-dm/Scripts/python.exe exe/fishing/build.py
+    uv run python exe/fishing/build.py
 """
 
 import os
@@ -36,14 +36,12 @@ for toml_file in fishing_tomls:
     datas.append((str(toml_file), target_dir))
 
 # 隐藏导入（PyInstaller 可能无法自动检测的模块）
+# 主 EXE 为 64 位 3.12，大漠 COM 经 dm_bridge 子进程调用，不直接依赖 win32com
 hiddenimports = [
-    'win32com.client',
-    'pythoncom',
-    'winreg',
-    'pywintypes',
     'win32api',
     'win32con',
     'win32gui',
+    'pywintypes',
     'tomli',
     'loguru',
     'PIL',
@@ -68,10 +66,10 @@ excludes = [
     'pydantic',
     # Web 相关
     'GameBot.web',
-    # 推理子进程相关（快速模式不需要）
+    # 推理相关（钓鱼不需要推理，但 inference/__init__.py 模块级导入 local，
+    # 故仅排除 worker/model_loader，local 的延迟导入不会触发）
     'GameBot.inference.worker',
-    'GameBot.inference.chest_detector',
-    'GameBot.inference.combat_detector',
+    'GameBot.inference.model_loader',
     # 无关任务模块
     'GameBot.runner.tasks.achievements',
     'GameBot.runner.tasks.atomic',

@@ -1,0 +1,64 @@
+# =============================================================================
+# 圣骑士风龙挂机任务配置
+# 挂机逻辑：不做按键计时，轮询检测技能图标——图标与就绪态图片匹配（未变灰）
+# 即施放；冷却中图标变灰不匹配则跳过。被控制吞掉的按键下一轮检测自然补上。
+# 技能面板坐标由 jiubing2.toml 的 [skill_panel]（first_coords + gap_x/gap_y）计算，
+# 因此运行时强制对齐客户区尺寸（war3.client_size，默认 1902x1033）。
+# =============================================================================
+name = "war3.jiubing2.tasks.others.paladin_wind_dragon"
+extends = ["war3.jiubing2.heroes.paladin", "kk"]
+
+[this]
+name = "圣骑士风龙"
+description = "圣骑士风龙挂机：检测技能图标就绪即施放，冷却自动跳过。"
+
+skill_gap = 0.8             # 任意两次技能施放之间的最小间隔（秒），等待后摇
+poll_interval = 0.5         # 无技能就绪时的轮询间隔（秒）
+cast_confirm_time = 3     # 施放确认窗口（秒）：按技能后需观察到图标变灰才允许再放。
+                            # 注意：技能施法前摇/动画期间图标不变灰，窗口需大于技能最大前摇；
+                            # 超时未变灰视为按键被吞，自动重按（覆盖被控制场景）
+f1_min_interval = 0.6       # 两次 F1 最小间隔（秒），防止被判定双击 F1 镜头跳英雄
+reselect_idle_time = 10      # 连续无技能就绪超过该秒数时按一次 F1（防选中丢失卡死）
+bind_mode = "background"    # 绑定模式：foreground=前台（正常截图/键鼠，需 war3 为活动窗口）；
+                            # background=后台（用 war3.bind_multi 的 dx2+windows3+windows，
+                            # 不占物理键鼠，不要求 war3 在前台，可被遮挡但不能最小化）；
+                            # 需管理员权限，且 dx2 要求窗口有一部分移出屏幕外
+
+# 技能图标检测参数（冷却时图标变灰，与就绪态图片不匹配）
+icon_sim = 0.95              # 找图相似度
+icon_delta_color = "101010" # 找图色差
+# 以技能格中心为中心的检测半径 [半宽, 半高]。
+# 注意：检测区域必须大于图标本身（当前图标约 56~64 × 40~45），
+# 区域比图片小时 FindPic 永远无法匹配。默认 40x30 = 80x60 区域。
+icon_search_half = [40, 30]
+is_test_detect = false      # 检测测试模式：只截图+多档相似度试匹配并打日志，不施放技能
+
+# 技能列表：按顺序轮询检测，就绪即放
+#   key           — 技能按键
+#   name          — 技能名（日志/浮窗显示用）
+#   grid          — 技能面板格子 [行, 列]（1-based，由 skill_panel 公式换算坐标）
+#   image         — 就绪态图标文件名（resources/images/ 下），找不到=冷却中
+#   targeted      — 是否指向性技能
+#   target_coords — 指向性技能的目标坐标："center"=客户区中心，或 [x, y]
+
+[[this.skills]]
+key = "q"
+name = "降临"
+grid = [2, 3]
+image = "paladin_skill_q_advent.bmp"
+targeted = false
+
+[[this.skills]]
+key = "w"
+name = "光明礼赞"
+grid = [3, 1]
+image = "paladin_skill_w_hymn.bmp"
+targeted = true
+target_coords = "center"
+
+[[this.skills]]
+key = "t"
+name = "神圣复仇"
+grid = [3, 4]
+image = "paladin_skill_t_vengeance.bmp"
+targeted = false

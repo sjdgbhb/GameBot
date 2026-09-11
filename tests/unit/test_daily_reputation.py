@@ -22,6 +22,8 @@ pytestmark = [pytest.mark.unit]
 # ── 测试用 TOML 文件内容 ──
 
 BASE_TOML = """
+name = "base"
+extends = []
 [paths]
 log_path = "logs"
 
@@ -30,9 +32,10 @@ version = "3.1233"
 """
 
 WAR3_TOML = """
-dependencies = ["base"]
+name = "war3"
+extends = ["base"]
 
-[war3]
+[this]
 window_class = "War3Class"
 window_title = "Warcraft III"
 client_size = [1902, 1033]
@@ -42,7 +45,8 @@ small_window_response_time = 0.5
 """
 
 JIUBING2_TOML = """
-dependencies = ["war3"]
+name = "war3.jiubing2"
+extends = ["war3"]
 
 [game]
 load_war3_time = 33
@@ -63,6 +67,8 @@ area_coords = [100, 100, 800, 600]
 """
 
 PALADIN_TOML = """
+name = "war3.jiubing2.heroes.paladin"
+extends = ["war3.jiubing2"]
 [[hero.inventory]]
 id = 6
 hotkey = "4"
@@ -78,9 +84,10 @@ attack = 120
 """
 
 BLACKSTONE_CITY_TOML = """
-dependencies = ["war3.jiubing2"]
+name = "scenes.blackstone_city"
+extends = ["war3.jiubing2"]
 
-[scenes.blackstone_city.npcs.guard_captain]
+[this.npcs.guard_captain]
 desc = "黑石城守卫队长"
 mini_coords = [254, 867]
 coords = [1018, 369]
@@ -89,7 +96,9 @@ time = 0.5
 """
 
 KAMI_VILLAGE_TOML = """
-[scenes.kami_village.npcs.jephite]
+name = "scenes.kami_village"
+extends = ["war3.jiubing2"]
+[this.npcs.jephite]
 desc = "村民杰菲特"
 mini_coords = [332, 845]
 coords = [1146, 245]
@@ -99,7 +108,9 @@ time = 0.5
 """
 
 FOREST_CITY_TOML = """
-[scenes.forest_city.npcs.diana]
+name = "scenes.forest_city"
+extends = ["war3.jiubing2"]
+[this.npcs.diana]
 desc = "月之女祭司狄安娜"
 mini_coords = [230, 986]
 coords = [936, 432]
@@ -108,7 +119,9 @@ time = 0.5
 """
 
 MENETHIL_TOML = """
-[scenes.menethil.teleport.forest_waygate]
+name = "scenes.menethil"
+extends = ["war3.jiubing2"]
+[this.teleport.forest_waygate]
 desc = "远古森林入口传送圈"
 mini_coords = [100, 900]
 coords = [500, 400]
@@ -116,9 +129,10 @@ time = 3
 """
 
 GATE_HARASSMENT_TOML = """
-dependencies = ["war3.jiubing2.scenes.blackstone_city"]
+name = "tasks.atomic.blackstone_gate_harassment"
+extends = ["war3.jiubing2.scenes.blackstone_city"]
 
-[tasks.atomic.blackstone_gate_harassment]
+[this]
 name = "城门骚扰"
 accept_timeout = 8
 route_complete_timeout = 120
@@ -126,9 +140,10 @@ combat_mode = "auto_attack"
 """
 
 SWIFT_BEAST_TOML = """
-dependencies = ["war3.jiubing2.scenes.forest_city", "war3.jiubing2.heroes.hxd"]
+name = "tasks.atomic.swift_beast"
+extends = ["war3.jiubing2.scenes.forest_city", "war3.jiubing2.heroes.hxd"]
 
-[tasks.atomic.swift_beast]
+[this]
 name = "迅猛野兽"
 accept_timeout = 8
 route_complete_timeout = 120
@@ -136,26 +151,22 @@ combat_mode = "auto_attack"
 """
 
 DAILY_REPUTATION_TOML = """
-dependencies = [
-    "war3.jiubing2.tasks.atomic.blackstone_gate_harassment",
-    "war3.jiubing2.tasks.atomic.swift_beast",
-    "war3.jiubing2.scenes.menethil",
-    "war3.jiubing2.heroes.paladin",
-]
+name = "tasks.reputation.daily_reputation"
+extends = ["war3.jiubing2.tasks.atomic.blackstone_gate_harassment", "war3.jiubing2.tasks.atomic.swift_beast", "war3.jiubing2.scenes.menethil", "war3.jiubing2.heroes.paladin"]
 
-[tasks.reputation.daily_reputation]
+[this]
 name = "每日声望"
 enable_blackstone = true
 enable_forest = true
 clear_nearby_interval = 120
 
-[tasks.reputation.daily_reputation.blackstone]
+[this.blackstone]
 name = "每日黑石城声望"
 target_reputation = 150
 reputation_per_run = 5
 loop_interval_time = 1.5
 
-[tasks.reputation.daily_reputation.forest]
+[this.forest]
 name = "每日森之城声望"
 target_reputation = 150
 reputation_per_run = 10
@@ -164,6 +175,8 @@ loop_interval_time = 60
 
 # heroes.hxd — swift_beast 依赖（被 paladin 互斥）
 HXD_TOML = """
+name = "war3.jiubing2.heroes.hxd"
+extends = ["war3.jiubing2"]
 [[hero.inventory]]
 id = 0
 hotkey = "6"

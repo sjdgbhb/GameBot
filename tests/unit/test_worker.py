@@ -2,7 +2,6 @@
 
 覆盖范围：
 - _load_config: 环境变量配置加载
-- _get_provider: CPU/GPU provider 选择
 - _extract_text: OCR 文本提取
 - _extract_lines: OCR 逐行提取含坐标
 - _letterbox: 等比缩放填充
@@ -69,76 +68,6 @@ class TestWorkerLoadConfig(unittest.TestCase):
         os.environ["JIUBING_INFERENCE_CONFIG"] = json.dumps({"key2": "val2"})
         worker._load_config()
         self.assertEqual(worker._cfg, {"key2": "val2"})
-
-
-class TestWorkerGetProvider(unittest.TestCase):
-    """测试 _get_provider provider 选择逻辑。"""
-
-    def setUp(self):
-        from GameBot.inference import worker
-
-        worker._cfg = {}
-
-    def test_default_cpu(self):
-        """默认应返回 CPU provider。"""
-        from GameBot.inference.worker import _get_provider
-
-        self.assertEqual(_get_provider(), ["CPUExecutionProvider"])
-
-    def test_cpu_explicit(self):
-        """显式 cpu 应返回 CPU provider。"""
-        from GameBot.inference import worker
-
-        worker._cfg = {"ai_device": "cpu"}
-        from GameBot.inference.worker import _get_provider
-
-        self.assertEqual(_get_provider(), ["CPUExecutionProvider"])
-
-    def test_gpu_without_onnxruntime(self):
-        """gpu 但 onnxruntime 不可用时应回退 CPU。"""
-        from GameBot.inference import worker
-        from GameBot.inference.worker import _get_provider
-
-        worker._cfg = {"ai_device": "gpu"}
-        with patch("builtins.__import__", side_effect=ImportError("no onnxruntime")):
-            result = _get_provider()
-        self.assertEqual(result, ["CPUExecutionProvider"])
-
-    def test_gpu_with_cuda(self):
-        """gpu 且 CUDA 可用时应返回 CUDA + CPU provider。"""
-        from GameBot.inference import worker
-        from GameBot.inference.worker import _get_provider
-
-        worker._cfg = {"ai_device": "gpu"}
-        mock_ort = MagicMock()
-        mock_ort.get_available_providers.return_value = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-        with patch.dict("sys.modules", {"onnxruntime": mock_ort}):
-            result = _get_provider()
-        self.assertEqual(result, ["CUDAExecutionProvider", "CPUExecutionProvider"])
-
-    def test_gpu_without_cuda_provider(self):
-        """gpu 但无 CUDA provider 时应回退 CPU。"""
-        from GameBot.inference import worker
-        from GameBot.inference.worker import _get_provider
-
-        worker._cfg = {"ai_device": "gpu"}
-        mock_ort = MagicMock()
-        mock_ort.get_available_providers.return_value = ["CPUExecutionProvider"]
-        with patch.dict("sys.modules", {"onnxruntime": mock_ort}):
-            result = _get_provider()
-        self.assertEqual(result, ["CPUExecutionProvider"])
-
-    def test_custom_device_key(self):
-        """应支持自定义 device key。"""
-        from GameBot.inference import worker
-        from GameBot.inference.worker import _get_provider
-
-        worker._cfg = {"ocr_device": "gpu"}
-        mock_ort = MagicMock()
-        mock_ort.get_available_providers.return_value = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-        with patch.dict("sys.modules", {"onnxruntime": mock_ort}):
-            result = _get_provider("ocr_device")
-        self.assertIn("CUDAExecutionProvider", result)
 
 
 class TestWorkerExtractText(unittest.TestCase):
@@ -252,7 +181,13 @@ class TestWorkerExtractLines(unittest.TestCase):
         """空文本行应被跳过。"""
         from GameBot.inference.worker import _extract_lines
 
-        result = self._make_result(["有内容", "", None, "也有内容"])
+        boxes = [
+            [[10, 10], [50, 10], [50, 20], [10, 20]],  # y_center=15
+            [[10, 20], [50, 20], [50, 30], [10, 30]],  # 空，y_center=25
+            [[10, 25], [50, 25], [50, 35], [10, 35]],  # None，y_center=30
+            [[10, 30], [50, 30], [50, 40], [10, 40]],  # y_center=35
+        ]
+        result = self._make_result(["有内容", "", None, "也有内容"], boxes)
         lines = _extract_lines(result)
         self.assertEqual(len(lines), 2)
         self.assertEqual(lines[0]["text"], "有内容")
@@ -281,6 +216,23 @@ class TestWorkerExtractLines(unittest.TestCase):
         lines = _extract_lines(result)
         self.assertAlmostEqual(lines[0]["x_center"], 50.0)
         self.assertAlmostEqual(lines[0]["y_center"], 25.0)
+
+    def test_merge_same_line_boxes(self):
+        """同一行的多个文字框应合并为一行，按 x 排序拼接。"""
+        from GameBot.inference.worker import _extract_lines
+
+        boxes = [
+            [[100, 10], [150, 10], [150, 30], [100, 30]],  # y_center=20, x_center=125
+            [[10, 12], [90, 12], [90, 28], [10, 28]],     # y_center=20, x_center=50
+            [[10, 60], [100, 60], [100, 80], [10, 80]],   # y_center=70, x_center=55
+        ]
+        result = self._make_result(["诸神战场", "九种兵器2", "第二行"], boxes)
+        lines = _extract_lines(result)
+        # 前两个框 y_center 接近，应合并为一行
+        self.assertEqual(len(lines), 2)
+        # 合并后按 x_center 排序：九种兵器2(x=50) + 诸神战场(x=125)
+        self.assertEqual(lines[0]["text"], "九种兵器2诸神战场")
+        self.assertEqual(lines[1]["text"], "第二行")
 
 
 class TestWorkerLetterbox(unittest.TestCase):

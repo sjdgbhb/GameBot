@@ -18,22 +18,7 @@ from GameBot.utils import logger, setup_global_exception_hook, setup_log_file
 
 # 本环境（管理员 + dx2 + mode 4）实测有效的组合。
 DEFAULT_CASES = [
-    {"display": "dx2", "mouse": "windows",                    "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
-    {"display": "dx2", "mouse": "windows2",                   "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
-    {"display": "dx2", "mouse": "windows3",                   "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
-    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
-    {"display": "dx2", "mouse": "dx.mouse.focus.input.api",  "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
-    {"display": "dx2", "mouse": "dx.mouse.clip.lock.api",     "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
-    {"display": "dx2", "mouse": "dx.mouse.state.api",         "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
-    {"display": "dx2", "mouse": "dx.mouse.api",               "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
-    {"display": "dx2", "mouse": "dx.mouse.cursor",            "keypad": "windows",           "public": "", "mode": 4, "bind_delay": 1.5},
-    {"display": "dx2", "mouse": "windows2",                   "keypad": "dx.keypad.input.lock.api", "public": "", "mode": 4, "bind_delay": 1.5},
-    {"display": "dx2", "mouse": "windows2",                   "keypad": "dx.keypad.api",            "public": "", "mode": 4, "bind_delay": 1.5},
-    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows",          "public": "dx.public.active.api", "mode": 4, "bind_delay": 1.5},
-    # 测试 dx.keypad.* 能否避免聊天输入框吞技能键
-    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "dx.keypad.input.lock.api", "public": "dx.public.active.api", "mode": 4, "bind_delay": 1.5},
-    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "dx.keypad.api",            "public": "dx.public.active.api", "mode": 4, "bind_delay": 1.5},
-    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "dx.keypad.state.api",       "public": "dx.public.active.api", "mode": 4, "bind_delay": 1.5},
+    {"display": "dx2", "mouse": "dx.mouse.position.lock.api", "keypad": "windows",          "public": "dx.public.active.api", "mode": 4, "bind_delay": 1.5}
 ]
 
 

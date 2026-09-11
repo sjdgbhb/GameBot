@@ -1,26 +1,120 @@
 # KK 平台配置
-dependencies = ["base"]
+name = "kk"
+extends = ["base"]
 
-[kk]
+# ------------------------------ War3 物品栏格子快捷键（默认配置） ------------------------------
+# slot: 格子编号 0~5 对应第 1~6 格
+# hotkey: 该格子对应的快捷键（在 KK 平台上设置的物品栏快捷键）
+# 组队配置中每个成员可用 inventory_slots 覆盖此默认值
+[this]
+inventory_slots = [
+  {slot = 0, hotkey = "1"},
+  {slot = 1, hotkey = "2"},
+  {slot = 2, hotkey = "3"},
+  {slot = 3, hotkey = "4"},
+  {slot = 4, hotkey = "5"},
+  {slot = 5, hotkey = "6"},
+]
+window_title = "KK官方对战平台"  # KK类窗口的标题名（包括主界面、房间、创建房间、退出、断线重连弹窗等窗口）
 window_class = "Qt5152QWindowIcon" # KK 主界面、房间等窗口的类名
-window_title = 'KK官方对战平台' # KK 主界面、房间、创建房间、退出、断线重连弹窗等窗口、的标题名
-create_room_window_class = "Qt5152QWindow" # 创建房间、退出、断线重连弹窗的类名
+create_room_window_class = "Qt5152QWindow" # 创建房间、退出、断线重连等各类弹窗的类名
+dropdown_window_class = "Qt5152QWindowPopupSaveBits" # 下拉框窗口类名
+min_business_window_size = [200, 200]  # 业务候选窗口最小可见尺寸
+
+# kk主界面
+[this.main]
+window_size = [1332,945]  # kk主界面窗口客户区尺寸，运行时强制对齐
+# 玩家名
+profile_icon_coords = [1022,26]  # 头像旁图标坐标（箭头）
+dropdown_wait_time = 1   # 下拉框展开等待时间（秒）
+username_area_coords = [966,50,1060,78]  # 玩家 ID OCR 区域（保留，下拉框窗口模式下未使用）
+# 地图搜索
+search_input_coords = [822,28]  # 搜索输入框坐标
+search_map_coords = [923,27]  # 搜索图标坐标
+search_map_wait_time = 5  # 搜索结果等待时间（秒）
+map_result_ocr_area_coords = [169,322,1228,348]  # 搜索结果列表 OCR 区域（大厅客户区坐标）
+# 地图详情
+detail_wait_time = 3  # 地图详情页加载等待时间（秒）
+# 房间列表
+room_list_button_coords = [345,243]   # "房间列表"标签坐标
+room_id_input_coords = [1179,291]  # 房间号输入框坐标
+search_room_coords = [1262,291]  # 搜索图标坐标
+search_room_wait_time = 2  # 搜索结果等待时间（秒）
+room_result_coords = [273,382]  # 搜索结果 房间坐标
+# 创建房间
+create_button_coords = [805,898]  # 创建房间按钮坐标
 
 # kk房间
-[kk.room]
-window_size = [1224,904] # 房间窗口客户区尺寸，运行时强制对齐
+[this.room]
+window_size = [1224,904] # 房间坐标基准尺寸，运行时保留原生尺寸并按比例缩放
+size_tolerance = 30 # 按原生客户区尺寸识别房间窗口的允许误差（像素）
 start_button_coords = [867,613] # 窗口坐标，开始游戏按钮/准备开始坐标
 start_wait_time = 6 # 点击开始游戏按钮后，进入游戏前的时间（正常情况）
+room_id_ocr_area_coords = [111,109,274,142]   # 房间号 OCR 区域（房间窗口左上角），“房间号：xxx”
+start_button_ocr_area_coords = [820,595,920,640]  # 开始游戏/等待准备/准备/取消准备按钮 OCR 区域
+not_ready_keyword = "准备"                    # 未准备状态关键词（OCR 匹配）
+ready_keyword = "取消准备"                    # 已准备状态关键词（OCR 匹配）
+wait_ready_keyword = "等待准备"                # 房主等待准备状态关键词（OCR 匹配）
+start_game_keyword = "开始游戏"              # 开始游戏按钮文本关键词（OCR 匹配）
+
+# 密码输入框所在弹窗
+[this.password_input]
+window_size = [440,260] # 密码弹窗坐标基准尺寸，运行时保留原生尺寸
+size_tolerance = 30 # 新密码弹窗结构识别的尺寸误差（像素）
+dialog_detect_timeout = 5 # 等待密码弹窗 HWND 出现的最长时间（秒）
+dialog_detect_interval = 0.2 # 密码弹窗检测轮询间隔（秒）
+room_detect_interval = 0.2 # 确认密码后检测房间窗口的轮询间隔（秒）
+dialog_keyword = "输入房间密码"  # 密码弹窗 OCR 识别关键词
+password_input_coords = [184,115]  # 密码输入框坐标
+confirm_button_coords = [126,191]  # 确认按钮坐标
+join_wait_time = 2  # 点击确认后等待进入房间的时间（秒）
+
+# 大漠窗口绑定模式
+# bind_mode：foreground（前台）或 background（后台）
+#   - 非组队/单成员组队：按此配置选择前台或后台
+#   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
+[this.bind]
+bind_mode = "foreground"  # foreground（前台）/ background（后台，用 bind_multi）
+display = "normal"     # 前台截图（normal）；KK 弹窗如截图异常可试 gdi2
+mouse = "normal"       # 可选：normal / windows / windows2 / windows3
+keypad = "normal"      # 可选：normal / windows
+mode = 0               # 大漠 BindWindow 附加模式
+
+# 后台绑定配置（bind_mode = background 或多成员组队时使用）
+# gdi2 在窗口可见时稳定；多开/窗口被遮挡时 dx2 更能读后台缓冲。
+# dx3 在弹窗/房间上常截到纯色/黑屏。
+[this.bind_multi]
+display = "dx2"       # 多开/弹窗被遮挡时用 dx2，单开可见窗口可用 gdi2
+mouse = "windows3"     # Windows 后台鼠标，支持多子窗口
+keypad = "windows"     # Windows 后台键盘
+mode = 0               # 推荐模式 0
+bind_delay = 1.0       # 绑定后延时 1 秒等待后台生效
+
+# 下拉框窗口（点击头像弹出的玩家信息弹窗）
+[this.dropdown]
+window_size = [0, 0]  # 下拉框基准客户区尺寸，[0,0] 表示使用检测到的自然尺寸，如需统一则填实际值
 
 # 通用 KK 弹窗关闭配置（奖励、提示等弹窗）
-[kk.popup]
+[this.popup]
 close_offset = [15, 15]                    # 点击右上角 X 时相对窗口边界的偏移 [x,y]
-protected_window_sizes = []                # 不可关闭的窗口尺寸（如平台大厅），示例 [[1280, 720]]
-max_popup_area_ratio = 0.85                # 弹窗最大允许占房间面积比例，超过则视为大厅/主界面不关闭
+protected_keywords = ["输入房间密码", "创建房间"]  # OCR 检测到这些关键词的弹窗不关闭
 
 # 掉线重连弹窗（类名与 create_room_window_class 相同，通过窗口尺寸区分）
-[kk.disconnect_dialog]
-window_size = [440, 260] # 弹窗客户区尺寸
+[this.disconnect_dialog]
+window_size = [440, 260] # 掉线弹窗坐标基准尺寸，运行时保留原生尺寸
 start_button_coords = [125,190] # 重连按钮坐标
 cancel_button_coords = [309,190] # 取消重连按钮坐标
 cancel_wait_time = 3 # 点击取消重连后等待回到房间的时间（秒）
+
+# 创建房间弹窗
+[this.create_room]
+dialog_window_size = [584,488]          # 创建房间弹窗坐标基准尺寸，运行时保留原生尺寸
+size_tolerance = 40                     # 按原生客户区尺寸识别创建弹窗的允许误差（像素）
+dialog_keyword = "创建房间"             # 创建房间弹窗 OCR 识别关键词
+dialog_detect_timeout = 5               # 等待创建弹窗 HWND 出现的最长时间（秒）
+dialog_detect_interval = 0.2            # 创建弹窗检测轮询间隔（秒）
+room_detect_interval = 0.2              # 创建后检测房间窗口的轮询间隔（秒）
+password_input_coords = [295,216]       # 密码输入框坐标
+confirm_create_coords = [198,420]       # 创建确认按钮坐标
+create_wait_time = 3                     # 点击创建后等待进入房间的时间（秒）
+password = "1234"  # 创建房间时设置的密码

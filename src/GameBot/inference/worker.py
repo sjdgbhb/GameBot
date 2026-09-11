@@ -1,11 +1,11 @@
 """推理子进程 worker —— 由 64 位 Python 运行。
 
-合并三种推理能力在一个常驻子进程中，避免主进程（32 位，大漠 COM）安装 onnxruntime：
+合并三种推理能力在一个常驻子进程中：
 1. OCR（RapidOCR / onnxruntime 后端）—— 屏幕区域截图识别文字
 2. 宝箱检测（YOLOv8 ONNX）—— 全屏截图目标检测
 3. 战斗状态检测（分类 ONNX）—— 英雄头像截图二分类
 
-主进程（32 位）通过行式 JSON 通信：
+主进程通过行式 JSON 通信：
   请求：{"cmd": "ocr", "bbox": [x1,y1,x2,y2]}
         {"cmd": "detect_chests", "img_path": "C:/temp/xxx.bmp"}
         {"cmd": "predict_combat", "img_paths": ["C:/temp/a.bmp", ...]}
@@ -34,6 +34,11 @@ import sys
 
 import numpy as np
 from PIL import Image, ImageGrab
+
+try:
+    from . import model_loader
+except ImportError:
+    import model_loader
 
 # 协议 JSON 必须独占 stdout。第三方库可能往 stdout print 噪声，破坏行式 JSON 协议。
 # 故启动时把真实 stdout 的 fd 复制一份专供 _send 使用，再把 sys.stdout 让给第三方。
@@ -67,20 +72,6 @@ def _load_config():
         _cfg = {}
 
 
-def _get_provider(device_key: str = "ai_device"):
-    device = _cfg.get(device_key, "cpu")
-    if device == "gpu":
-        try:
-            import onnxruntime as ort
-
-            available = ort.get_available_providers()
-            if "CUDAExecutionProvider" in available:
-                return ["CUDAExecutionProvider", "CPUExecutionProvider"]
-        except Exception:
-            pass
-    return ["CPUExecutionProvider"]
-
-
 # ── OCR ──────────────────────────────────────────────
 
 
@@ -110,30 +101,58 @@ def _extract_text(result) -> str:
     return "".join(t for t in txts if t)
 
 
-def _extract_lines(result) -> list:
-    """提取逐行文本及中心坐标（按 y 从上到下排序）。
+def _extract_lines(result, merge_lines: bool = True) -> list:
+    """提取逐行文本及中心坐标。
 
     RapidOCR result.txts 为文本列表，result.boxes 为对应边界框坐标列表。
+    merge_lines=True 时将 y_center 接近的框合并为一行，按 x_center 排序拼接文字。
+    merge_lines=False 时保持每个框独立，适用于网格布局（如搜索结果）。
     返回 [{"text": "...", "x_center": float, "y_center": float}, ...]，按 y_center 升序排列。
     """
     txts = getattr(result, "txts", None)
     boxes = getattr(result, "boxes", None)
     if not txts:
         return []
-    lines = []
+    raw = []
     for i, txt in enumerate(txts):
         if not txt:
             continue
         x_center = 0.0
         y_center = 0.0
+        height = 0.0
         if boxes is not None and i < len(boxes):
             box = boxes[i]
-            # box 格式：[[x1,y1],[x2,y2],[x3,y3],[x4,y4]]（四角点）
             xs = [p[0] for p in box]
             ys = [p[1] for p in box]
             x_center = float(sum(xs) / len(xs))
             y_center = float(sum(ys) / len(ys))
-        lines.append({"text": txt, "x_center": x_center, "y_center": y_center})
+            height = float(max(ys) - min(ys))
+        raw.append({"text": txt, "x_center": x_center, "y_center": y_center, "height": height})
+    if not raw:
+        return []
+    raw.sort(key=lambda b: b["y_center"])
+    if not merge_lines:
+        # 不合并，每个框独立返回（适用于网格布局）
+        return [{"text": b["text"], "x_center": b["x_center"], "y_center": b["y_center"]} for b in raw]
+    # 合并同行框：y_center 差异小于行高的一半视为同一行
+    merged = []
+    current_row = [raw[0]]
+    for box in raw[1:]:
+        ref_y = current_row[0]["y_center"]
+        threshold = max(b["height"] for b in current_row) * 0.5 if current_row else 10
+        if abs(box["y_center"] - ref_y) <= max(threshold, 10):
+            current_row.append(box)
+        else:
+            merged.append(current_row)
+            current_row = [box]
+    merged.append(current_row)
+    lines = []
+    for row in merged:
+        row.sort(key=lambda b: b["x_center"])
+        text = "".join(b["text"] for b in row)
+        x_center = sum(b["x_center"] for b in row) / len(row)
+        y_center = sum(b["y_center"] for b in row) / len(row)
+        lines.append({"text": text, "x_center": x_center, "y_center": y_center})
     lines.sort(key=lambda l: l["y_center"])
     return lines
 
@@ -146,13 +165,31 @@ def _handle_ocr(bbox):
     return {"text": _extract_text(result)}
 
 
-def _handle_ocr_lines(bbox):
+def _handle_ocr_lines(bbox, merge_lines: bool = True):
     """OCR 截屏并返回逐行结果（含 y 坐标），用于任务弹窗行数解析。"""
     if _ocr is None:
         raise RuntimeError("OCR 引擎未初始化")
     img = ImageGrab.grab(bbox=tuple(bbox), all_screens=True)
     result = _ocr(np.array(img))
-    return {"lines": _extract_lines(result)}
+    return {"lines": _extract_lines(result, merge_lines=merge_lines)}
+
+
+def _handle_ocr_from_file(img_path: str) -> dict:
+    """从图片文件 OCR（大漠截图存盘后读图），支持后台窗口截图识别。"""
+    if _ocr is None:
+        raise RuntimeError("OCR 引擎未初始化")
+    img = Image.open(img_path).convert("RGB")
+    result = _ocr(np.array(img))
+    return {"text": _extract_text(result)}
+
+
+def _handle_ocr_lines_from_file(img_path: str, merge_lines: bool = True) -> dict:
+    """从图片文件 OCR 逐行结果（大漠截图存盘后读图），支持后台窗口截图识别。"""
+    if _ocr is None:
+        raise RuntimeError("OCR 引擎未初始化")
+    img = Image.open(img_path).convert("RGB")
+    result = _ocr(np.array(img))
+    return {"lines": _extract_lines(result, merge_lines=merge_lines)}
 
 
 # ── 宝箱检测 ─────────────────────────────────────────
@@ -162,15 +199,12 @@ PAD_COLOR = (114, 114, 114)
 
 def _get_chest_session():
     global _chest_session
+    model_path = _cfg.get("chest_model_path", "")
+    if not model_path:
+        raise FileNotFoundError("宝箱检测模型路径未配置")
+    session = model_loader.get_session(model_path, _cfg.get("ai_device", "cpu"))
     if _chest_session is None:
-        import onnxruntime as ort
-
-        model_path = _cfg.get("chest_model_path", "")
-        if not model_path or not os.path.exists(model_path):
-            raise FileNotFoundError(f"宝箱检测模型不存在: {model_path}")
-        opts = ort.SessionOptions()
-        opts.log_severity_level = 3  # 只显示 Error，抑制 GPU Memcpy 等 Warning
-        _chest_session = ort.InferenceSession(model_path, sess_options=opts, providers=_get_provider())
+        _chest_session = session
         sys.stderr.write(f"[worker] 宝箱检测模型已加载: {model_path}\n")
     return _chest_session
 
@@ -284,20 +318,19 @@ def _handle_capture_and_detect_chests(bbox: list = None) -> dict:
 
 def _get_combat_session():
     global _combat_session
+    model_path = _cfg.get("combat_model_path", "")
+    if not model_path:
+        raise FileNotFoundError("战斗状态模型路径未配置")
+    session = model_loader.get_session(model_path, _cfg.get("ai_device", "cpu"))
     if _combat_session is None:
-        import onnxruntime as ort
-
-        model_path = _cfg.get("combat_model_path", "")
-        if not model_path or not os.path.exists(model_path):
-            raise FileNotFoundError(f"战斗状态模型不存在: {model_path}")
-        opts = ort.SessionOptions()
-        opts.log_severity_level = 3  # 只显示 Error，抑制 GPU Memcpy 等 Warning
-        _combat_session = ort.InferenceSession(model_path, sess_options=opts, providers=_get_provider())
+        _combat_session = session
         sys.stderr.write(f"[worker] 战斗状态模型已加载: {model_path}\n")
     return _combat_session
 
 
 def _handle_predict_combat(img_paths: list) -> dict:
+    if not img_paths:
+        return {"combat": []}
     session = _get_combat_session()
     img_w = int(_cfg.get("combat_img_w", 87))
     img_h = int(_cfg.get("combat_img_h", 61))
@@ -373,12 +406,12 @@ def main():
     if _cfg.get("load_chest", True):
         try:
             _get_chest_session()
-        except Exception as e:
+        except (ImportError, OSError, RuntimeError) as e:
             sys.stderr.write(f"[worker] 宝箱检测模型预加载失败: {e}\n")
     if _cfg.get("load_combat", True):
         try:
             _get_combat_session()
-        except Exception as e:
+        except (ImportError, OSError, RuntimeError) as e:
             sys.stderr.write(f"[worker] 战斗状态模型预加载失败: {e}\n")
 
     _send({"ready": True})
@@ -389,7 +422,7 @@ def main():
             continue
         try:
             cmd = json.loads(line)
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError) as e:
             _send({"error": f"bad json: {e}"})
             continue
 
@@ -401,7 +434,13 @@ def main():
                 result = _handle_ocr(cmd.get("bbox"))
                 _send(result)
             elif action == "ocr_lines":
-                result = _handle_ocr_lines(cmd.get("bbox"))
+                result = _handle_ocr_lines(cmd.get("bbox"), merge_lines=cmd.get("merge_lines", True))
+                _send(result)
+            elif action == "ocr_from_file":
+                result = _handle_ocr_from_file(cmd.get("img_path", ""))
+                _send(result)
+            elif action == "ocr_lines_from_file":
+                result = _handle_ocr_lines_from_file(cmd.get("img_path", ""), merge_lines=cmd.get("merge_lines", True))
                 _send(result)
             elif action == "detect_chests":
                 result = _handle_detect_chests(cmd.get("img_path", ""))

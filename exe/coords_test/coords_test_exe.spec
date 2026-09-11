@@ -1,8 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller 打包配置 — 坐标兼容性测试 EXE
+"""PyInstaller 打包配置 — 坐标兼容性测试 EXE（64 位 Python 3.12）
 
-在 .venv-dm（32 位 Python 3.8）环境中运行：
-    .venv-dm/Scripts/pyinstaller.exe exe/coords_test/coords_test_exe.spec --noconfirm
+在主环境（.venv，64 位 Python 3.12）中运行：
+    uv run python -m PyInstaller exe/coords_test/coords_test_exe.spec --noconfirm
 """
 
 import os
@@ -29,13 +29,10 @@ for toml_file in test_tomls:
     datas.append((str(toml_file), target_dir))
 
 hiddenimports = [
-    'win32com.client',
-    'pythoncom',
-    'winreg',
-    'pywintypes',
     'win32api',
     'win32con',
     'win32gui',
+    'pywintypes',
     'tomli',
     'loguru',
     'PIL',

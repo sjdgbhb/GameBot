@@ -85,7 +85,7 @@ F:\program\python\python312\python.exe scripts/train_combat_model.py
 
 ## 3. 注意事项
 
-- 采集脚本用 32 位 .venv 运行（需要大漠插件绑定窗口）
+- 采集脚本用 uv run 运行（大漠经 dm_bridge 子进程调用）
 - 训练脚本用 64 位 Python 运行（需要 torch/ultralytics，不能在 32 位环境运行）
 - ONNX 模型文件提交到版本控制，.pt 权重文件不提交（已在 .gitignore 中忽略）
 - 训练数据（data/）不提交到版本控制

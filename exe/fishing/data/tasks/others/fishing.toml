@@ -1,11 +1,15 @@
-dependencies = ["jiubing2"]
+name = "tasks.others.fishing"
+extends = ["jiubing2"]
 
-[[hero.inventory]]
-slot = 3
-id = 7
-hotkey = "4"
+# 物品栏装备
+# slot: 0~5 对应物品栏第1~6格
+# item_id: 物品 id，快捷键从 kk.toml 的 inventory_slots 查找
+[hero]
+inventory = [
+  {slot = 3, item_id = 7},  # 鱼竿
+]
 
-[tasks.others.fishing]
+[this]
 name = "钓鱼"
 fishing_mode = 1
 max_times = 10000
@@ -16,7 +20,7 @@ mode = 0
 hook_coords = [943, 554]
 is_test_check = false
 
-[tasks.others.fishing.check]
+[this.check]
 predict_mode = true
 retract_lead_time = 0.1
 hook_sim = 1

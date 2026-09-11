@@ -1,5 +1,7 @@
 # Web 服务器配置
-[web]
+name = "web"
+extends = []
+[this]
 host = "127.0.0.1"
 port = 18080
 # 用户配置文件名（相对于项目根目录）

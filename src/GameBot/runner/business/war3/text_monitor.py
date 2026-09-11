@@ -7,7 +7,6 @@ import threading
 import time
 from typing import List, Optional
 
-from GameBot.inference import get_ocr_client
 from GameBot.utils import logger
 
 
@@ -40,28 +39,18 @@ class TextMonitorMixin:
         )
         return text.translate(replacements)
 
-    def _compute_ocr_bbox(self, ocr_cfg: dict, hwnd: int):
-        """用大漠把客户区坐标 area_coords 换算成屏幕 bbox（主线程调用）。
-
-        大漠 GetClientRect 返回客户区在屏幕上的矩形，其 left/top 即客户区原点屏幕坐标，
-        加上 area_coords 偏移即为屏幕 bbox，交给 OCR 子进程截屏。
-        """
-        cx, cy, _, _ = self.dm.get_client_rect(hwnd)
-        x1, y1, x2, y2 = ocr_cfg["area_coords"]
-        return (cx + x1, cy + y1, cx + x2, cy + y2)
-
     def _ocr_region_text(self, ocr_cfg: dict, hwnd: int = None) -> str:
         """OCR 指定区域，返回原始识别文字（未规范化）。
 
-        主线程用大漠算出屏幕 bbox，交给 OCR 子进程截屏识别（子进程不碰窗口、
-        不依赖大漠）。
+        统一用大漠后台截图 → OCR（支持后台窗口/多开场景）。
+        需在窗口绑定上下文内调用。
         """
         if hwnd is None:
             hwnd = self._find_war3_hwnd()
         if not hwnd:
             raise RuntimeError("未找到 war3 窗口，无法计算 OCR 区域")
-        bbox = self._compute_ocr_bbox(ocr_cfg, hwnd)
-        return get_ocr_client().ocr_screen(bbox)
+        bind_cfg = self.war3_cfg.get("bind", {})
+        return self.ocr_text(self.dm, hwnd, ocr_cfg, bind_cfg=bind_cfg)
 
     def wait_for_text(
         self,
@@ -154,41 +143,27 @@ class TextMonitorMixin:
         if not hwnd:
             logger.warning("后台 OCR 线程：未找到 war3 窗口")
             return event
-        _bbox = self._compute_ocr_bbox(ocr_cfg, hwnd)
         _expected = self._normalize_ocr(expected_text)
 
         def _loop():
-            # 预热 OCR 子进程（首次启动 + 模型加载较慢，放线程内避免阻塞主线程）
-            try:
-                _client = get_ocr_client()
-            except Exception as e:
-                logger.error(f"OCR 子进程启动失败: {e}")
-                return
-
             while not event.is_set():
                 try:
-                    result = self._normalize_ocr(_client.ocr_screen(_bbox))
-                    # 每周期打印识别结果（截断），便于排查"完成已发生但迟迟未检测到"的延迟：
-                    # 若结果为空说明目标文字不在 bbox 内（多为滚动日志带子位置问题）。
-                    logger.debug(f"OCR 监测: {result[:80]!r}")
+                    result = self._normalize_ocr(self._ocr_region_text(ocr_cfg, hwnd))
                     if result and _expected in result:
-                        logger.info(f"检测到文字: {result}")
                         event.set()
                         return
-                except Exception as e:
-                    logger.debug(f"文字监测线程异常: {e}")
+                except Exception:
+                    pass
                 time.sleep(interval)
 
         t = threading.Thread(target=_loop, daemon=True, name="TextWatcher")
         t.start()
-        logger.info(f"文字监测线程已启动，等待: {expected_text}")
         return event
 
     @staticmethod
     def stop_text_watcher(event: threading.Event):
         """停止文字监测。"""
         event.set()
-        logger.info("文字监测线程已停止")
 
 
 class TextMonitor:
@@ -222,7 +197,7 @@ class TextMonitor:
         self._watchers = []  # [(normalized_expected, event)]
         self._stop = threading.Event()
         self._thread = None
-        self._bbox = None
+        self._hwnd = None
 
     def start(self, hwnd: int = None):
         """启动后台监测线程（已运行则跳过）。"""
@@ -233,22 +208,16 @@ class TextMonitor:
         if not hwnd:
             logger.warning("TextMonitor：未找到 war3 窗口，不启动监测")
             return
-        self._bbox = self._war3._compute_ocr_bbox(self._ocr_cfg, hwnd)
+        self._hwnd = hwnd
         self._stop.clear()
         self._thread = threading.Thread(target=self._loop, daemon=True, name="TextMonitor")
         self._thread.start()
-        logger.info(f"文字监测线程已启动（持续），bbox={self._bbox}，间隔 {self._interval}s")
+        logger.info(f"文字监测线程已启动，area_coords={self._ocr_cfg.get('area_coords')}，间隔 {self._interval}s")
 
     def _loop(self):
-        # 预热 OCR 子进程（首次启动 + 模型加载较慢，放线程内不阻塞主线程）
-        try:
-            client = get_ocr_client()
-        except Exception as e:
-            logger.error(f"TextMonitor OCR 子进程启动失败: {e}")
-            return
         while not self._stop.is_set():
             try:
-                text = client.ocr_screen(self._bbox)
+                text = self._war3._ocr_region_text(self._ocr_cfg, self._hwnd)
                 norm = self._war3._normalize_ocr(text)
                 with self._lock:
                     self._latest = norm

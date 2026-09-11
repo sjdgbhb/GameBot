@@ -1,4 +1,6 @@
-﻿# Windsurf 项目规则 — GameBot
+# Windsurf 项目规则 — GameBot
+
+> 详细文档位于 [docs/](docs/README.md)。本文件只保留 AI 每次会话必须知道的核心规则。
 
 ## 语言规则
 - 始终使用简体中文回答
@@ -9,73 +11,28 @@
 
 ## 项目概述
 GameBot — 魔兽争霸3 RPG地图"九种兵器2"的 Python 自动化脚本系统（含 Web 配置端）。
-- 主环境：Python 3.12（64 位，Web 服务器、OCR/AI 推理、模型训练）
-- 大漠脚本环境：Python 3.8（32 位，大漠插件 COM 要求），作为项目内工具使用
+- 平台：仅 Windows（pywin32、COM 对象、Windows API）
 - 包管理：uv（pyproject.toml，uv_build 后端）
 - 核心依赖：大漠插件 (DmPlugin) — Windows COM 自动化库（仅 32 位 Python 3.8 可用）
-- 平台：仅 Windows（pywin32、COM 对象、Windows API）
 
-## Python 环境使用规则（双环境彻底隔离）
-
-### 主环境 Python 3.12（uv 默认环境，.venv）
-- **用途**：Web 配置服务器、OCR/AI 推理子进程、模型训练脚本等所有非大漠功能
-- **依赖管理**：pyproject.toml（requires-python = ">=3.12"）
-- **依赖清单**：fastapi、uvicorn、pydantic、rapidocr、onnxruntime、numpy、Pillow、loguru
-- **训练依赖**（按需）：ultralytics、torch
-
-### 大漠脚本环境 Python 3.8 32位（.venv-dm）
-- **用途**：仅用于需要大漠插件 COM 的自动化脚本（main.py、runner/tasks/ 下所有任务模块、runner/dm_client.py 等）
-- **依赖管理**：dm-requirements.txt（独立于 pyproject.toml）
-- **依赖清单**：loguru、Pillow、pywin32、tomli（仅大漠 COM 相关）
-- **禁止安装**：fastapi、uvicorn、onnxruntime、rapidocr 等 Web/OCR/AI 依赖
-
-### 跨环境调用机制
-- 大漠脚本（3.8）通过 subprocess.Popen 启动主环境的 Python 运行推理子进程（inference/client.py）
-- Web 服务器（3.12）启动任务子进程时，从 base.toml [main].python_path 读取 3.8 Python 路径，而非用 sys.executable
-- main.py 启动时校验 32 位 + Python 3.8，不满足则报错退出
-
-### 运行命令
-- Web 服务器：`uv run python -m GameBot.web.server`（主环境）
-- 大漠脚本：`.venv-dm/Scripts/python.exe main.py`（大漠脚本环境）
-
-## 运行方式
-```bash
-uv sync                                                     # 安装主依赖（3.12 环境）
-uv venv .venv-dm --python 3.8                               # 创建 .venv-dm 虚拟环境（需 32 位 Python 3.8）
-uv pip install -r dm-requirements.txt --python .venv-dm     # 安装大漠脚本依赖到 .venv-dm
-uv run python -m GameBot.web.server                     # 运行 Web 配置服务器
-.venv-dm/Scripts/python.exe main.py                         # 运行大漠脚本主入口
-.venv-dm/Scripts/python.exe -m GameBot.runner.tasks.others.fishing          # 运行钓鱼任务
-.venv-dm/Scripts/python.exe -m GameBot.runner.tasks.others.patrol_loot      # 运行巡逻拾取任务
-.venv-dm/Scripts/python.exe -m GameBot.runner.tasks.endless.endless_single  # 运行单局无尽
-```
-
-## 架构要点
-- `src/GameBot/inference/` — 推理子进程（主环境 3.12，被大漠脚本通过 subprocess 调用）
-- `src/GameBot/runner/` — 大漠脚本工具包（运行在 .venv-dm 32 位 Python 3.8）
-- `src/GameBot/runner/dm_client.py` — 大漠插件 COM 封装
-- `src/GameBot/runner/resource_manager.py` — 资源路径管理
-- `src/GameBot/runner/ui/` — 脚本控制 UI（浮窗、热键）
-- `src/GameBot/runner/business/` — 业务逻辑层（kk、war3、jiubing2 地图业务）
-- `src/GameBot/runner/business/jiubing2/` — 九种兵器2 地图业务（GameUI、CombatHelper、SceneNavigator、EndlessRunner）
-- `src/GameBot/runner/tasks/` — 任务编排（base、atomic/、endless/、others/、reputation/、achievements/）
-- `src/GameBot/utils/` — 共享工具（logger、exception_handler）
-- `src/GameBot/config/` — 配置系统（data/ TOML 配置、system/ 加载引擎）
-- `src/GameBot/web/` — Web 配置端（FastAPI 后端 + Vue 3/TypeScript 前端，运行在主环境 3.12）
-
-## Web 端技术栈
-- 后端：FastAPI
-- 前端：Vite + Vue 3 + Element Plus + Pinia + VueUse + TypeScript
-
-## 配置系统（重要）
-- 配置文件通过 `dependencies = ["heroes.mk", "jiubing2"]` 声明依赖关系
-- 加载机制：深度优先后序展开依赖，后加载的同名可继承节点完全覆盖先加载的
-- 英雄配置互斥：heroes.* 中最后加载的英雄独占生效
-- 命名空间：带前缀的节点（如 [tasks.patrol_loot]）不可继承，不带前缀的（如 [hero]）可继承
+## 双环境隔离（核心约束）
+- **主环境 Python 3.12（.venv）**：Web 服务器、全部业务逻辑、OCR/AI 推理（进程内）、模型训练
+- **大漠桥接环境 Python 3.8 32位（.venv-dm）**：仅 dm_bridge 子进程使用，大漠 COM 要求
+- **禁止在 .venv-dm 安装** Web/OCR/AI 依赖（fastapi、onnxruntime、rapidocr 等）
+- 跨环境调用：主环境通过 dm_bridge 子进程调用大漠 COM，推理在主进程内直接执行
+- 详见 [架构总览](docs/architecture/overview.md) → 双环境隔离
 
 ## 编码规范
 - 配置值不要硬编码在代码中，应从 TOML 配置文件读取
-- 物品快捷键从英雄配置的 `inventory` 列表通过 `get_inventory_hotkey()` 获取
+- 物品快捷键从英雄配置的 `inventory` 列表获取，不要硬编码
 - 修改代码前先阅读相关配置文件和业务层代码
 - 遵循现有 TOML 配置继承机制
-- 新增任务模块时在 src/GameBot/config/data/tasks/ 下创建对应 TOML 配置
+- 新增任务模块时在 `src/GameBot/config/data/war3/jiubing2/tasks/` 下创建对应 TOML 配置
+- 详见 [配置系统](docs/modules/config.md) → 配置调用规范
+
+## 开发前必读
+- 了解架构 → [架构总览](docs/architecture/overview.md)
+- 开发某模块 → [模块卡片](docs/modules/) 中找到对应模块，阅读其职责/依赖/禁忌
+- 理解游戏背景 → [游戏机制](docs/domain/game-mechanics.md)
+- 踩坑记录 → [AGENTS.md](AGENTS.md)（实机测试发现的问题和待办）
+- 新增功能 → [开发指南](docs/guides/)

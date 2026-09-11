@@ -1,7 +1,7 @@
 """圣痕面板 OCR 实测脚本 — 在游戏中按 F2 打开圣痕面板，OCR 读取并打印结果。
 
-用法（大漠脚本环境 .venv-dm）：
-  .venv-dm/Scripts/python.exe tests/test_stigmata_ocr_live.py
+用法（主环境（uv run））：
+  uv run python tests/test_stigmata_ocr_live.py
 
 流程：
   1. 浮窗倒计时（与正式任务一致，按 Num- 可停止）
@@ -15,8 +15,8 @@
 import time
 
 from GameBot.config import config
-from GameBot.inference import get_ocr_client
-from GameBot.runner.dm_client import DmClient
+from GameBot.inference import get_inference_client
+from GameBot.runner.driver import create_dm_client
 from GameBot.runner.tasks.war3.jiubing2.others.upgrade_stigmata import UpgradeStigmataTask
 from GameBot.runner.ui import run_with_float_window
 from GameBot.utils import logger
@@ -38,7 +38,7 @@ def main():
 
     def task_func(stop_event, progress_callback=None):
         progress_callback("绑定窗口...")
-        dm = DmClient()
+        dm = create_dm_client()
         hwnd = dm.get_active_window(
             war3_cfg.get("window_class", ""),
             war3_cfg.get("window_title", ""),
@@ -47,7 +47,7 @@ def main():
             progress_callback("未找到 war3 窗口")
             return
 
-        get_ocr_client()  # 预热 OCR 子进程
+        get_inference_client()  # 预热 OCR 子进程
 
         # 客户区坐标转屏幕坐标
         cx, cy, _, _ = dm.get_client_rect(hwnd)
@@ -74,7 +74,7 @@ def main():
             dm.left_up()
 
             progress_callback("OCR 读取中...")
-            client = get_ocr_client()
+            client = get_inference_client()
 
             # 整体 OCR（用屏幕坐标）
             lines = client.ocr_lines(screen_bbox)

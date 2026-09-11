@@ -9,9 +9,10 @@
 # =============================================================================
 # 默认依赖 heroes.mk 作为占位英雄，任务本身不绑定特定英雄；
 # 自动施法模式下，用户可在 Web 端选择任意英雄并配置技能路线。
-dependencies = ["tasks.atomic.blackstone_gate_harassment"]
+name = "tasks.others.upgrade_stigmata"
+extends = ["tasks.atomic.blackstone_gate_harassment"]
 
-[tasks.others.upgrade_stigmata]
+[this]
 name = "升级圣痕"
 combat_mode = "auto_attack"    # 战斗模式：auto_attack（全程平A）/ cast_skills（自动施法）
 success_text = "成功"          # 升级成功提示文本（OCR 在城门骚扰 prompt_text 区域检测）
@@ -25,14 +26,14 @@ clear_nearby_probability = 0.30 # 每个路线点清理英雄附近物品的概�
 # 路线点（2个）：城门骚扰完成后走到圣痕NPC（points[0]），升级后返回守卫队长（points[1]）
 # 城门骚扰自身的路线点见 tasks/atomic/blackstone_gate_harassment.toml
 # =============================================================================
-[[tasks.others.upgrade_stigmata.points]]
+[[this.points]]
 desc = "走到圣痕NPC"
 mini_coords = [209, 887]
 coords = [1196, 339]
 walk_mode = 2
 time = 5
 
-[[tasks.others.upgrade_stigmata.points]]
+[[this.points]]
 desc = "返回守卫队长"
 mini_coords = [254, 867]
 coords = [1018, 369]
@@ -40,7 +41,7 @@ walk_mode = 2
 time = 5
 
 # 浮窗显示用缩写映射
-[tasks.others.upgrade_stigmata.term_short]
+[this.term_short]
 "生命值" = "生命"
 "魔法值" = "魔法"
 "暴击伤害" = "暴伤"
@@ -52,7 +53,7 @@ time = 5
 "穿透属性" = "穿透"
 "暴击几率" = "暴击"
 
-[tasks.others.upgrade_stigmata.pos_labels]
+[this.pos_labels]
 "upper" = "上位"
 "core" = "核心"
 "middle" = "中位"

@@ -5,8 +5,8 @@
 """
 
 from GameBot.config import config
-from GameBot.inference import get_ocr_client
-from GameBot.runner import DmClient
+from GameBot.inference import get_inference_client
+from GameBot.runner import create_dm_client
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI
 from GameBot.runner.tasks.war3.jiubing2.atomic.base import AtomicTaskBase
@@ -25,7 +25,7 @@ class SwiftBeastTask(AtomicTaskBase):
     @property
     def _npc(self) -> dict:
         """任务 NPC（月之女祭司狄安娜，森之城场景）。"""
-        scenes = self.combat.cfg.get("scenes", {})
+        scenes = self.combat.cfg.get("war3", {}).get("jiubing2", {}).get("scenes", {})
         return scenes.get("forest_city", {}).get("npcs", {}).get("diana", {})
 
     def _on_point_arrival(self, pt: dict, complete_event) -> None:
@@ -48,7 +48,7 @@ def main():
 
     def task_wrapper(stop_event, progress_callback=None):
         # 创建任务所需对象（所有配置来自单一 load_task 结果）
-        dm = DmClient()
+        dm = create_dm_client()
         war3_cfg = cfg.get("war3", {})
         hero_cfg = cfg.get("hero", {})
         war3 = War3Business(dm, war3_cfg)
@@ -61,10 +61,10 @@ def main():
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
-        with dm.bind_window(hwnd):
+        with dm.bind_window(hwnd, bind_cfg=war3_cfg.get("bind", {})):
             war3.set_client_size(hwnd)
-            # 预热 OCR 子进程（启动 + 加载 OCR 模型，约数秒），避免占用 wait_for_text 超时
-            get_ocr_client()
+            # 预热 OCR 子进程（仅需 OCR，不加载 AI 模型），避免占用 wait_for_text 超时
+            get_inference_client(load_chest=False, load_combat=False)
             task = SwiftBeastTask(dm, war3, ui, combat, task_cfg)
             task.run(stop_event=stop_event)
 

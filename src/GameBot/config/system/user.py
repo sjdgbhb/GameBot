@@ -1,7 +1,6 @@
 """用户配置覆盖 — 加载 user_configs.json / user_config.json、应用用户覆盖到配置字典。"""
 
 import copy
-import json
 
 
 class ConfigUserMixin:
@@ -18,27 +17,24 @@ class ConfigUserMixin:
         """
         path = self.project_root / "user_configs.json"
         user_cfg = {}
+        # 延迟导入，避免 config → utils → logger → config 循环依赖
+        from GameBot.utils.file_io import load_json
+
         # 兼容旧格式：user_config.json（单个配置对象，无多配置切换）
         old_path = self.project_root / "user_config.json"
         if old_path.exists() and not path.exists():
-            try:
-                with open(old_path, "r", encoding="utf-8") as f:
-                    user_cfg = json.load(f)
-            except Exception:
-                pass
-        if path.exists():
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+            data = load_json(old_path)
+            user_cfg = data if isinstance(data, dict) else {}
+        elif path.exists():
+            data = load_json(path)
+            if isinstance(data, dict):
                 # 兼容旧多配置格式
-                if isinstance(data, dict) and "active" in data and "configs" in data:
+                if "active" in data and "configs" in data:
                     active = data.get("active", "default")
                     data = data.get("configs", {})
                     user_cfg = data.get(active, {}) if isinstance(data, dict) else {}
                 else:
-                    user_cfg = data if isinstance(data, dict) else {}
-            except Exception:
-                pass
+                    user_cfg = data
 
         if not task_name:
             return copy.deepcopy(user_cfg) if isinstance(user_cfg, dict) else {}

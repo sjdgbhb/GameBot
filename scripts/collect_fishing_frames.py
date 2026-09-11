@@ -8,7 +8,7 @@
 3. 红色三角形填充的出现/消失时间线（events.txt）
 
 使用方法：
-  .venv-dm/Scripts/python.exe scripts/collect_fishing_frames.py
+  uv run python scripts/collect_fishing_frames.py
 运行后 5 秒内切换到游戏窗口，脚本会自动抛竿并连拍。
 采集期间不收竿，直到采集时长结束才按 S 收竿。
 帧保存到 data/fishing_frames/<时间戳>/，文件名为相对抛竿时刻的毫秒数。
@@ -22,9 +22,9 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src"))
 
 from GameBot.config import config
-from GameBot.utils.logger import logger
-from GameBot.runner.dm_client import DmClient
 from GameBot.runner.business.war3 import War3Business
+from GameBot.runner.driver import create_dm_client
+from GameBot.utils.logger import logger
 
 EXPAND_X = 150           # 采集区域相对检测区域左右扩展的像素（覆盖整排圈圈）
 EXPAND_Y = 40            # 采集区域相对检测区域上下扩展的像素
@@ -37,7 +37,7 @@ def main():
     fishing_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("tasks", {}).get("others", {}).get("fishing", {})
     check_cfg = fishing_cfg.get("check", {})
 
-    dm = DmClient()
+    dm = create_dm_client()
     war3 = War3Business(dm, cfg.get("war3", {}))
 
     logger.info("5 秒内请切换到游戏窗口...")

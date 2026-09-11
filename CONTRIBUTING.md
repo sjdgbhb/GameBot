@@ -145,6 +145,6 @@ CI 配置位于 `.github/workflows/ci.yml`，在 push 和 PR 到 `main`、`dev` 
 # 全部单元测试（主环境 3.12）
 uv run python -m unittest discover tests/unit -v
 
-# 实机测试（大漠脚本环境 3.8，需游戏窗口）
-.venv-dm/Scripts/python.exe tests/manual/test_coords.py
+# 实机测试（主环境 3.12，需游戏窗口）
+uv run python tests/manual/test_coords.py
 ```

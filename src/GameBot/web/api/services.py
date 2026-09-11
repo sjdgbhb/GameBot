@@ -13,10 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
+from GameBot.utils.file_io import load_json, load_toml, load_toml_str
 
 # 项目根目录：web/api/services.py → web/api/ → web/ → GameBot/ → src/ → 项目根
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -24,12 +21,7 @@ _CONFIG_DIR = _PROJECT_ROOT / "src" / "GameBot" / "config" / "data"
 
 # 从 web.toml 读取配置
 _WEB_CONFIG_PATH = _CONFIG_DIR / "web.toml"
-_WEB_CONFIG = {}
-try:
-    with open(_WEB_CONFIG_PATH, "rb") as f:
-        _WEB_CONFIG = tomllib.load(f).get("web", {})
-except Exception:
-    pass
+_WEB_CONFIG = (load_toml(_WEB_CONFIG_PATH) or {}).get("web", {})
 
 WEB_HOST = _WEB_CONFIG.get("host", "127.0.0.1")
 WEB_PORT = int(_WEB_CONFIG.get("port", 18080))
@@ -44,6 +36,7 @@ _TASK_ICONS = {
     "fishing": "🎣",
     "endless": "∞",
     "endless_single": "∞",
+    "paladin_wind_dragon": "🐉",
 }
 
 # 分类图标
@@ -92,19 +85,13 @@ def is_runnable_task(task_id: str) -> bool:
 
 
 def _find_task_section(data: dict) -> dict:
-    """在 TOML 的 [war3.jiubing2.tasks.xxx] 命名空间中找到叶子任务节点（含 name 的字典）。"""
-    section = data.get("war3", {}).get("jiubing2", {}).get("tasks", {})
-    while isinstance(section, dict):
-        if "name" in section:
-            return section
-        sub = None
-        for v in section.values():
-            if isinstance(v, dict):
-                sub = v
-                break
-        if sub is None:
-            break
-        section = sub
+    """在 TOML 中找到本任务节点（含 name 的字典）。
+
+    新格式：[this] 直接就是本任务数据。
+    """
+    this_cfg = data.get("this")
+    if isinstance(this_cfg, dict):
+        return this_cfg
     return {}
 
 
@@ -121,10 +108,8 @@ def load_tasks() -> list:
         task_id = ".".join(rel.with_suffix("").parts)
         if task_id in _HIDDEN_TASKS:
             continue
-        try:
-            with open(toml_path, "rb") as f:
-                data = tomllib.load(f)
-        except Exception:
+        data = load_toml(toml_path)
+        if data is None:
             continue
         section = _find_task_section(data)
         name = section.get("name", task_id) if isinstance(section, dict) else task_id
@@ -153,7 +138,7 @@ def load_task_defaults(task_id: str) -> dict:
 
     返回 { hero, inventory, desired_items, patrol_rounds, points, chest,
             upgrade_config, mean 等 }：
-    - hero: dependencies 中 heroes.<name> 的英雄 id
+    - hero: extends 中 heroes.<name> 的英雄 id
     - inventory: tasks.<task_id>.inventory（任务级可覆盖英雄配置），未指定则取英雄默认 inventory
     - desired_items: tasks.<task_id>.desired_items
     - patrol_rounds: tasks.<task_id>.patrol.rounds
@@ -165,17 +150,15 @@ def load_task_defaults(task_id: str) -> dict:
     toml_path = _CONFIG_DIR / "war3" / "jiubing2" / "tasks" / Path(*task_id.split(".")).with_suffix(".toml")
     if not toml_path.exists():
         return {}
-    try:
-        with open(toml_path, "rb") as f:
-            data = tomllib.load(f)
-    except Exception:
+    data = load_toml(toml_path)
+    if data is None:
         return {}
 
     defaults = {}
 
-    # 默认英雄：从 dependencies 中找 war3.jiubing2.heroes.xxx
-    dependencies = data.get("dependencies", [])
-    for dep in dependencies:
+    # 默认英雄：从 extends 中找 war3.jiubing2.heroes.xxx
+    deps = data.get("extends", [])
+    for dep in deps:
         if isinstance(dep, str) and dep.startswith("war3.jiubing2.heroes."):
             defaults["hero"] = dep.split("war3.jiubing2.heroes.", 1)[1]
             break
@@ -240,28 +223,25 @@ def load_task_defaults(task_id: str) -> dict:
             defaults["check"] = task_cfg["check"]
 
     # 升级圣痕等任务复用城门骚扰路线点作为默认值
-    if "points" not in defaults and "war3.jiubing2.tasks.atomic.blackstone_gate_harassment" in dependencies:
+    if "points" not in defaults and "war3.jiubing2.tasks.atomic.blackstone_gate_harassment" in deps:
         atomic_path = _CONFIG_DIR / "war3" / "jiubing2" / "tasks" / "atomic" / "blackstone_gate_harassment.toml"
         if atomic_path.exists():
-            try:
-                with open(atomic_path, "rb") as f:
-                    atomic_data = tomllib.load(f)
+            atomic_data = load_toml(atomic_path)
+            if atomic_data:
                 atomic_cfg = _find_task_section(atomic_data)
                 if isinstance(atomic_cfg, dict) and "points" in atomic_cfg:
                     defaults["points"] = atomic_cfg["points"]
-            except Exception:
-                pass
 
     # 每日声望：加载黑石城和森之城的原子任务路线点
     if task_id in ("daily_reputation", "reputation.daily_reputation"):
         # 默认物品栏：第 5 格传送卷轴，第 6 格拾取，其他空
         defaults["inventory"] = [
-            {"id": -1, "hotkey": "1"},
-            {"id": -1, "hotkey": "2"},
-            {"id": -1, "hotkey": "3"},
-            {"id": -1, "hotkey": "4"},
-            {"id": 5, "hotkey": "5"},  # 传送至远古森林外围入口的卷轴
-            {"id": 0, "hotkey": "6"},  # 拾取
+            {"slot": 0, "item_id": -1},
+            {"slot": 1, "item_id": -1},
+            {"slot": 2, "item_id": -1},
+            {"slot": 3, "item_id": -1},
+            {"slot": 4, "item": "远古森林外围入口传送卷轴"},  # 传送至远古森林外围入口的卷轴
+            {"slot": 5, "item": "拾取"},  # 拾取
         ]
         for _atomic_file, _points_key in (
             ("blackstone_gate_harassment", "blackstone_points"),
@@ -269,15 +249,12 @@ def load_task_defaults(task_id: str) -> dict:
         ):
             _atomic_path = _CONFIG_DIR / "war3" / "jiubing2" / "tasks" / "atomic" / f"{_atomic_file}.toml"
             if _atomic_path.exists():
-                try:
-                    with open(_atomic_path, "rb") as f:
-                        _atomic_data = tomllib.load(f)
+                _atomic_data = load_toml(_atomic_path)
+                if _atomic_data:
                     _atomic_cfg = _find_task_section(_atomic_data)
                     if isinstance(_atomic_cfg, dict):
                         if "points" in _atomic_cfg:
                             defaults[_points_key] = _atomic_cfg["points"]
-                except Exception:
-                    pass
 
     # 顶层 hero.inventory（如钓鱼任务不依赖英雄但自带物品栏配置）
     if "inventory" not in defaults:
@@ -288,6 +265,10 @@ def load_task_defaults(task_id: str) -> dict:
     # 顶层可继承的 chest 覆盖
     if "chest" in data:
         defaults["chest"] = data["chest"]
+
+    # 解析 inventory 中的物品名为 item_id（统一返回 item_id 格式给前端）
+    if "inventory" in defaults:
+        _resolve_inventory_item_names(defaults["inventory"])
 
     return defaults
 
@@ -312,30 +293,30 @@ def load_heroes() -> list:
         inventory = []
         skills = []
         try:
-            with open(toml_path, "rb") as f:
-                raw = f.read()
-            content = raw.decode("utf-8", errors="replace")
-            data = tomllib.loads(content)
-            hero_data = data.get("hero", {})
-            floor_key = hero_data.get("floor_key", "P")
-            inventory = hero_data.get("inventory", [])
-            skills = hero_data.get("skills", [])
-            if hero_data.get("name"):
-                name = hero_data["name"]
-            else:
-                m = re.search(r"#{3,}\s*(.+?)\s*#{3,}", content)
-                if m:
-                    name = m.group(1).strip()
+            content = toml_path.read_bytes().decode("utf-8", errors="replace")
+        except OSError:
+            content = None
+        if content is not None:
+            data = load_toml_str(content)
+            if data is not None:
+                hero_data = data.get("hero", {})
+                floor_key = hero_data.get("floor_key", "P")
+                inventory = _resolve_inventory_item_names(hero_data.get("inventory", []))
+                skills = hero_data.get("skills", [])
+                if hero_data.get("name"):
+                    name = hero_data["name"]
                 else:
-                    m = re.search(r"英雄配置[：:]\s*\w+\s*[（(](.+?)[）)]", content)
+                    m = re.search(r"#{3,}\s*(.+?)\s*#{3,}", content)
                     if m:
                         name = m.group(1).strip()
                     else:
-                        m = re.search(r"英雄配置[：:]\s*(.+)", content)
+                        m = re.search(r"英雄配置[：:]\s*\w+\s*[（(](.+?)[）)]", content)
                         if m:
                             name = m.group(1).strip()
-        except Exception:
-            pass
+                        else:
+                            m = re.search(r"英雄配置[：:]\s*(.+)", content)
+                            if m:
+                                name = m.group(1).strip()
         result.append(
             {
                 "id": hero_id,
@@ -353,42 +334,55 @@ def load_heroes() -> list:
 
 
 def load_items() -> list:
-    """从 war3/jiubing2/base.toml 读取物品定义表。"""
-    jiubing2_path = _CONFIG_DIR / "war3" / "jiubing2" / "base.toml"
-    if not jiubing2_path.exists():
+    """从 war3/jiubing2/jiubing2.toml 读取物品定义表。"""
+    jiubing2_path = _CONFIG_DIR / "war3" / "jiubing2" / "jiubing2.toml"
+    data = load_toml(jiubing2_path)
+    if not data:
         return []
-    with open(jiubing2_path, "rb") as f:
-        data = tomllib.load(f)
     items = data.get("items", [])
     return [{"id": it["id"], "name": it["name"]} for it in items]
 
 
+def _resolve_inventory_item_names(inventory: list) -> list:
+    """将 inventory 条目中的 item（物品名）解析为 item_id（原地修改）。
+
+    供 load_heroes / load_task_defaults 等直接读 TOML 的场景使用，
+    确保返回给前端的数据始终包含 item_id 字段。
+    """
+    if not inventory:
+        return inventory
+    items_map = {it["name"]: it["id"] for it in load_items()}
+    for entry in inventory:
+        if "item_id" not in entry and "item" in entry:
+            name = entry["item"]
+            item_id = items_map.get(name)
+            if item_id is not None:
+                entry["item_id"] = item_id
+                del entry["item"]
+    return inventory
+
+
 def load_commands() -> list:
-    """从 war3/jiubing2/base.toml 读取 [command] 段，返回指令键值对列表。"""
-    jiubing2_path = _CONFIG_DIR / "war3" / "jiubing2" / "base.toml"
-    if not jiubing2_path.exists():
+    """从 war3/jiubing2/jiubing2.toml 读取 [command] 段，返回指令键值对列表。"""
+    jiubing2_path = _CONFIG_DIR / "war3" / "jiubing2" / "jiubing2.toml"
+    data = load_toml(jiubing2_path)
+    if not data:
         return []
-    with open(jiubing2_path, "rb") as f:
-        data = tomllib.load(f)
     commands = data.get("command", {})
     return [{"key": k, "cmd": v} for k, v in commands.items()]
 
 
 def load_user_configs() -> dict:
     """读取 user_configs.json，兼容旧格式。"""
-    if USER_CONFIGS_PATH.exists():
-        try:
-            with open(USER_CONFIGS_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            # 兼容旧多配置格式
-            if isinstance(data, dict) and "active" in data and "configs" in data:
-                active = data.get("active", "default")
-                data = data.get("configs", {})
-                data = data.get(active, {}) if isinstance(data, dict) else {}
-            if isinstance(data, dict):
-                return data
-        except Exception:
-            pass
+    data = load_json(USER_CONFIGS_PATH)
+    if isinstance(data, dict):
+        # 兼容旧多配置格式
+        if "active" in data and "configs" in data:
+            active = data.get("active", "default")
+            data = data.get("configs", {})
+            data = data.get(active, {}) if isinstance(data, dict) else {}
+        if isinstance(data, dict):
+            return data
     return {}
 
 
@@ -411,59 +405,104 @@ def save_hero_inventory(hero_id: str, inventory: list) -> None:
         raise FileNotFoundError(f"英雄配置不存在: {toml_path}")
 
     # 规范化：过滤空格子
+    # 加载物品表，构建 ID→name 反向映射
+    items_map = {it["id"]: it["name"] for it in load_items()}
     inv = []
     for it in inventory:
         if not isinstance(it, dict):
             continue
-        hotkey = str(it.get("hotkey", "")).strip()
-        if not hotkey:
-            continue
-        id_ = it.get("id")
-        if id_ is None or id_ == -1:
+        item_id = it.get("item_id", it.get("id"))
+        if item_id is None or item_id == -1:
             continue
         slot = it.get("slot")
         if slot is None:
+            # 兼容旧格式：通过 hotkey 推导 slot
+            hotkey = str(it.get("hotkey", "")).strip()
             slot = int(hotkey) - 1 if hotkey.isdigit() else 0
-        inv.append({"slot": int(slot), "id": int(id_), "hotkey": hotkey})
+        item_name = items_map.get(int(item_id))
+        entry = {"slot": int(slot)}
+        if item_name:
+            entry["item"] = item_name
+        else:
+            entry["item_id"] = int(item_id)
+        inv.append(entry)
     inv.sort(key=lambda x: x["slot"])
 
-    block_lines = []
-    for it in inv:
-        block_lines.append("[[hero.inventory]]\n")
-        block_lines.append(f"slot = {it['slot']}\n")
-        block_lines.append(f"id = {it['id']}\n")
-        block_lines.append(f'hotkey = "{it["hotkey"]}"\n')
-        block_lines.append("\n")
-    if not block_lines:
-        block_lines.append("# 当前英雄未配置物品栏\n")
+    # 构建内联数组块
+    if inv:
+        parts = []
+        for it in inv:
+            if "item" in it:
+                parts.append(f'{{slot = {it["slot"]}, item = "{it["item"]}"}}')
+            else:
+                parts.append(f'{{slot = {it["slot"]}, item_id = {it["item_id"]}}}')
+        items_str = ",\n  ".join(parts)
+        block_lines = [
+            "inventory = [\n",
+            f"  {items_str},\n" if inv else "",
+            "]\n",
+        ]
+    else:
+        block_lines = ["inventory = []\n"]
 
     with open(toml_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
+    # 查找现有 inventory 配置：优先找内联格式 "inventory = ["，回退到旧格式 "[[hero.inventory]]"
     start = None
     for i, line in enumerate(lines):
-        if line.strip() == "[[hero.inventory]]":
+        stripped = line.strip()
+        if stripped.startswith("inventory = [") or stripped == "[[hero.inventory]]":
             start = i
             break
 
     if start is None:
-        new_lines = list(lines)
-        if new_lines and not new_lines[-1].endswith("\n"):
+        # 无现有 inventory 块，插入到 [hero] 段之后
+        hero_start = None
+        for i, line in enumerate(lines):
+            if line.strip() == "[hero]":
+                hero_start = i
+                break
+        if hero_start is not None:
+            # 在 [hero] 段内插入 inventory
+            # 找到 [hero] 段结束位置（下一个 section header）
+            insert_pos = len(lines)
+            for i in range(hero_start + 1, len(lines)):
+                stripped = lines[i].strip()
+                if stripped.startswith("[") and not stripped.startswith("[hero."):
+                    insert_pos = i
+                    break
+            new_lines = lines[:insert_pos] + block_lines + ["\n"] + lines[insert_pos:]
+        else:
+            # 无 [hero] 段，追加新块
+            new_lines = list(lines)
+            if new_lines and not new_lines[-1].endswith("\n"):
+                new_lines.append("\n")
             new_lines.append("\n")
-        new_lines.append("\n")
-        new_lines.append("# ------------------------------ 物品栏配置（背包1-6格） ------------------------------\n")
-        new_lines.extend(block_lines)
+            new_lines.append("[hero]\n")
+            new_lines.extend(block_lines)
     else:
-        end = len(lines)
-        for i in range(start + 1, len(lines)):
-            stripped = lines[i].strip()
-            if stripped.startswith("#") and ("----" in stripped or "====" in stripped):
-                end = i
-                break
-            if stripped.startswith("[") and not stripped.startswith("[[hero.inventory]]"):
-                end = i
-                break
-        new_lines = lines[:start] + block_lines + lines[end:]
+        # 替换现有 inventory 块
+        if lines[start].strip().startswith("inventory = ["):
+            # 内联数组格式：找到匹配的 "]" 结束行
+            end = start + 1
+            for i in range(start + 1, len(lines)):
+                if lines[i].strip() == "]":
+                    end = i + 1
+                    break
+            new_lines = lines[:start] + block_lines + lines[end:]
+        else:
+            # 旧格式 [[hero.inventory]]：找到下一个 section header
+            end = len(lines)
+            for i in range(start + 1, len(lines)):
+                stripped = lines[i].strip()
+                if stripped.startswith("#") and ("----" in stripped or "====" in stripped):
+                    end = i
+                    break
+                if stripped.startswith("[") and not stripped.startswith("[[hero.inventory]]"):
+                    end = i
+                    break
+            new_lines = lines[:start] + block_lines + lines[end:]
 
     with open(toml_path, "w", encoding="utf-8") as f:
         f.writelines(new_lines)
@@ -496,7 +535,8 @@ def import_hero_batch(heroes: list) -> dict:
                 raise ValueError(f"非法英雄 ID: {hero_id}")
             if not content.strip():
                 raise ValueError("配置内容为空")
-            tomllib.loads(content)
+            if load_toml_str(content) is None:
+                raise ValueError("配置内容不是有效的 TOML")
             toml_path = _CONFIG_DIR / "war3" / "jiubing2" / "heroes" / f"{hero_id}.toml"
             with open(toml_path, "w", encoding="utf-8") as f:
                 f.write(content)
@@ -528,27 +568,22 @@ def start_task(task_id: str) -> dict:
             return {"ok": False, "error": "该任务正在运行", "running": True, "pid": proc.pid}
 
     module = f"GameBot.runner.tasks.war3.jiubing2.{task_id}"
-    # Web 服务器运行在主环境（3.12），任务子进程必须用 3.8 32位 Python（大漠 COM）
-    # 优先从 base.toml [dm].python_path 读取，未配置则自动检测 .venv-dm
+    # Web 服务器和任务子进程均运行在主环境（3.12），大漠 COM 经 dm_bridge 子进程调用
+    # 优先从配置读取 python_path，未配置则用当前 Python（即主环境 3.12）
     main_py = _WEB_CONFIG.get("dm_python_path", "")
     if not main_py:
-        _base_toml = _CONFIG_DIR / "war3" / "jiubing2" / "base.toml"
+        _base_toml = _CONFIG_DIR / "war3" / "jiubing2" / "jiubing2.toml"
         if _base_toml.exists():
-            try:
-                with open(_base_toml, "rb") as f:
-                    _base_data = tomllib.load(f)
+            _base_data = load_toml(_base_toml)
+            if _base_data:
                 main_py = _base_data.get("dm", {}).get("python_path", "")
-            except Exception:
-                pass
     if main_py:
         _main_py_path = Path(main_py)
         if not _main_py_path.is_absolute():
             _main_py_path = _PROJECT_ROOT / _main_py_path
         main_py = str(_main_py_path)
     else:
-        # 未配置则自动检测标准路径
-        _dm_py = _PROJECT_ROOT / ".venv-dm" / "Scripts" / "python.exe"
-        main_py = str(_dm_py) if _dm_py.exists() else sys.executable
+        main_py = sys.executable
     cmd = [main_py, "-m", module]
     env = os.environ.copy()
     src_path = str(_PROJECT_ROOT / "src")
@@ -590,7 +625,7 @@ TASK_SCHEMAS = {
                     "<p><strong>环境要求：</strong></p>"
                     "<ul>"
                     "<li>英雄初始位置在奇异之地裂隙旁或荒漠废墟裂隙旁（根据路线方案选择），脚本执行中，英雄不能死亡</li>"
-                    "<li>在物品栏中装备宠物食物并设置快捷键</li>"
+                    "<li>在物品栏中装备宠物食物</li>"
                     "<li>储物箱已满或装备数量目标达成就不会再拾取了，脚本进入仅喂食宠物状态</li>"
                     "<li>务必在宠物食物耗尽前查看装备情况，及时保存，按照目前饱和度每分钟约3%下降速度，50个食物大概能用7~8小时</li>"
                     "<li>路线点里的时间根据自己实际运行时杀怪情况来调整，杀得慢就调大</li>"
@@ -616,7 +651,7 @@ TASK_SCHEMAS = {
             {
                 "key": "inventory",
                 "title": "物品栏装备",
-                "help": "前 5 格可自由设置携带装备和快捷键，第 6 格固定为拾取。",
+                "help": "前 5 格可自由设置携带装备，第 6 格固定为拾取。格子快捷键在 KK 平台设置，默认对应 1~6 键。",
                 "footer": "请确保携带宠物食物，以免宠物饥饿导致逃亡",
                 "fields": [
                     {"key": "inventory", "label": "", "type": "inventory"},
@@ -720,7 +755,7 @@ TASK_SCHEMAS = {
             {
                 "key": "inventory",
                 "title": "物品栏装备",
-                "help": "前 5 格可自由设置携带装备和快捷键，第 6 格固定为拾取。",
+                "help": "前 5 格可自由设置携带装备，第 6 格固定为拾取。格子快捷键在 KK 平台设置，默认对应 1~6 键。",
                 "fields": [{"key": "inventory", "label": "", "type": "inventory"}],
             },
             {
@@ -764,7 +799,7 @@ TASK_SCHEMAS = {
     "others.fishing": {
         "id": "others.fishing",
         "name": "钓鱼",
-        "description": "英雄下方必须是水域（推荐米奈希尔灯塔、卡米村复活石下方），三角和圆圈不能被遮挡，抛竿不能抛到陆地上，必须有鱼竿及其快捷键，设置检测参数即可。",
+        "description": "英雄下方必须是水域（推荐米奈希尔灯塔、卡米村复活石下方），三角和圆圈不能被遮挡，抛竿不能抛到陆地上，必须有鱼竿，设置检测参数即可。",
         "sections": [
             {
                 "key": "guide",
@@ -774,7 +809,7 @@ TASK_SCHEMAS = {
                     "<ul>"
                     "<li>英雄下方必须是水域（推荐米奈希尔灯塔、卡米村复活石下方），远离npc（中钩区域不能有大片红色）脚本执行中，英雄不能死亡</li>"
                     "<li>三角和圆圈不能被遮挡，抛竿不能抛到陆地上（先站好位置，双击f1，自己手动钓鱼测试一下）</li>"
-                    "<li>在物品栏中装备鱼竿并设置快捷键</li>"
+                    "<li>在物品栏中装备鱼竿</li>"
                     "</ul>"
                 ),
             },
@@ -898,6 +933,100 @@ TASK_SCHEMAS = {
             },
         ],
     },
+    "others.paladin_wind_dragon": {
+        "id": "others.paladin_wind_dragon",
+        "name": "圣骑士风龙",
+        "description": "圣骑士风龙点挂机：图色检测技能图标，冷却完毕（图标恢复彩色）即施放，冷却/被控制时自动跳过。",
+        "sections": [
+            {
+                "key": "guide",
+                "title": "使用说明",
+                "content": (
+                    "<p><strong>环境要求：</strong></p>"
+                    "<ul>"
+                    "<li>英雄已站在风龙挂机点，脚本执行中英雄不能死亡</li>"
+                    "<li>运行时窗口客户区会被强制设为 1902x1033（技能格坐标按此标定）</li>"
+                    "</ul>"
+                    "<p><strong>技能说明：</strong></p>"
+                    "<ul>"
+                    "<li>默认检测 Q「降临」、W「光明礼赞」（指向性，点击客户区中心）、T「神圣复仇」</li>"
+                    "<li>技能格子位置、就绪态图标、施放参数在 paladin_wind_dragon.toml 的 [[this.skills]] 中配置</li>"
+                    "</ul>"
+                ),
+            },
+            {
+                "key": "basic",
+                "title": "基础设置",
+                "fields": [
+                    {
+                        "key": "skill_gap",
+                        "label": "技能间隔",
+                        "type": "number",
+                        "unit": "秒",
+                        "default": 0.3,
+                        "min": 0,
+                        "step": 0.1,
+                        "controls": False,
+                        "width": "140px",
+                        "size": "default",
+                        "help": "任意两次技能施放之间的最小间隔（等待后摇）",
+                    },
+                    {
+                        "key": "poll_interval",
+                        "label": "检测间隔",
+                        "type": "number",
+                        "unit": "秒",
+                        "default": 0.2,
+                        "min": 0.05,
+                        "step": 0.05,
+                        "controls": False,
+                        "width": "140px",
+                        "size": "default",
+                        "help": "无技能就绪时的图标轮询间隔",
+                    },
+                    {
+                        "key": "reselect_before_cast",
+                        "label": "施放前按 F1",
+                        "type": "switch",
+                        "default": True,
+                        "help": "施放前按 F1 重选英雄，防止指向性技能点击误选其他单位",
+                    },
+                    {
+                        "key": "reselect_idle_time",
+                        "label": "空闲重选间隔",
+                        "type": "number",
+                        "unit": "秒",
+                        "default": 5,
+                        "min": 0,
+                        "controls": False,
+                        "width": "140px",
+                        "size": "default",
+                        "help": "连续无技能就绪超过该秒数时按一次 F1，0 = 禁用",
+                    },
+                ],
+            },
+            {
+                "key": "icon_detect",
+                "title": "图标检测",
+                "help": "冷却时技能图标变灰，与就绪态图片不匹配则视为冷却中。",
+                "fields": [
+                    {
+                        "key": "icon_sim",
+                        "label": "相似度",
+                        "type": "number",
+                        "default": 0.9,
+                        "min": 0,
+                        "max": 1,
+                        "step": 0.05,
+                        "controls": False,
+                        "width": "140px",
+                        "size": "default",
+                        "help": "越高越严格，图标有扫层/抖动时可调低",
+                    },
+                ],
+            },
+        ],
+    },
     "daily_reputation": {
         "id": "daily_reputation",
         "name": "每日声望",
@@ -935,7 +1064,7 @@ TASK_SCHEMAS = {
             {
                 "key": "inventory",
                 "title": "物品栏装备",
-                "help": "前 5 格可自由设置携带装备和快捷键，第 6 格固定为拾取。第 5 格默认放置传送卷轴用于转场至森之城。",
+                "help": "前 5 格可自由设置携带装备，第 6 格固定为拾取。第 5 格默认放置传送卷轴用于转场至森之城。格子快捷键在 KK 平台设置，默认对应 1~6 键。",
                 "showIf": {"field": "enable_forest", "value": True},
                 "fields": [
                     {"key": "inventory", "label": "", "type": "inventory"},
@@ -1006,7 +1135,7 @@ TASK_SCHEMAS = {
             {
                 "key": "inventory",
                 "title": "物品栏装备",
-                "help": "前 5 格可自由设置携带装备和快捷键，第 6 格固定为拾取。",
+                "help": "前 5 格可自由设置携带装备，第 6 格固定为拾取。格子快捷键在 KK 平台设置，默认对应 1~6 键。",
                 "fields": [{"key": "inventory", "label": "", "type": "inventory"}],
             },
             {

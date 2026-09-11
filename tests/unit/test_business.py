@@ -34,11 +34,19 @@ HERO_CFG = {
         {"key": "T", "desc": "舰队信标", "target_type": "ground", "position": "target_area"},
         {"key": "R", "desc": "相位作战服", "target_type": "self"},
     ],
+    "inventory_slots": [
+        {"slot": 0, "hotkey": "1"},
+        {"slot": 1, "hotkey": "2"},
+        {"slot": 2, "hotkey": "3"},
+        {"slot": 3, "hotkey": "4"},
+        {"slot": 4, "hotkey": "5"},
+        {"slot": 5, "hotkey": "6"},
+    ],
     "inventory": [
-        {"id": 1, "hotkey": "1"},
-        {"id": 8, "hotkey": "2"},
-        {"id": 9, "hotkey": "5"},
-        {"id": 0, "hotkey": "6"},
+        {"slot": 0, "item_id": 1},
+        {"slot": 1, "item_id": 8},
+        {"slot": 4, "item_id": 9},
+        {"slot": 5, "item_id": 0},
     ],
 }
 
@@ -61,10 +69,15 @@ class TestGetInventoryHotkeys(unittest.TestCase):
     """get_inventory_hotkeys（复数版）返回所有匹配快捷键。"""
 
     MULTI_HERO_CFG = {
+        "inventory_slots": [
+            {"slot": 3, "hotkey": "4"},
+            {"slot": 4, "hotkey": "5"},
+            {"slot": 5, "hotkey": "6"},
+        ],
         "inventory": [
-            {"id": 9, "hotkey": "4"},
-            {"id": 9, "hotkey": "5"},
-            {"id": 0, "hotkey": "6"},
+            {"slot": 3, "item_id": 9},
+            {"slot": 4, "item_id": 9},
+            {"slot": 5, "item_id": 0},
         ],
     }
 
@@ -82,8 +95,36 @@ class TestGetInventoryHotkeys(unittest.TestCase):
         self.assertEqual(get_inventory_hotkeys({}, 9), [])
 
     def test_skip_items_without_hotkey(self):
+        # 旧格式兼容：hotkey 为空时跳过
         cfg = {"inventory": [{"id": 9, "hotkey": ""}, {"id": 9, "hotkey": "5"}]}
         self.assertEqual(get_inventory_hotkeys(cfg, 9), ["5"])
+
+    def test_new_format_slot_lookup(self):
+        # 新格式：通过 inventory_slots 查找 hotkey
+        cfg = {
+            "inventory_slots": [{"slot": 2, "hotkey": "3"}],
+            "inventory": [{"slot": 2, "item_id": 9}],
+        }
+        self.assertEqual(get_inventory_hotkeys(cfg, 9), ["3"])
+
+    def test_new_format_no_slots_fallback_to_inline(self):
+        # 无 inventory_slots 时回退到 inventory 内联 hotkey（旧格式兼容）
+        cfg = {"inventory": [{"slot": 0, "item_id": 9, "hotkey": "1"}]}
+        self.assertEqual(get_inventory_hotkeys(cfg, 9), ["1"])
+
+
+class TestGameUIOptionalPreparation(unittest.TestCase):
+    def test_missing_optional_preparation_config_is_skipped(self):
+        from GameBot.runner.business.war3.jiubing2.game_ui import GameUI
+
+        dm = MagicMock()
+        ui = GameUI(dm, {}, {}, {}, MagicMock())
+
+        ui.load_stigmata()
+        ui.equip_cards()
+        ui.equip_shards()
+
+        dm.key_press_char.assert_not_called()
 
 
 class TestCombatHelperFeedPet(unittest.TestCase):
@@ -125,9 +166,13 @@ class TestCombatHelperFeedPet(unittest.TestCase):
     def test_feed_with_multiple_hotkeys_random_choice(self):
         """多格子宠物食物时，随机选一个快捷键。"""
         multi_hero_cfg = {
+            "inventory_slots": [
+                {"slot": 3, "hotkey": "4"},
+                {"slot": 4, "hotkey": "5"},
+            ],
             "inventory": [
-                {"id": 9, "hotkey": "4"},
-                {"id": 9, "hotkey": "5"},
+                {"slot": 3, "item_id": 9},
+                {"slot": 4, "item_id": 9},
             ],
         }
         combat = CombatHelper(
@@ -261,7 +306,7 @@ class TestPatrolLootConfigDefaults(unittest.TestCase):
             cfg["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"].update(cfg_override)
         if chest_override:
             cfg["chest"].update(chest_override)
-        # 用 __new__ 跳过 __init__ 中的 DmClient() 调用
+        # 用 __new__ 跳过 __init__ 中的大漠驱动工厂调用
         task = PatrolLootTask.__new__(PatrolLootTask)
         task.task_cfg = cfg
         task.cfg = cfg["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]
@@ -319,7 +364,10 @@ class TestPatrolLootPickupLoop(unittest.TestCase):
 
         cfg = {
             "war3": {"jiubing2": {"tasks": {"others": {"patrol_loot": {}}}}, "key_time": 0.1},
-            "hero": {"inventory": [{"id": 0, "hotkey": "6"}]},
+            "hero": {
+                "inventory_slots": [{"slot": 5, "hotkey": "6"}],
+                "inventory": [{"slot": 5, "item_id": 0}],
+            },
             "chest": {},
             "item_text": {},
             "pickup": {},
@@ -457,7 +505,10 @@ class TestPatrolLootPickupOne(unittest.TestCase):
 
         cfg = {
             "war3": {"jiubing2": {"tasks": {"others": {"patrol_loot": {}}}}, "key_time": 0.1},
-            "hero": {"inventory": [{"id": 0, "hotkey": "6"}]},
+            "hero": {
+                "inventory_slots": [{"slot": 5, "hotkey": "6"}],
+                "inventory": [{"slot": 5, "item_id": 0}],
+            },
             "pickup": {"unclickable_text": "不可点击", "storage_full_text": "储物箱已满", "result_timeout": 0.1},
         }
         task = PatrolLootTask.__new__(PatrolLootTask)

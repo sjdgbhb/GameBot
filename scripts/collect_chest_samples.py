@@ -5,20 +5,20 @@
 在游戏中摆放宝箱（尤其是重叠场景），脚本会持续截图。
 
 使用方法：
-  .venv-dm/Scripts/python.exe scripts/collect_chest_samples.py
+  uv run python scripts/collect_chest_samples.py
 
 按 Ctrl+C 停止。
 """
 import os
+import random
 import sys
 import time
-import random
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src"))
 
 from GameBot.config import config
+from GameBot.runner.driver import create_dm_client
 from GameBot.utils.logger import logger
-from GameBot.runner.dm_client import DmClient
 
 IMAGE_DIR = os.path.join(
     os.path.dirname(os.path.dirname(__file__)), "data", "chest_samples", "images"
@@ -27,11 +27,11 @@ INTERVAL = random.randint(1,10)  # 截图间隔（秒）
 
 
 def main():
-    cfg = config.load_task("war3.jiubing2.tasks.others.patrol_loot")
+    config.load_task("war3.jiubing2.tasks.others.patrol_loot")
     war3_cfg = config.get("war3", {})
     hwnd_title = war3_cfg.get("window_title", "Warcraft III")
 
-    dm = DmClient()
+    dm = create_dm_client()
 
     import win32gui
 
@@ -52,11 +52,11 @@ def main():
     from PIL import Image
 
     existing = len([f for f in os.listdir(IMAGE_DIR) if f.endswith((".jpg", ".png", ".bmp"))])
-    logger.info(f"宝箱自动截图收集工具")
+    logger.info("宝箱自动截图收集工具")
     logger.info(f"  保存目录: {IMAGE_DIR}")
     logger.info(f"  已有截图: {existing} 张")
     logger.info(f"  截图间隔: {INTERVAL} 秒")
-    logger.info(f"  请在游戏中摆放宝箱，按 Ctrl+C 停止")
+    logger.info("  请在游戏中摆放宝箱，按 Ctrl+C 停止")
 
     count = 0
     try:
@@ -84,7 +84,7 @@ def main():
         pass
 
     logger.info(f"收集完成，本次截图 {count} 张，目录共 {existing + count} 张")
-    logger.info(f"下一步: 用 x-anylabeling 标注图片，标签保存到 data/chest_samples/labels/")
+    logger.info("下一步: 用 x-anylabeling 标注图片，标签保存到 data/chest_samples/labels/")
 
 
 if __name__ == "__main__":

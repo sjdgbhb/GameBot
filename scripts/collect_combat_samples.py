@@ -6,23 +6,22 @@
 - 帧差法无闪烁 → 保存到 data/non_combat/
 
 使用方法：
-  .venv-dm/Scripts/python.exe scripts/collect_combat_samples.py --hero hxd
-  .venv-dm/Scripts/python.exe scripts/collect_combat_samples.py --hero hxd --interval 2 --max 100
+  uv run python scripts/collect_combat_samples.py --hero hxd
+  uv run python scripts/collect_combat_samples.py --hero hxd --interval 2 --max 100
 
 切换英雄后重新运行，指定 --hero 参数即可。
 按 Ctrl+C 停止。
 """
-import os
-import sys
-import time
 import argparse
+import os
 import tempfile
+import time
 
 from PIL import Image
 
-from GameBot.utils import logger
 from GameBot.config import config
-from GameBot.runner import DmClient
+from GameBot.runner.driver import create_dm_client
+from GameBot.utils import logger
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "combat_samples")
 
@@ -34,7 +33,7 @@ def main():
     parser.add_argument("--interval", type=float, default=1.0, help="采集间隔秒数（默认1.0）")
     args = parser.parse_args()
 
-    logger.info(f"===== 战斗样本自动采集 =====")
+    logger.info("===== 战斗样本自动采集 =====")
     logger.info(f"英雄: {args.hero}, 每类上限: {args.max}, 采集间隔: {args.interval}s")
     logger.info(f"数据目录: {DATA_DIR}")
     time.sleep(5)
@@ -58,7 +57,7 @@ def main():
     non_combat_count = len([f for f in os.listdir(non_combat_dir) if f.endswith(".bmp")])
     logger.info(f"已有样本: combat={combat_count}, non_combat={non_combat_count}")
 
-    dm = DmClient()
+    dm = create_dm_client()
     hwnd = dm.get_active_window(
         war3_cfg["window_class"], war3_cfg["window_title"]
     )

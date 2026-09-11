@@ -5,8 +5,8 @@
 """
 
 from GameBot.config import config
-from GameBot.inference import get_ocr_client
-from GameBot.runner import DmClient
+from GameBot.inference import get_inference_client
+from GameBot.runner import create_dm_client
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI
 from GameBot.runner.tasks.war3.jiubing2.atomic.base import AtomicTaskBase
@@ -26,7 +26,7 @@ class VenomousSnakeTask(AtomicTaskBase):
     @property
     def _npc(self) -> dict:
         """任务 NPC（村民杰菲特，卡米村场景）。"""
-        scenes = self.combat.cfg.get("scenes", {})
+        scenes = self.combat.cfg.get("war3", {}).get("jiubing2", {}).get("scenes", {})
         return scenes.get("kami_village", {}).get("npcs", {}).get("jephite", {})
 
 
@@ -42,7 +42,7 @@ def main():
     task_cfg = cfg["war3"]["jiubing2"]["tasks"]["atomic"]["venomous_snake"]
 
     def task_wrapper(stop_event, progress_callback=None):
-        dm = DmClient()
+        dm = create_dm_client()
         war3_cfg = cfg.get("war3", {})
         hero_cfg = cfg.get("hero", {})
         war3 = War3Business(dm, war3_cfg)
@@ -54,9 +54,9 @@ def main():
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
-        with dm.bind_window(hwnd):
+        with dm.bind_window(hwnd, bind_cfg=war3_cfg.get("bind", {})):
             war3.set_client_size(hwnd)
-            get_ocr_client()
+            get_inference_client(load_chest=False, load_combat=False)
             task = VenomousSnakeTask(dm, war3, ui, combat, task_cfg)
             task.run(stop_event=stop_event)
 

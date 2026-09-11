@@ -1,4 +1,4 @@
-"""坐标兼容性测试 EXE — 32 位 Python 3.8 + 大漠插件 COM
+"""坐标兼容性测试 EXE — 64 位 Python 3.12（dm_bridge 子进程调大漠 COM）
 
 功能：重置 war3 窗口尺寸 → F1 居中英雄 → 框选英雄，供用户检查坐标是否兼容。
 """
@@ -21,12 +21,11 @@ config.config_path = BUNDLED_DIR
 config._project_root_override = EXE_DIR
 
 # ===== 3. 导入业务模块 =====
-from GameBot.utils import setup_global_exception_hook, logger
 from GameBot.config import config as cfg_singleton
-from GameBot.runner.dm_client import DmClient
 from GameBot.runner.business.war3 import War3Business
+from GameBot.runner.driver import create_dm_client
 from GameBot.runner.ui import run_with_float_window
-
+from GameBot.utils import logger, setup_global_exception_hook
 
 # 硬编码 war3 配置（无需用户配置文件）
 WAR3_CFG = {
@@ -55,12 +54,20 @@ def main():
         logger.error("请确保 dm/dm.dll 文件与 游戏中点我测试.exe 在同一目录下")
         sys.exit(1)
 
-    # 设置全局配置（DmClient 需要读取 dm.dll 路径）
+    # 检查 dm_bridge 子进程
+    bridge_exe = EXE_DIR / "dm_bridge" / "dm_bridge.exe"
+    if not bridge_exe.exists():
+        logger.error(f"dm_bridge 子进程不存在: {bridge_exe}")
+        logger.error("请确保 dm_bridge/dm_bridge.exe 与 游戏中点我测试.exe 在同一目录下")
+        sys.exit(1)
+
+    # 设置全局配置（大漠驱动需要读取 dm.dll 路径和 dm_bridge 子进程路径）
     cfg_singleton._config.setdefault("dm", {})["dll_path"] = "dm"
+    cfg_singleton._config["dm"]["python_path"] = "dm_bridge/dm_bridge.exe"
     cfg_singleton._config.setdefault("paths", {})["resources_path"] = "resources"
 
     def task_func(stop_event, progress_callback):
-        dm = DmClient()
+        dm = create_dm_client()
         war3 = War3Business(dm, WAR3_CFG)
 
         hwnd = dm.get_active_window(
@@ -81,10 +88,10 @@ def main():
             print(f"配置期望: {expected[0]}x{expected[1]}")
             print(f"大漠版本: {dm.version}")
             if actual_w != expected[0] or actual_h != expected[1]:
-                print(f"⚠ 客户区尺寸不匹配！坐标可能偏移")
+                print("⚠ 客户区尺寸不匹配！坐标可能偏移")
                 progress_callback(f"⚠ 尺寸不匹配: 实际 {actual_w}x{actual_h} vs 期望 {expected[0]}x{expected[1]}")
             else:
-                print(f"✓ 客户区尺寸匹配")
+                print("✓ 客户区尺寸匹配")
                 progress_callback(f"✓ 尺寸匹配 {actual_w}x{actual_h}")
             print()
 

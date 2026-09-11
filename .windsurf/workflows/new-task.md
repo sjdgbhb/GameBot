@@ -15,23 +15,25 @@ description: 新增任务模块 — 创建 Python 任务文件和对应 TOML 配
 
 ## 2. 创建 TOML 配置文件
 
-在 `src/GameBot/config/tasks/` 下创建 `{task_name}.toml`，基本结构：
+在 `src/GameBot/config/data/war3/jiubing2/tasks/` 对应类别目录下创建 `{task_name}.toml`，基本结构：
 
 ```toml
 # =============================================================================
 # {任务描述}
 # =============================================================================
-dependencies = ["heroes.mk"]   # 指定依赖的英雄，通常继承 jiubing2
+name = "war3.jiubing2.tasks.{类别}.{task_name}"
+extends = ["war3.jiubing2", "war3.jiubing2.heroes.{英雄名}"]   # 指定继承的基础配置和英雄
 
-[tasks.{task_name}]
+[this]
 name = "{中文名称}"
 
 # 任务特有配置...
 ```
 
 注意事项：
-- `dependencies` 必须声明，通常包含 `heroes.{英雄名}` 来继承英雄配置和 `jiubing2`
-- 带命名空间前缀的节点（如 `[tasks.{task_name}]`）不可继承
+- `name` 必须与本文件的点分路径一致
+- `extends` 必须声明，通常包含 `war3.jiubing2.heroes.{英雄名}` 来继承英雄配置和 `war3.jiubing2`
+- `[this]` 直接展开为 `war3.jiubing2.tasks.{类别}.{task_name}`，是当前任务的数据节点
 - 不带前缀的节点（如 `[chest]`、`[pickup]`）可继承自 jiubing2.toml，按需覆盖
 
 ## 3. 创建 Python 任务文件
@@ -47,7 +49,7 @@ import time
 from GameBot.utils import logger
 from GameBot.config import config
 from GameBot.utils.exception_handler import setup_global_exception_hook
-from GameBot.runner import DmClient
+from GameBot.runner.driver import create_dm_client
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.jiubing2 import GameUI, CombatHelper
 
@@ -58,7 +60,7 @@ class {TaskName}Task:
     def __init__(self, cfg: dict):
         self.task_cfg = cfg
         self.cfg = cfg["tasks"]["{task_name}"]
-        self.dm = DmClient()
+        self.dm = create_dm_client()
 
         war3_cfg = self.task_cfg.get("war3", {})
         hero_cfg = self.task_cfg.get("hero", {})
@@ -96,4 +98,4 @@ if __name__ == "__main__":
 
 - 检查 TOML 配置的 `dependencies` 是否正确
 - 检查 Python 文件的 import 是否完整
-- 确认运行命令：`.venv-dm/Scripts/python.exe -m GameBot.runner.tasks.{task_name}`
+- 确认运行命令：`uv run python -m GameBot.runner.tasks.{task_name}`

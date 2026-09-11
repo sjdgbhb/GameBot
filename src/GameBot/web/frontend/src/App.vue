@@ -162,22 +162,25 @@ function switchModule(module: string) {
 
 function shouldFillInventory(inv: any[]): boolean {
   if (!Array.isArray(inv) || inv.length === 0) return true
-  return !inv.some(s => s.id > 0)
+  return !inv.some(s => (s.item_id != null ? s.item_id : s.id) > 0)
 }
 
 function buildInventorySlots(...sources: any[][]): any[] {
   const arr: any[] = []
-  for (let i = 0; i < 6; i++) arr.push({ id: -1, hotkey: String(i + 1) })
+  for (let i = 0; i < 6; i++) arr.push({ slot: i, item_id: -1, hotkey: String(i + 1) })
   // 按优先级从低到高依次填充，高优先级覆盖相同格子
   for (const source of sources) {
     for (const hi of source) {
       let slotIdx = -1
       if (hi.slot != null) slotIdx = Number(hi.slot)
       else if (hi.hotkey != null) slotIdx = parseInt(hi.hotkey, 10) - 1
-      if (slotIdx >= 0 && slotIdx <= 5) arr[slotIdx] = { id: hi.id, hotkey: hi.hotkey }
+      if (slotIdx >= 0 && slotIdx <= 5) {
+        const itemId = hi.item_id != null ? hi.item_id : hi.id
+        arr[slotIdx] = { slot: slotIdx, item_id: itemId, hotkey: hi.hotkey || String(slotIdx + 1) }
+      }
     }
   }
-  arr[5] = { id: 0, hotkey: arr[5].hotkey || '6' }
+  arr[5] = { slot: 5, item_id: 0, hotkey: arr[5].hotkey || '6' }
   return arr
 }
 
@@ -468,7 +471,7 @@ async function saveConfig() {
       hasInventoryFieldInSections(extraSections.value)
     if (hasInventory) {
       const inv = currentData.value.inventory || []
-      if (!inv.some((s: any) => s.id === heroStore.petFoodId)) { showToast('物品栏必须携带宠物食物', 'error'); return }
+      if (!inv.some((s: any) => (s.item_id != null ? s.item_id : s.id) === heroStore.petFoodId)) { showToast('物品栏必须携带宠物食物', 'error'); return }
     }
     const desired = currentData.value.desired_items || []
     if (!desired.some((it: any) => it.count > 0)) { showToast('请至少选择一件待刷装备', 'error'); return }

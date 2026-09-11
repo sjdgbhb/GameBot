@@ -1,12 +1,14 @@
 """配置系统核心 — Config 单例类，组合所有 mixin，提供配置加载和访问接口。
 
 继承规则：
-1. 依赖继承：配置文件通过 dependencies = ["tasks.xxx", "heroes.yyy"] 声明依赖，
+1. 依赖继承：配置文件通过 name 声明自身命名空间、extends = ["tasks.xxx", "heroes.yyy"] 声明继承，
    按深度优先后序展开为线性加载顺序（每个文件只加载一次，类似 Python import），
    同名可继承节点深度合并（未覆盖的字段从父配置继承，已覆盖的字段递归覆盖）。
-2. 命名空间约定：config 目录下所有文件名、文件夹名（含子级）构成命名空间。
-   节点名前带命名空间前缀的（如 [scenes.forest_city.npcs.diana]、[tasks.fishing]）
-   不可被继承；不带的（如 [command]、[skill.test]、[hero]）可被继承。
+   文件内使用 [this] 简写代替完整命名空间前缀。
+2. 命名空间约定：config 目录下的一级文件夹名和顶层 .toml 文件名构成命名空间根
+   （如 war3、team、base、kk、web）。TOML 顶层键命中命名空间根的（如 [war3]）
+   不可被继承，保留在路径下；未命中的（如 [command]、[hero]）可被继承，提升到顶层。
+   不递归扫描子目录——新建子目录不会改变现有 TOML 的合并语义。
 3. 英雄互斥：一场游戏只能玩一个英雄。heroes.* 配置互斥生效——加载顺序中最后一个
    英雄配置整体替换之前英雄贡献的可继承节点。
 4. [hero] 浅合并：[hero] 是可继承节点但做浅合并处理——合并顶层子键（skills/
@@ -25,6 +27,8 @@
 - core.py     — Config 类 + 单例 + load_task + 访问方法（本文件）
 """
 
+import copy
+import logging
 import os
 import threading
 from pathlib import Path
@@ -160,6 +164,13 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
         if user_cfg:
             self._apply_user_overrides(result, user_cfg, task_name)
 
+        # 将 kk.inventory_slots 注入 hero_cfg，供 get_inventory_hotkey(s) 查找快捷键
+        self._inject_inventory_slots(result)
+        # 将 inventory 中的 item 物品名解析为 item_id
+        self._resolve_inventory_item_names(result)
+        # 根据 bind_mode 切换前台/后台绑定配置
+        self._apply_bind_mode(result)
+
         # 缓存任务结果（含 user_configs.json 的 mtime，用于缓存失效检测）
         self._task_configs[task_name] = (result, current_mtime)
 
@@ -171,9 +182,82 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
         rebuilt = self._build(self._load_order)
         if user_cfg:
             self._apply_user_overrides(rebuilt, user_cfg, task_name)
+        self._inject_inventory_slots(rebuilt)
+        self._resolve_inventory_item_names(rebuilt)
+        self._apply_bind_mode(rebuilt)
         self._config.clear()
         self._config.update(rebuilt)
         return result
+
+    def _inject_inventory_slots(self, config: dict):
+        """将 kk.inventory_slots 注入 hero.inventory_slots，供快捷键查找使用。
+
+        kk.toml 中定义了默认的格子→快捷键映射，hero_cfg 通过 inventory_slots
+        字段访问该映射。组队配置中成员可用 inventory_slots 覆盖默认值。
+        """
+        kk_slots = config.get("kk", {}).get("inventory_slots")
+        if kk_slots:
+            hero = config.setdefault("hero", {})
+            if "inventory_slots" not in hero:
+                hero["inventory_slots"] = copy.deepcopy(kk_slots)
+
+    def _resolve_inventory_item_names(self, config: dict):
+        """将 hero.inventory 中的 item（物品名）解析为 item_id（原地修改）。
+
+        支持用物品名替代数字 ID，提升配置可读性。已有 item_id 的条目不受影响。
+        物品名→ID 映射来自配置中的 items 列表（如 jiubing2.toml 的 items）。
+        """
+        items = config.get("items", [])
+        if not items:
+            return
+        name_to_id = {it.get("name", ""): it.get("id") for it in items if it.get("name")}
+        hero = config.get("hero", {})
+        inventory = hero.get("inventory", [])
+        if not inventory:
+            return
+        for entry in inventory:
+            if "item_id" not in entry and "item" in entry:
+                name = entry["item"]
+                item_id = name_to_id.get(name)
+                if item_id is not None:
+                    entry["item_id"] = item_id
+                    del entry["item"]
+                else:
+                    logging.getLogger(__name__).warning(
+                        f"物品名 '{name}' 未在物品定义表中找到，请检查 items 配置"
+                    )
+
+    def _apply_bind_mode(self, config: dict):
+        """根据 bind_mode 切换前台/后台绑定配置。
+
+        优先级：team.team_task.bind_mode > war3.bind.bind_mode / kk.bind.bind_mode
+        bind_mode 取值：
+        - "foreground"：使用 bind 配置（前台，默认）
+        - "background"：用 bind_multi 覆盖 bind（后台）
+        多成员组队由组队框架（team/base.py）按成员数强制后台，此处不处理。
+        """
+        # 组队配置的 bind_mode 优先级最高
+        team_bind_mode = config.get("team", {}).get("team_task", {}).get("bind_mode")
+        if team_bind_mode == "background":
+            self._swap_bind_to_multi(config, "war3")
+            self._swap_bind_to_multi(config, "kk")
+            return
+        if team_bind_mode == "foreground":
+            return  # 保持 bind 不变
+
+        # 各平台自身的 bind_mode
+        for ns in ("war3", "kk"):
+            bind_cfg = config.get(ns, {}).get("bind", {})
+            mode = bind_cfg.get("bind_mode", "foreground")
+            if mode == "background":
+                self._swap_bind_to_multi(config, ns)
+
+    @staticmethod
+    def _swap_bind_to_multi(config: dict, ns: str):
+        """将 config[ns]["bind_multi"] 覆盖到 config[ns]["bind"]。"""
+        ns_cfg = config.get(ns, {})
+        if "bind_multi" in ns_cfg:
+            ns_cfg["bind"] = copy.deepcopy(ns_cfg["bind_multi"])
 
     def get_section(self, section: str, task_name: str = None) -> dict:
         """获取配置段（已含任务级覆盖），返回字典。

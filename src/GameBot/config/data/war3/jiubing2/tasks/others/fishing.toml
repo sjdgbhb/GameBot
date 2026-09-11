@@ -4,25 +4,29 @@
 # 1、抛竿后，英雄附近出现一排未填充的圈圈和三角形（其中三角形只有2个且相邻，可以出现在任意位置）
 # 2、从左至右依次填充（圆圈填充为蓝色，三角形填充为红色），当填充到三角形时，需立刻收竿，钓鱼就会成功
 # =============================================================================
-dependencies = ["war3.jiubing2"]   # war3.jiubing2 传递依赖 war3，提供游戏指令和 OCR 区域配置
+name = "war3.jiubing2.tasks.others.fishing"
+extends = ["war3.jiubing2", "kk"]   # war3.jiubing2 传递依赖 war3，提供游戏指令和 OCR 区域配置；kk 提供物品栏快捷键
 
 # ------------------------------ 物品栏配置（背包1-6格） ------------------------------
 # 钓鱼不依赖特定英雄，但需要物品栏配置（鱼竿）
-[[hero.inventory]]
-slot = 3  # 格子id，0~5对应第1~6格
-id = 7  # 鱼竿
-hotkey = "4"
+# slot: 格子编号 0~5 对应第 1~6 格
+# item: 物品名（映射表在 jiubing2.toml 的 items 中），也可用 item_id = 数字
+# 快捷键从 kk.toml 的 inventory_slots 查找
+[hero]
+inventory = [
+  {slot = 3, item = "鱼竿"},  # 鱼竿
+]
 
-[war3.jiubing2.tasks.others.fishing]
+[this]
 name = "钓鱼"
 max_times = 10000  # 抛竿次数
 fishing_interval_time = 1  # 钓鱼间隔
-clear_nearby_probability = 0.03  # 每次收竿后清理英雄附近物品的概率（0~1），0 = 禁用
+clear_nearby_probability = 0  # 每次收竿后清理英雄附近物品的概率（0~1），0 = 禁用
 mode = 0  # 以何种方法检测中钩，0找色（红色三角形填充），1找图
 hook_coords = [943, 554]  # 鱼钩位置
 is_test_check = false  # 是否测试中钩区域
 
-[war3.jiubing2.tasks.others.fishing.check]
+[this.check]
 # 预判收竿：填充循环周期稳定（实测 ~3.1s），用红色出现时刻+周期推算下次出现时刻，
 # 提前 retract_lead_time 秒按键，补偿按键到游戏执行的固有延迟（约 100~200ms）。
 # 周期跨竿缓存：首竿等 2 次红色出现实测周期，后续竿只等 1 次即可出手（每竿省约 3 秒）

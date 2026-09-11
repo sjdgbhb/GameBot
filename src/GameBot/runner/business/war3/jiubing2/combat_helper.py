@@ -11,14 +11,37 @@ import time
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from GameBot.runner.dm_client import DmClient
+    from GameBot.runner.driver.base import DmClientBase as DmClient
 from GameBot.utils import logger
+
+
+def _build_slot_hotkey_map(hero_cfg: dict) -> dict:
+    """构建 slot → hotkey 映射表。
+
+    优先使用 hero_cfg["inventory_slots"]（新格式，来自 kk.toml 或组队成员覆盖），
+    回退到 inventory 条目中内联的 hotkey 字段（兼容旧格式）。
+    """
+    slot_map = {}
+    # 新格式：inventory_slots 独立配置
+    for slot_entry in hero_cfg.get("inventory_slots", []):
+        slot = slot_entry.get("slot")
+        hotkey = slot_entry.get("hotkey", "")
+        if slot is not None and hotkey:
+            slot_map[slot] = hotkey
+    # 兼容旧格式：inventory 条目中内联 hotkey
+    if not slot_map:
+        for item in hero_cfg.get("inventory", []):
+            slot = item.get("slot")
+            hotkey = item.get("hotkey", "")
+            if slot is not None and hotkey:
+                slot_map[slot] = hotkey
+    return slot_map
 
 
 def get_inventory_hotkey(hero_cfg: dict, item_id: int) -> str:
     """根据物品 id 查找背包快捷键（随机返回一个匹配项）。
 
-    :param hero_cfg: 英雄配置（含 inventory 列表）
+    :param hero_cfg: 英雄配置（含 inventory 列表和 inventory_slots 映射）
     :param item_id: 物品 id
     :return: 快捷键字符，未找到返回空字符串
     """
@@ -31,15 +54,25 @@ def get_inventory_hotkeys(hero_cfg: dict, item_id: int) -> list:
 
     用于同一物品放在多个格子时，依次使用不同快捷键。
 
-    :param hero_cfg: 英雄配置（含 inventory 列表）
+    :param hero_cfg: 英雄配置（含 inventory 列表和 inventory_slots 映射）
     :param item_id: 物品 id
     :return: 快捷键字符列表
     """
-    return [
-        item.get("hotkey", "")
-        for item in hero_cfg.get("inventory", [])
-        if item.get("id") == item_id and item.get("hotkey")
-    ]
+    slot_map = _build_slot_hotkey_map(hero_cfg)
+    hotkeys = []
+    for item in hero_cfg.get("inventory", []):
+        # 兼容 item_id（新格式）和 id（旧格式）
+        item_val = item.get("item_id", item.get("id"))
+        if item_val == item_id:
+            slot = item.get("slot")
+            if slot is not None:
+                hotkey = slot_map.get(slot, "")
+                if hotkey:
+                    hotkeys.append(hotkey)
+            # 兼容旧格式：hotkey 直接内联在 inventory 条目中
+            elif item.get("hotkey"):
+                hotkeys.append(item["hotkey"])
+    return hotkeys
 
 
 class CombatHelper:
@@ -63,6 +96,12 @@ class CombatHelper:
         self.cfg = cfg
         self.game_cfg = cfg.get("game", {})
         self._war3 = war3
+        # 物品 id → name 映射，用于日志可读性
+        self._item_names = {
+            it.get("id"): it.get("name", "")
+            for it in cfg.get("items", [])
+            if it.get("id") is not None
+        }
 
     def resolve_point_skills(self, point_skills) -> list:
         """将路线点的技能配置与英雄技能池合并，返回完整技能列表。
@@ -196,17 +235,20 @@ class CombatHelper:
                     continue
                 hotkeys = get_inventory_hotkeys(self.hero_cfg, int(item_id))
                 if not hotkeys:
-                    logger.warning(f"物品 id {item_id} 未在物品栏中找到，跳过")
+                    item_name = self._item_names.get(int(item_id), f"id={item_id}")
+                    logger.warning(f"物品 {item_name} 未在物品栏中找到，跳过")
                     continue
                 hotkey = random.choice(hotkeys)
                 if coords:
-                    logger.info(f"使用物品（目标坐标）：{hotkey} → {coords}")
+                    item_name = self._item_names.get(int(item_id), f"id={item_id}")
+                    logger.info(f"使用物品（目标坐标）：{item_name}（{hotkey}）→ {coords}")
                     self.dm.move_to(*coords)
                     self.dm.key_press_char(hotkey)
                     self._war3.interruptible_wait(self.war3_cfg["key_time"], stop_event)
                     self.dm.left_click()
                 else:
-                    logger.info(f"使用物品：{hotkey}")
+                    item_name = self._item_names.get(int(item_id), f"id={item_id}")
+                    logger.info(f"使用物品：{item_name}（{hotkey}）")
                     self._war3.use_inventory_item(hotkey, stop_event)
                 # 施放后等待（物品动画/施放延迟），默认只等 key_time
                 self._war3.interruptible_wait(

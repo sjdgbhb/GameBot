@@ -5,14 +5,15 @@
 import time
 
 from GameBot.config import config
-from GameBot.inference import get_ocr_client
-from GameBot.runner import DmClient
+from GameBot.inference import get_inference_client
+from GameBot.runner import create_dm_client
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import (
     CombatHelper,
     EndlessRunner,
     GameUI,
 )
+from GameBot.runner.business.war3.jiubing2.endless_runner import BossDeathTimeoutError
 from GameBot.runner.ui import run_with_float_window
 from GameBot.utils import StopTaskError, logger, setup_log_file
 from GameBot.utils.exception_handler import setup_global_exception_hook
@@ -23,7 +24,7 @@ class EndlessSingleTask:
 
     def __init__(self, cfg: dict):
         self.task_cfg = cfg
-        self.dm = DmClient()
+        self.dm = create_dm_client()
         endless_cfg = cfg["war3"]["jiubing2"]["tasks"]["endless"]["endless_single"]
 
         war3_cfg = self.task_cfg.get("war3", {})
@@ -52,12 +53,15 @@ class EndlessSingleTask:
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
-        with self.dm.bind_window(hwnd):
-            self.war3.set_client_size(hwnd)
-            try:
-                self.runner.clear_endless_monster_loop(self, 1, self.endless_cfg)
-            except StopTaskError:
-                logger.info("收到停止信号，停止无尽刷怪")
+        self.war3.set_client_size(hwnd)
+        try:
+            with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+                try:
+                    self.runner.clear_endless_monster_loop(self, 1, self.endless_cfg)
+                except BossDeathTimeoutError:
+                    logger.warning("BOSS 死亡超时，结束本局")
+        except StopTaskError:
+            logger.info("收到停止信号，停止无尽刷怪")
         logger.info("无尽刷怪任务结束")
 
 
@@ -67,8 +71,8 @@ def main():
     logger.info("############################# 无尽刷怪任务 #############################")
     cfg = config.load_task("war3.jiubing2.tasks.endless.endless_single")
 
-    # 预加载推理子进程（OCR + 宝箱检测 + 战斗检测），避免首次使用时才启动
-    get_ocr_client()
+    # 预加载 OCR（无尽单局不需要宝箱和战斗模型）
+    get_inference_client(load_chest=False, load_combat=False)
 
     def task_wrapper(stop_event, progress_callback=None):
         EndlessSingleTask(cfg).run(stop_event=stop_event, progress_callback=progress_callback)
@@ -78,3 +82,57 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ── 组队任务步骤 ────────────────────────────────────────────
+
+
+from GameBot.runner.business.war3.jiubing2.team_steps_base import Jiubing2TaskSteps
+
+
+class _EndlessSingleSteps(Jiubing2TaskSteps):
+    """无尽单局组队步骤 — position_init 进入无尽地图，run_task 无尽刷怪。"""
+
+    def position_init(self, member, stop_event=None, **kwargs):
+        """就位 — 折叠属性面板 → 进入皇宫 → 进入无尽地图。"""
+        from GameBot.runner.business.war3.jiubing2.team_steps_base import _build_business_objects
+
+        ui, nav, combat, runner = _build_business_objects(member)
+        endless_cfg = member.task_cfg.get("war3", {}).get(
+            "jiubing2", {}
+        ).get("tasks", {}).get("endless", {}).get("endless_single", {})
+
+        logger.info("组队无尽就位：进入皇宫 → 进入无尽")
+        ui.switch_attribute_panel(is_fold=True)
+        nav.enter_palace(stop_event)
+        nav.enter_endless(member.task_ctx, endless_cfg, stop_event)
+        logger.info("组队无尽就位完成")
+
+    def run_task(self, member, stop_event=None, **kwargs):
+        """无尽刷怪主循环。"""
+        from GameBot.runner.business.war3.jiubing2.endless_runner import BossDeathTimeoutError
+        from GameBot.runner.business.war3.jiubing2.team_steps_base import _build_business_objects
+
+        ui, nav, combat, runner = _build_business_objects(member)
+        endless_cfg = member.task_cfg.get("war3", {}).get(
+            "jiubing2", {}
+        ).get("tasks", {}).get("endless", {}).get("endless_single", {})
+
+        if not endless_cfg:
+            logger.error("run_task 缺少 endless_cfg")
+            member._flow_failed = True
+            return
+
+        logger.info(f"开始无尽刷怪 (round={member._current_round})")
+        try:
+            runner.start_endless(member.task_ctx, member._current_round, endless_cfg)
+        except BossDeathTimeoutError:
+            logger.warning(f"BOSS 死亡超时（{'同步源' if member.is_sync_source else '非同步源'}），结束本局")
+            member._flow_failed = True
+
+
+_steps = _EndlessSingleSteps()
+preparation = _steps.preparation
+position_init = _steps.position_init
+pre_exit = _steps.pre_exit
+run_task = _steps.run_task

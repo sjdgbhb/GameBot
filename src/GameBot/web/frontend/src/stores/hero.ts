@@ -44,12 +44,17 @@ export const useHeroStore = defineStore('hero', () => {
   /** 构建物品栏 6 格数组 */
   function buildInventorySlots(inv?: any[]): any[] {
     const arr: any[] = []
-    for (let i = 0; i < 6; i++) arr.push({ id: -1, hotkey: String(i + 1) })
+    for (let i = 0; i < 6; i++) arr.push({ slot: i, item_id: -1, hotkey: String(i + 1) })
     ;(inv || []).forEach((it: any) => {
-      const idx = parseInt(it.hotkey, 10) - 1
-      if (idx >= 0 && idx < 6) arr[idx] = { id: it.id, hotkey: String(it.hotkey) }
+      let slotIdx = -1
+      if (it.slot != null) slotIdx = Number(it.slot)
+      else if (it.hotkey != null) slotIdx = parseInt(it.hotkey, 10) - 1
+      if (slotIdx >= 0 && slotIdx < 6) {
+        const itemId = it.item_id != null ? it.item_id : it.id
+        arr[slotIdx] = { slot: slotIdx, item_id: itemId, hotkey: it.hotkey || String(slotIdx + 1) }
+      }
     })
-    arr[5] = { id: 0, hotkey: arr[5].hotkey || '6' }
+    arr[5] = { slot: 5, item_id: 0, hotkey: arr[5].hotkey || '6' }
     return arr
   }
 

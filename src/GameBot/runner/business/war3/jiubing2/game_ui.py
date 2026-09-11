@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     pass
-from GameBot.inference import get_ocr_client
 from GameBot.utils import logger
 
 
@@ -90,13 +89,14 @@ class GameUI:
             time.sleep(self.war3_cfg["general_time"])
             return
 
-        bbox = self._war3._compute_ocr_bbox(diff_cfg, hwnd)
-        lines = get_ocr_client().ocr_lines(bbox)
-        cx, cy, _, _ = self.dm.get_client_rect(hwnd)
+        area_coords = diff_cfg.get("area_coords", [0, 0, 0, 0])
+        lines = self._war3.ocr_lines(
+            self._war3.dm, hwnd, diff_cfg, bind_cfg=self._war3.war3_cfg.get("bind", {})
+        )
         for line in lines:
             if target in line.get("text", ""):
-                x = int(line.get("x_center", 0)) + bbox[0] - cx
-                y = int(line.get("y_center", 0)) + bbox[1] - cy
+                x = int(line.get("x_center", 0)) + area_coords[0]
+                y = int(line.get("y_center", 0)) + area_coords[1]
                 logger.info(f"已匹配难度：{line.get('text')}，点击 ({x}, {y})")
                 self.dm.move_to(x, y)
                 time.sleep(self.war3_cfg["general_time"])
@@ -110,16 +110,28 @@ class GameUI:
     def select_hero(self):
         """选择英雄。
 
-        流程：按楼层快捷键切换到英雄所在楼层 → 双击英雄头像。
+        流程：按楼层快捷键切换到英雄所在楼层 → 点小地图切视角 → 双击英雄头像。
         hero_cfg['floor_key'] 为 None 时抛出异常。
         """
         logger.info("选择英雄")
         floor_key = self.hero_cfg["floor_key"]
         if floor_key is None:
             raise ValueError(f"英雄 {self.hero_cfg.get('selected_hero', '?')} 未配置楼层键")
+        coords = self.hero_cfg["coords"]
+        mini_coords = self.hero_cfg.get("mini_coords")
+        bind_hwnd = self.dm.get_bind_window()
+        logger.info(f"选英雄前状态: bind_hwnd={bind_hwnd}, floor_key={floor_key}, mini_coords={mini_coords}, coords={coords}")
         self.dm.key_press_char(floor_key)
         time.sleep(self.war3_cfg["small_window_response_time"])
-        (self.dm.move_to)(*self.hero_cfg["coords"])
+        # 点小地图切换视角到英雄所在区域，否则英雄头像可能不在屏幕可见范围
+        if mini_coords:
+            logger.info(f"点小地图切视角: move_to({mini_coords[0]}, {mini_coords[1]})")
+            self.dm.move_to(*mini_coords)
+            time.sleep(self.war3_cfg["key_time"])
+            self.dm.left_click()
+            time.sleep(self.war3_cfg["general_time"])
+        logger.info(f"move_to({coords[0]}, {coords[1]})")
+        (self.dm.move_to)(*coords)
         gt = self.war3_cfg["general_time"]
         time.sleep(gt)
         self.dm.left_double_click()
@@ -129,12 +141,13 @@ class GameUI:
         """通过聊天指令读取英雄存档。
 
         以 -load 开头的存档码发送到游戏聊天栏。
-        如果 hero_cfg['is_load'] 为 False 则跳过。
+        如果 hero_cfg 未配置 load_save 则跳过。
         """
-        logger.info("读取存档")
-        if not self.hero_cfg["is_load"]:
+        load_save = self.hero_cfg.get("load_save")
+        if not load_save:
             return
-        self._war3.send_msg(self.hero_cfg["load_save"])
+        logger.info("读取存档")
+        self._war3.send_msg(load_save)
         time.sleep(self.game_cfg["load_save_time"])
 
     def _get_card_coords(self) -> "list":
@@ -158,7 +171,7 @@ class GameUI:
         如果 hero_cfg['card']['is_open'] 为 False 则跳过。
         """
         logger.info("装备卡牌")
-        if not self.hero_cfg["card"]["is_open"]:
+        if not self.hero_cfg.get("card", {}).get("is_open", False):
             return
         card_cfg = self.cfg.get("card", {})
         hotkey = card_cfg["switch_hotkey"]
@@ -230,8 +243,8 @@ class GameUI:
         如果 hero_cfg['shard']['is_open'] 为 False 则跳过。
         """
         logger.info("开启神碎")
-        hero_shard = self.hero_cfg["shard"]
-        if not hero_shard["is_open"]:
+        hero_shard = self.hero_cfg.get("shard", {})
+        if not hero_shard.get("is_open", False):
             return
         shard_cfg = self.cfg.get("shard", {})
         hotkey = shard_cfg["switch_hotkey"]
@@ -281,9 +294,10 @@ class GameUI:
         如果 hero_cfg['stigmata']['is_open'] 为 False 则跳过。
         """
         logger.info("读取圣痕")
-        if not self.hero_cfg["stigmata"]["is_open"]:
+        hero_stigmata = self.hero_cfg.get("stigmata", {})
+        if not hero_stigmata.get("is_open", False):
             return
-        use_index = self.hero_cfg["stigmata"]["use_index"]
+        use_index = hero_stigmata["use_index"]
         if use_index < 1 or use_index > 3:
             raise ValueError("圣痕索引必须为 1~3！")
         stigmata_cfg = self.cfg.get("stigmata", {})

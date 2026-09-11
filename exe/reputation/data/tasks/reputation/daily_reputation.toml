@@ -4,26 +4,29 @@
 #       走进远古森林（到达森之城）→ 森之城声望（迅猛野兽 x N）
 # =============================================================================
 # heroes.paladin 置于最后：与子任务依赖的 heroes.hxd 互斥，后加载者生效（一场游戏只玩 paladin）
-dependencies = [
+name = "tasks.reputation.daily_reputation"
+extends = [
     "tasks.atomic.blackstone_gate_harassment",
     "tasks.atomic.swift_beast",
     "scenes.menethil",
 ]
 
 # 物品栏装备
-[[hero.inventory]]
-slot = 4
-id = 5  # 物品id，传送至远古森林外围入口的卷轴
-hotkey = "5"  # 改物品栏格子对应的快捷键
+# slot: 0~5 对应物品栏第1~6格
+# item_id: 物品 id，快捷键从 kk.toml 的 inventory_slots 查找
+[hero]
+inventory = [
+  {slot = 4, item_id = 5},  # 传送至远古森林外围入口的卷轴
+]
 
-[tasks.reputation.daily_reputation]
+[this]
 name = "每日声望"
 enable_blackstone = false       # 是否执行黑石城声望 true 或 false
 enable_forest = true           # 是否执行森之城声望 true 或 false
 clear_nearby_probability = 0.3 # 每个路线点清理英雄附近物品的概率（0~1），0 = 禁用（子任务共用）
 
 # 黑石城声望子配置
-[tasks.reputation.daily_reputation.blackstone]
+[this.blackstone]
 name = "每日黑石城声望"
 progress_label = "黑石城"       # 浮窗显示标签
 target_reputation = 150       # 每日声望上限
@@ -31,7 +34,7 @@ reputation_per_run = 5         # 每次城门骚扰任务获得的声望
 loop_interval_time = 1.5       # 两次城门骚扰任务之间的间隔（秒）
 
 # 森之城声望子配置
-[tasks.reputation.daily_reputation.forest]
+[this.forest]
 name = "每日森之城声望"
 progress_label = "森之城"       # 浮窗显示标签
 target_reputation = 150        # 每日声望上限

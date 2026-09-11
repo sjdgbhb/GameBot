@@ -1,5 +1,6 @@
 ############## 元素法师 ##############
-dependencies = ["war3.jiubing2"]
+name = "war3.jiubing2.heroes.elementalist"
+extends = ["war3.jiubing2"]
 
 
 [hero]

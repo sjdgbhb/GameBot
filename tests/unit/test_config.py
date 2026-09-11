@@ -67,9 +67,11 @@ class TestSplitSections(TestConfigBase):
         self.assertIn("game", inheritable)
         self.assertIn("command", inheritable)
         self.assertIn("hero", inheritable)
-        # 不应包含 dependencies（控制键）
-        self.assertNotIn("dependencies", inheritable)
-        self.assertNotIn("dependencies", namespaced)
+        # 不应包含 name/extends（控制键）
+        self.assertNotIn("name", inheritable)
+        self.assertNotIn("extends", inheritable)
+        self.assertNotIn("name", namespaced)
+        self.assertNotIn("extends", namespaced)
 
     def test_namespaced_stays_in_namespace(self):
         """tasks.others.fishing 的 [tasks.others.fishing] 应归入命名空间。"""
@@ -518,16 +520,17 @@ class TestFilePathMapping(TestConfigBase):
 
 
 class TestNamespaceRoots(TestConfigBase):
-    """测试命名空间根集合。"""
+    """测试命名空间根集合（只扫描一级目录和顶层 .toml 文件名）。"""
 
-    def test_roots_include_dirs_and_toml_files(self):
-        """namespace_roots 应包含 config 目录下递归扫描的文件夹名和 .toml 文件名。"""
+    def test_roots_include_top_level_dirs_and_toml_files(self):
+        """namespace_roots 应包含 config 目录下的一级文件夹名和顶层 .toml 文件名，不递归子目录。"""
         roots = self.cfg.namespace_roots
-        self.assertIn("war3", roots)  # 文件夹
-        self.assertIn("jiubing2", roots)  # 文件夹
-        self.assertIn("tasks", roots)  # 文件夹
-        self.assertIn("heroes", roots)  # 文件夹
-        self.assertIn("base", roots)  # .toml 文件
+        self.assertIn("war3", roots)  # 一级文件夹
+        self.assertIn("base", roots)  # 顶层 .toml 文件
+        # 子目录名不应出现在 roots 中
+        self.assertNotIn("heroes", roots)
+        self.assertNotIn("tasks", roots)
+        self.assertNotIn("scenes", roots)
 
 
 if __name__ == "__main__":

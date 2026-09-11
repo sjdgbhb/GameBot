@@ -1,5 +1,6 @@
 ############## 炎魔 ##############
-dependencies = ["war3.jiubing2"]
+name = "war3.jiubing2.heroes.ifrit"
+extends = ["war3.jiubing2"]
 
 
 [hero]
