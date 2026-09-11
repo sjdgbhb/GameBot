@@ -117,7 +117,7 @@ class AtomicLoopTask:
         loop_interval = self.cfg.get("loop_interval_time", 1.5)
         logger.info(f"{self.task_name}目标次数：{times}（通过{self.atomic_name}任务完成）")
 
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
@@ -306,7 +306,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         logger.info(f"{self.task_name}目标次数：{times}，每轮最多 {n} 个任务")
         self._progress_callback(f"成功 0 / {times}")
 
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return

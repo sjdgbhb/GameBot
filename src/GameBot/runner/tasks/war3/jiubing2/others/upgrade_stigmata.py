@@ -139,7 +139,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
 
         logger.info(f"{self.task_name}开始：词条上限配置 {term_limit}")
 
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return

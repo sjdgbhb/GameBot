@@ -242,7 +242,7 @@ class FishingTask:
 
     def run(self):
         """钓鱼主入口 — 查找窗口、绑定、运行钓鱼循环。"""
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return

@@ -114,7 +114,7 @@ class PatrolLootTask:
             logger.error("未装备宠物食物（物品 id=9），任务拒绝启动")
             return
 
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return

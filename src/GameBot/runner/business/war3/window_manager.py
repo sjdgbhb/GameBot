@@ -4,6 +4,7 @@
 窗口查找、进出游戏判断等。
 """
 
+import ctypes
 import time
 from typing import Optional
 
@@ -56,7 +57,7 @@ class WindowManagerMixin:
     def refresh_war3_window(self, hwnd: int, width: Optional[int] = None, height: Optional[int] = None):
         """利用大漠刷新窗口（替代手动最大化/还原）"""
         # 请根据你已有的找窗口方法获取最新句柄（因为句柄可能变化）
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.find_game_window()
         if hwnd:
             self.set_client_size(hwnd, width - 1, height - 1)
             time.sleep(0.1)
@@ -71,6 +72,40 @@ class WindowManagerMixin:
             self.war3_cfg.get("window_class", ""),
             self.war3_cfg.get("window_title", ""),
         )
+
+    def find_game_window(self, capture: bool = True) -> int:
+        """按绑定模式查找 war3 窗口句柄（任务入口统一走这里）。
+
+        - 前台绑定（bind_foreground）：要求 war3 是活动窗口（真实键鼠输入需要前台焦点）。
+        - 后台绑定（bind_background）：按类名+标题直接找，不要求 war3 是前台窗口。
+          war3 处于前台时游戏会用 raw input 直读物理鼠标，windows2 的消息级光标锁
+          管不住真实输入（实测症状：游戏光标跟随系统鼠标、注入点击落在物理光标处），
+          因此检测到 war3 前台时先尝试把前台焦点切到桌面，切不走则警告。
+        """
+        if self.war3_cfg.get("bind", {}).get("bind_mode") != "background":
+            return self.dm.get_active_window(
+                self.war3_cfg["window_class"], self.war3_cfg["window_title"], capture=capture
+            )
+        hwnd = self._find_war3_hwnd() or 0
+        if hwnd and self.dm.get_foreground_window() == hwnd:
+            if self._unfocus_to_desktop():
+                logger.info("war3 为前台窗口，已把前台焦点切到桌面（后台模式避免真实鼠标干扰）")
+            else:
+                logger.warning(
+                    "war3 当前是前台窗口：后台模式下游戏会直读物理鼠标，"
+                    "干扰注入光标和点击，请手动把焦点切到其他窗口"
+                )
+        return hwnd
+
+    @staticmethod
+    def _unfocus_to_desktop() -> bool:
+        """把前台焦点切到桌面 shell 窗口（best-effort），返回是否成功。"""
+        try:
+            user32 = ctypes.windll.user32
+            shell = user32.GetShellWindow()
+            return bool(shell) and bool(user32.SetForegroundWindow(shell))
+        except Exception:
+            return False
 
     def wait_for_game_window(self, stop_event=None, timeout: int = 60) -> int:
         """等待 War3 窗口出现（从 KK 启动后），返回 hwnd 或 None。
@@ -121,12 +156,8 @@ class WindowManagerMixin:
                 task.game_start_time = task.pet_feed_time = time.time()
                 logger.info("已进入游戏")
                 return
-            # 检查 War3 窗口是否还在
-            hwnd = self.dm.get_active_window(
-                self.war3_cfg.get("window_class", ""),
-                self.war3_cfg.get("window_title", ""),
-                capture=False,
-            )
+            # 检查 War3 窗口是否还在（只判断窗口是否存在，后台模式下窗口本就不是前台）
+            hwnd = self._find_war3_hwnd()
             if not hwnd:
                 logger.error("War3 窗口消失，可能掉线，已保存截图")
                 self.dm.save_active_window_screenshot(label="war3_window_lost")

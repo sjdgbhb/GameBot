@@ -26,11 +26,18 @@ from GameBot.utils import logger, setup_log_file
 OUT_DIR = Path("logs/diag_war3_bind_probe")
 
 # 候选 mouse 模式：大漠文档 war3 类 DX 游戏常见组合
+# 注意：dx.mouse.raw.input / dx.mouse.input.lock.api2 / api3 / dx.mouse.cursor 均为收费功能，
+# 免费版 BindWindowEx 会直接失败（ret=0），列入仅为确认版本差异。
 CANDIDATE_MICE = [
     "windows",
     "windows3",
     "dx.mouse.position.lock.api",
     "dx.mouse.position.lock.message",
+    # input.lock.api：封锁系统API锁定鼠标输入接口（未标收费，唯一可能覆盖前台 raw input 干扰的免费项）
+    "dx.mouse.input.lock.api",
+    # windows2（position.lock.api|position.lock.message|state.message）+ input.lock.api
+    "dx.mouse.position.lock.api|dx.mouse.position.lock.message|dx.mouse.state.message|dx.mouse.input.lock.api",
+    "dx.mouse.input.lock.api|dx.mouse.state.api",
     "dx.mouse.position.lock.api|dx.mouse.raw.input",
     "dx.mouse.position.lock.api|dx.mouse.position.lock.message|dx.mouse.state.message",
     "dx.mouse.position.lock.api|dx.mouse.position.lock.message|dx.mouse.state.message|dx.mouse.api|dx.mouse.raw.input",

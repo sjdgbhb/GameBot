@@ -50,7 +50,7 @@ def main():
         ui = GameUI(dm, war3_cfg, hero_cfg, cfg, war3)
         combat = CombatHelper(dm, war3_cfg, hero_cfg, cfg, war3)
 
-        hwnd = dm.get_active_window(war3_cfg["window_class"], war3_cfg["window_title"])
+        hwnd = war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return

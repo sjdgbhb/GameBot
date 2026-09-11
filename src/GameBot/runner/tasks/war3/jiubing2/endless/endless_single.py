@@ -49,7 +49,7 @@ class EndlessSingleTask:
         max_level = self.endless_cfg.get("max_level", 100)
         logger.info(f"游戏总局数：{games}，每局刷怪楼层：{min_level} -> {max_level}")
         self._progress_callback(f"楼层 {min_level}/{max_level}")
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return

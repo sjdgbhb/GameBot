@@ -33,7 +33,21 @@
 
 - 结论：**war3 后台鼠标只能用 `windows2`**（= lock.api|lock.message|state.message 组合）
 - `dx.mouse.position.lock.api|dx.mouse.raw.input` 组合在 dm 3.1233 上 BindWindowEx 直接失败（ret=0），不可用
+- 收费项：`dx.mouse.raw.input`、`dx.mouse.input.lock.api2/api3`、`dx.mouse.cursor`，
+  免费版 BindWindowEx 传入即失败。api2/api3 的文档描述"后台操作时前台鼠标会移动"
+  正是 war3 前台干扰场景 —— 收费版才有解
+- `dx.mouse.input.lock.api`（未标收费）"封锁系统API锁定鼠标输入接口"，待实测能否
+  锁住前台 raw input 干扰（候选已加入两个探针脚本）
 - 探针脚本：tests/manual/test_war3_bind_probe.py
+
+**重要约束（2026-09-12 实机确认）：后台模式下 war3 不能是前台窗口。**
+war3 前台时会用 raw input 直读物理鼠标，windows2 的消息级光标锁管不住
+（raw.input 通道是收费功能，无法组合进绑定）。症状：游戏光标一卡一卡、跟随
+系统鼠标、注入点击落在物理光标处（如按 A 后一直停在"选择目标"）。
+- 任务入口统一用 `war3.find_game_window()`：后台模式用 `find_window` 找窗口
+  （不要求前台），且检测到 war3 前台时自动把前台焦点切到桌面。
+- 不要用 `dm.get_active_window` 找 war3 窗口 —— 它要求 war3 前台，会强制踩坑。
+- 若实测 `dx.mouse.input.lock.api` 能覆盖前台干扰，此约束可解除。
 
 ### 后台模式窗口尺寸设置
 

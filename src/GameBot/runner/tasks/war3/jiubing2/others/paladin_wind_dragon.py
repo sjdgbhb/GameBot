@@ -271,10 +271,8 @@ class PaladinWindDragonTask:
         return bind_cfg
 
     def _find_war3_hwnd(self) -> int:
-        """查找 war3 窗口。后台模式不要求 war3 是活动窗口，直接按类名+标题找。"""
-        if self.war3_cfg.get("bind", {}).get("bind_mode") == "background":
-            return self.dm.find_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"]) or 0
-        return self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        """查找 war3 窗口（委托 War3Business.find_game_window 按绑定模式选择）。"""
+        return self.war3.find_game_window()
 
     def run(self):
         """主入口 — 查找窗口、绑定、统一窗口尺寸、运行挂机循环。"""

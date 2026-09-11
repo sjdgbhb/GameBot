@@ -105,7 +105,7 @@ class IngameSpecialTask:
             logger.info("未配置鱼点，原地钓鱼")
             return
         logger.info(f"前往钓鱼点：{spot.get('desc', '')}（等待 {spot.get('time', 10)}s）")
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口，无法前往鱼点")
             return

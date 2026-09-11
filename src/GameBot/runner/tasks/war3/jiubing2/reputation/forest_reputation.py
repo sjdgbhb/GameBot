@@ -42,7 +42,7 @@ class ForestReputationTask(ReputationTask):
 
     def _travel_to_forest_city(self):
         """使用传送卷传送至远古森林外围入口，再走进传送圈到达森之城。"""
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口，转场失败")
             return

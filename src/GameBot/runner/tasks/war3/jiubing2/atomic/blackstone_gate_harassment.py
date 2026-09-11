@@ -56,8 +56,8 @@ def main():
         ui = GameUI(dm, war3_cfg, hero_cfg, cfg, war3)
         combat = CombatHelper(dm, war3_cfg, hero_cfg, cfg, war3)
 
-        # 获取活动的war3窗口为操作窗口
-        hwnd = dm.get_active_window(war3_cfg["window_class"], war3_cfg["window_title"])
+        # 按绑定模式查找 war3 窗口（后台模式不要求前台，前台时会自动切走焦点）
+        hwnd = war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
