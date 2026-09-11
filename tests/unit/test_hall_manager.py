@@ -628,10 +628,10 @@ class TestCreateRoom(unittest.TestCase):
         self.assertIn(call(315, 438), kk.dm.move_to.call_args_list)
         self.assertIn(call(600, 584, 488), kk.dm.set_client_size.call_args_list)
 
-    # 非空密码时调用 send_string2 输入密码
+    # 非空密码时调用 send_string 输入密码
     @patch("GameBot.runner.business.base.get_inference_client")
     def test_create_room_with_password_sends_string(self, mock_ocr_client):
-        """非空密码时应调用 send_string2(password, hwnd=dialog_hwnd)。"""
+        """非空密码时应调用 send_string(password, hwnd=dialog_hwnd)。"""
         kk = self._make_kk_for_create()
         kk.kk_cfg["create_room"]["password"] = "abc123"
         mock_ocr_client.return_value.ocr_lines_from_file.return_value = [
@@ -640,11 +640,11 @@ class TestCreateRoom(unittest.TestCase):
 
         kk.create_room(kk.dm, map_name="九种兵器2诸神战场")
 
-        # 验证 send_string2 被调用传入密码和 dialog_hwnd=600
-        send_string2_calls = kk.dm.send_string2.call_args_list
+        # 验证 send_string 被调用传入密码和 dialog_hwnd=600
+        send_string_calls = kk.dm.send_string.call_args_list
         self.assertTrue(
-            any(c == call("abc123", hwnd=600) for c in send_string2_calls),
-            f"send_string2 应被调用传入密码和 hwnd=600，实际: {send_string2_calls}",
+            any(c == call("abc123", hwnd=600) for c in send_string_calls),
+            f"send_string 应被调用传入密码和 hwnd=600，实际: {send_string_calls}",
         )
 
 

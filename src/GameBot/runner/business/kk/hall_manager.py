@@ -560,7 +560,7 @@ class HallManagerMixin:
             dm.key_press_char("ctrl+a")
             time.sleep(0.2)
             if password:
-                dm.send_string2(password, hwnd=dialog_hwnd)
+                dm.send_string(password, hwnd=dialog_hwnd)
                 logger.info(f"已输入房间密码: {password}")
                 time.sleep(0.3)
         # 输入密码后刷新弹窗（layered window 后台输入后画面不刷新）。

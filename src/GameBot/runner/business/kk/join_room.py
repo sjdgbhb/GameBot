@@ -98,7 +98,7 @@ class JoinRoomMixin:
                 dm.key_press_char("back")
             time.sleep(0.1)
             # 输入房间号
-            dm.send_string2(room_id, hwnd=hall_hwnd)
+            dm.send_string(room_id, hwnd=hall_hwnd)
             time.sleep(0.3)
             # 点击搜索按钮
             search_room_coords = main_cfg.get("search_room_coords", [0, 0])
@@ -191,7 +191,7 @@ class JoinRoomMixin:
             time.sleep(0.2)
             # 输入密码
             if password:
-                dm.send_string2(password, hwnd=password_hwnd)
+                dm.send_string(password, hwnd=password_hwnd)
                 logger.info(f"已输入加入房间密码: {password}")
                 time.sleep(0.3)
         # 输入密码后刷新弹窗（layered window 后台输入后画面不刷新）。
@@ -256,7 +256,8 @@ class JoinRoomMixin:
             for _ in range(50):
                 dm.key_press_char("back")
             time.sleep(0.1)
-            dm.send_string2(map_name, hwnd=hall_hwnd)
+            # 新版 SendString，旧版 SendString2 中文受系统编码影响会乱码
+            dm.send_string(map_name, hwnd=hall_hwnd)
             time.sleep(0.3)
 
         # 清理弹窗
