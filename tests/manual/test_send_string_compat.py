@@ -220,6 +220,22 @@ def main() -> int:
     logger.info(f"SendString 兼容性测试 api={args.api} mode={args.mode or '配置默认'}")
     logger.info("=" * 60)
 
+    # 先加载配置（dm.dll_path 等依赖 load_task 填充），再创建大漠客户端
+    kk_cfg = None
+    war3_cfg = None
+    kk_bind_cfg = None
+    war3_bind_cfg = None
+    if args.kk_search or args.kk_password:
+        cfg = config.load_task("kk")
+        kk_cfg = cfg.get("kk", {})
+        kk_bind_cfg = resolve_bind_cfg(cfg, "kk", args.mode)
+        logger.info(f"KK 绑定配置: {kk_bind_cfg}")
+    if args.war3:
+        cfg = config.load_task("war3.jiubing2.tasks.others.fishing")
+        war3_cfg = cfg.get("war3", {})
+        war3_bind_cfg = resolve_bind_cfg(cfg, "war3", args.mode)
+        logger.info(f"war3 绑定配置: {war3_bind_cfg}")
+
     for i in range(args.delay, 0, -1):
         logger.info(f"{i} 秒后开始...")
         time.sleep(1)
@@ -229,23 +245,13 @@ def main() -> int:
 
     try:
         rc = 0
-        if args.kk_search or args.kk_password:
-            cfg = config.load_task("kk")
-            kk_cfg = cfg.get("kk", {})
-            bind_cfg = resolve_bind_cfg(cfg, "kk", args.mode)
-            logger.info(f"KK 绑定配置: {bind_cfg}")
-            if args.kk_search:
-                rc = test_kk_search(dm, kk_cfg, bind_cfg, args.api) or rc
-            if args.kk_password:
-                password = args.password or kk_cfg.get("create_room", {}).get("password", "test123")
-                rc = test_kk_password(dm, kk_cfg, bind_cfg, args.api, password) or rc
-
+        if args.kk_search:
+            rc = test_kk_search(dm, kk_cfg, kk_bind_cfg, args.api) or rc
+        if args.kk_password:
+            password = args.password or kk_cfg.get("create_room", {}).get("password", "test123")
+            rc = test_kk_password(dm, kk_cfg, kk_bind_cfg, args.api, password) or rc
         if args.war3:
-            cfg = config.load_task("war3.jiubing2.tasks.others.fishing")
-            war3_cfg = cfg.get("war3", {})
-            bind_cfg = resolve_bind_cfg(cfg, "war3", args.mode)
-            logger.info(f"war3 绑定配置: {bind_cfg}")
-            rc = test_war3_chat(dm, war3_cfg, bind_cfg, args.api) or rc
+            rc = test_war3_chat(dm, war3_cfg, war3_bind_cfg, args.api) or rc
         return rc
     finally:
         dm.close()
