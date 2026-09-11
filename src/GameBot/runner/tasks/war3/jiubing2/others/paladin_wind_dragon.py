@@ -218,7 +218,6 @@ class PaladinWindDragonTask:
 
         skill_names = "、".join(f"{s['key'].upper()}{s.get('name', '')}" for s in self.skills)
         logger.info(f"圣骑士风龙挂机开始：技能 {skill_names}，客户区中心 {self.client_center}")
-        self._progress_callback(f"挂机中：{skill_names}")
 
         while True:
             if self._stop_event is not None and self._stop_event.is_set():

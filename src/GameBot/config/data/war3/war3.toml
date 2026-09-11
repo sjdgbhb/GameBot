@@ -62,7 +62,7 @@ display = "dx2"        # DirectX 后台截图，窗口进程崩溃风险低于 d
 mouse = "dx.mouse.position.lock.api"     # Windows 后台鼠标，支持多子窗口
 keypad = "windows"     # Windows 后台键盘
 public = "dx.public.active.api"  # 公共窗口检测
-mode = 0               # 推荐模式 0
+mode = 4
 bind_delay = 1.5       # 绑定后延时 1.5 秒等待后台生效（DX 绑定较慢）
 
 # 多开识别配置
