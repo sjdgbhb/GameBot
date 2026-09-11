@@ -10,12 +10,10 @@
     --mode foreground|background   覆盖绑定模式（默认用配置解析结果）
     --delay N            启动前等待秒数（默认 5）
 
-测试内容：
-- --kk-search：KK 大厅地图搜索框，输入中文+字母数字混合文本
+测试内容（结果由人工肉眼核对）：
+- --kk-search：KK 大厅地图搜索框，输入「九种兵器2测试abc123」
 - --kk-password：KK 创建房间密码弹窗（需先手动打开弹窗），输入密码
-- --war3：War3 聊天框，依次发送一条中文、一条字母数字消息
-
-每步输入后截图保存到 logs/diag_send_string/，请人工核对截图与游戏内实际显示。
+- --war3：War3 聊天框，依次发送「测试中文发送」和「abc123-xyz」
 """
 
 import argparse
@@ -23,41 +21,10 @@ import ctypes
 import sys
 import time
 from ctypes import wintypes
-from datetime import datetime
-from pathlib import Path
-
-from PIL import Image
 
 from GameBot.config import config
 from GameBot.runner.driver import create_dm_client
 from GameBot.utils import logger, setup_log_file
-
-OUT_DIR = Path("logs/diag_send_string")
-
-
-def is_blank_image(img_path: str) -> bool:
-    """判断图片是否为纯色（黑屏/白屏）。"""
-    try:
-        mn, mx = Image.open(img_path).convert("L").getextrema()
-        return mn == mx
-    except Exception:
-        return False
-
-
-def save_region(dm, hwnd: int, region: list, bind_cfg: dict, label: str) -> str:
-    """截取窗口客户区指定区域保存到 OUT_DIR，返回文件路径。"""
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%H%M%S")
-    out_path = (OUT_DIR / f"{label}_{hwnd}_{timestamp}.bmp").resolve()
-    try:
-        with dm.bind_window(hwnd, bind_cfg=bind_cfg):
-            ok = dm.capture_region(*region, str(out_path))
-        if ok and not is_blank_image(str(out_path)):
-            logger.info(f"截图已保存: {out_path}")
-            return str(out_path)
-    except Exception as e:
-        logger.warning(f"截图失败 {label}: {e}")
-    return ""
 
 
 def find_window(dm, window_class: str, window_title: str) -> int:
@@ -163,9 +130,7 @@ def test_kk_search(dm, kk_cfg: dict, bind_cfg: dict, api: str) -> int:
         logger.info(f"{api} 返回值: {ret}，输入: {text}")
         time.sleep(0.5)
 
-    x1, y1 = search_coords
-    save_region(dm, hall_hwnd, [x1 - 20, y1 - 15, x1 + 300, y1 + 15], bind_cfg, "kk_search")
-    logger.info("请核对截图：搜索框应显示「九种兵器2测试abc123」且无乱码")
+    logger.info("请核对：搜索框应显示「九种兵器2测试abc123」且无乱码")
     return 0
 
 
@@ -201,9 +166,7 @@ def test_kk_password(dm, kk_cfg: dict, bind_cfg: dict, api: str, password: str) 
         logger.info(f"{api} 返回值: {ret}，输入: {password}")
         time.sleep(0.5)
 
-    x1, y1 = password_coords
-    save_region(dm, dialog_hwnd, [x1 - 10, y1 - 15, x1 + 250, y1 + 15], bind_cfg, "kk_password")
-    logger.info("请核对截图/弹窗：密码框应显示与密码位数一致的圆点")
+    logger.info("请核对：密码框应显示与密码位数一致的圆点")
     return 0
 
 
@@ -218,8 +181,6 @@ def test_war3_chat(dm, war3_cfg: dict, bind_cfg: dict, api: str) -> int:
     logger.info(f"war3 hwnd={hwnd}")
 
     key_time = war3_cfg.get("key_time", 0.1)
-    x1, y1, x2, y2 = dm.get_client_rect(hwnd)
-    full_region = [x1, y1, x2, y2]
 
     with dm.bind_window(hwnd, bind_cfg=bind_cfg):
         for label, text in (("chinese", "测试中文发送"), ("ascii", "abc123-xyz")):
@@ -234,9 +195,6 @@ def test_war3_chat(dm, war3_cfg: dict, bind_cfg: dict, api: str) -> int:
             time.sleep(0.3)
             dm.key_press_char("enter")  # 发送
             time.sleep(key_time + 0.2)
-
-    # 截图取证：聊天区应保留刚发出的两条消息
-    save_region(dm, hwnd, full_region, bind_cfg, "war3_chat")
 
     logger.info("请核对：聊天区应看到「测试中文发送」和「abc123-xyz」两条消息，无乱码")
     return 0
