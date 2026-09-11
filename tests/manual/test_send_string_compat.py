@@ -250,7 +250,9 @@ def main() -> int:
     if args.public_ime:
         for bc in (kk_bind_cfg, war3_bind_cfg):
             if bc is not None:
-                bc["public"] = (bc.get("public", "") + " dx.public.input.ime").strip()
+                # 大漠 public 组合用 "|" 分隔
+                old = bc.get("public", "")
+                bc["public"] = f"{old}|dx.public.input.ime" if old else "dx.public.input.ime"
 
     for i in range(args.delay, 0, -1):
         logger.info(f"{i} 秒后开始...")
