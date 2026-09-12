@@ -4,7 +4,6 @@
 窗口查找、进出游戏判断等。
 """
 
-import ctypes
 import time
 from typing import Optional
 
@@ -78,34 +77,14 @@ class WindowManagerMixin:
 
         - 前台绑定（bind_foreground）：要求 war3 是活动窗口（真实键鼠输入需要前台焦点）。
         - 后台绑定（bind_background）：按类名+标题直接找，不要求 war3 是前台窗口。
-          war3 处于前台时游戏会用 raw input 直读物理鼠标，windows2 的消息级光标锁
-          管不住真实输入（实测症状：游戏光标跟随系统鼠标、注入点击落在物理光标处），
-          因此检测到 war3 前台时先尝试把前台焦点切到桌面，切不走则警告。
+          bind_background.mouse 已含 dx.mouse.input.lock.api，war3 前台时也能锁住
+          物理鼠标的 raw input 干扰；若日后 mouse 配置去掉该项，前台干扰会复现。
         """
         if self.war3_cfg.get("bind", {}).get("bind_mode") != "background":
             return self.dm.get_active_window(
                 self.war3_cfg["window_class"], self.war3_cfg["window_title"], capture=capture
             )
-        hwnd = self._find_war3_hwnd() or 0
-        if hwnd and self.dm.get_foreground_window() == hwnd:
-            if self._unfocus_to_desktop():
-                logger.info("war3 为前台窗口，已把前台焦点切到桌面（后台模式避免真实鼠标干扰）")
-            else:
-                logger.warning(
-                    "war3 当前是前台窗口：后台模式下游戏会直读物理鼠标，"
-                    "干扰注入光标和点击，请手动把焦点切到其他窗口"
-                )
-        return hwnd
-
-    @staticmethod
-    def _unfocus_to_desktop() -> bool:
-        """把前台焦点切到桌面 shell 窗口（best-effort），返回是否成功。"""
-        try:
-            user32 = ctypes.windll.user32
-            shell = user32.GetShellWindow()
-            return bool(shell) and bool(user32.SetForegroundWindow(shell))
-        except Exception:
-            return False
+        return self._find_war3_hwnd() or 0
 
     def wait_for_game_window(self, stop_event=None, timeout: int = 60) -> int:
         """等待 War3 窗口出现（从 KK 启动后），返回 hwnd 或 None。

@@ -31,29 +31,56 @@
 | `dx.mouse.focus.input.api` / `clip.lock.api` / `state.api` / `dx.mouse.api` / `dx.mouse.cursor` | ❌ 同 windows |
 | `windows2` + `dx.keypad.input.lock.api` / `dx.keypad.api` | ✅ 同 windows2（keypad 换法不影响） |
 
-- 结论：**war3 后台鼠标只能用 `windows2`**（= lock.api|lock.message|state.message 组合）
+- 结论：**war3 后台鼠标用 `windows2|dx.mouse.input.lock.api`**
+  （即 position.lock.api|position.lock.message|state.message|input.lock.api）
 - `dx.mouse.position.lock.api|dx.mouse.raw.input` 组合在 dm 3.1233 上 BindWindowEx 直接失败（ret=0），不可用
 - 收费项：`dx.mouse.raw.input`、`dx.mouse.input.lock.api2/api3`、`dx.mouse.cursor`，
   免费版 BindWindowEx 传入即失败。api2/api3 的文档描述"后台操作时前台鼠标会移动"
-  正是 war3 前台干扰场景 —— 收费版才有解
-- `dx.mouse.input.lock.api`（未标收费）"封锁系统API锁定鼠标输入接口"，待实测能否
-  锁住前台 raw input 干扰（候选已加入两个探针脚本）
+  正是 war3 前台干扰场景 —— 免费版用 input.lock.api 覆盖
+- `dx.mouse.input.lock.api`（未标收费）"封锁系统API锁定鼠标输入接口"，
+  **2026-09-12 实测有效**：windows2 追加该参数后，war3 前台晃动物理鼠标
+  游戏光标也不跟随（此前 war3 前台时 raw input 直读物理鼠标，windows2 管不住，
+  症状：光标一卡一卡、跟随系统鼠标、注入点击落在物理光标处→按 A 停在"选择目标"）
+- **并发 dx2 Capture 会撕开鼠标注入锁**（2026-09-12 双向解耦矩阵实测确认）：
+  TextMonitor/start_text_watcher 每 `monitor_interval`(0.2s) 一次 `dm.Capture`，
+  与 dx 系鼠标注入共用游戏进程内钩子——截图在飞期间注入锁失效，目标选择态
+  点击（A/M+左键）落到物理光标处或被丢弃，游戏光标跟随物理鼠标、画面周期性卡顿。
+  接取阶段"正常"是假象：点击发生在监测线程启动前/截图间隙。
+  - 点击矩阵（`--no-watch`，全部带 `public=dx.public.active.api`）：
+    ①脚本→系统 全组合 OK（注入从不带动系统光标）；
+    `windows2|input.lock.api` 及含它的超集 ②③ 全过；
+    `windows2` 缺 input.lock.api → ②OK ③FAIL（选择态点击路由需要 input.lock.api）；
+    `position.lock.api` 单用 → ②FAIL ③OK（点击能落但光标跟随）；
+    `windows`/`windows3`/`lock.message`/`input.lock.api` 单用 → 全挂
+  - 曾试 `dm.input_guard()`（`_io_lock` 包住关键输入序列防并发截图），已回退：
+    截图在持锁区段之外仍会周期性卡顿/丢光标，不满足"截图不能影响脚本流程"
+  - 根因是 dx 系 Capture 固有的卡帧/撕锁（bridge 已串行 COM 调用，并发不是根源），
+    任何走大漠 dx 截图的方案（含同步轮询）都无法满足"截图不影响主流程"
+  - 待实施方案（WGC）：截图改走 Windows Graphics Capture（`windows-capture`，仅主环境，
+    按 hwnd 建会话），从 DWM 合成面取帧不进游戏进程；TextMonitor 架构不动。
+    第一阶段替换 OCR 监测截图，第二阶段全项目截图统一为 WGC 并删除大漠 Capture /
+    PrintWindow / ImageGrab 代码。**不做兜底/回退**：WGC 失败直接抛错终止任务，
+    不退回大漠截图或前台模式 → 见 `docs/change_logs/war3后台开发记录.md`
+  - `dx.public.active.api` 保留：dx 系绑定要求窗口处于激活态
+  - 定稿：`mouse=windows2|dx.mouse.input.lock.api`、`public=dx.public.active.api`
+  - 注意：KK 的"锁定鼠标在窗口内"必须关——它把真实光标钳进 war3 窗口，
+    导致大漠注入改走真实光标且物理鼠标被钉死
+  - 注意：多开机器上可能存在多个 `Warcraft III` 窗口（KK 残留闲置进程），
+    `find_window`/`enum` 顺序不稳定，绑错窗口症状与注入失效完全相同（落另一个实例）
+  - 探针 `--click [miniX,miniY,X,Y]` 做实机 A+点击验证（set_client_size 统一尺寸 +
+    move_to_minimap_point 生产路径 + 默认并发截图压力，`--no-watch` 对照）
 - 探针脚本：tests/manual/test_war3_bind_probe.py
 
-**重要约束（2026-09-12 实机确认）：后台模式下 war3 不能是前台窗口。**
-war3 前台时会用 raw input 直读物理鼠标，windows2 的消息级光标锁管不住
-（raw.input 通道是收费功能，无法组合进绑定）。症状：游戏光标一卡一卡、跟随
-系统鼠标、注入点击落在物理光标处（如按 A 后一直停在"选择目标"）。
-- 任务入口统一用 `war3.find_game_window()`：后台模式用 `find_window` 找窗口
-  （不要求前台），且检测到 war3 前台时自动把前台焦点切到桌面。
-- 不要用 `dm.get_active_window` 找 war3 窗口 —— 它要求 war3 前台，会强制踩坑。
-- 若实测 `dx.mouse.input.lock.api` 能覆盖前台干扰，此约束可解除。
+**任务入口统一用 `war3.find_game_window()`**：后台模式用 `find_window`（不要求前台），
+前台模式用 `get_active_window`。不要用 `dm.get_active_window` 找 war3 窗口 ——
+它要求 war3 前台，后台模式下若 mouse 配置不含 input.lock.api 会踩 raw input 干扰的坑。
 
 ### 后台模式窗口尺寸设置
 
 - `set_client_size` 必须在 `bind_window` **之前**调用：dx2 挂钩后 resize 会重建交换链导致闪屏数秒
 - `set_client_size` 已对齐目标尺寸时提前返回，不触发无谓 resize
-- `dx.public.active.api`：war3 矩阵验证以 public="" 通过；如绑定异常可考虑恢复
+- `public=dx.public.active.api` **必须保留**：此前验证 "public='' 通过" 只测了绑定/截图，
+  未测选择态点击；缺失时 A+左键失效（详见上方点击矩阵结论）
 
 ## 截图与 OCR 体系
 

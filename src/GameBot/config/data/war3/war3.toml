@@ -60,10 +60,17 @@ mode = 0               # 大漠 BindWindow 附加模式
 [this.bind_background]
 display = "dx2"        # DirectX 后台截图，窗口进程崩溃风险低于 dx
 # 实机矩阵测试结论（详见 AGENTS.md 文本输入/鼠标体系）：
-# windows2 = dx.mouse.position.lock.api|position.lock.message|state.message 组合，
-# 游戏光标与物理鼠标完全解耦互不影响——唯一验证可用的后台鼠标模式
-mouse = "windows2"
+# windows2（position.lock.api|position.lock.message|state.message）后台解耦，
+# 再追加 dx.mouse.input.lock.api 封锁鼠标输入接口。
+# 2026-09-12 点击矩阵实测：只要含 position.lock.api，A+左键"选择目标"态
+# 点击即落在注入坐标且光标不跟随物理鼠标；windows/message-only 组合全挂。
+# 此前任务里选择态点击失效的真正原因是 public 缺 dx.public.active.api ——
+# dx 系绑定要求窗口处于激活态，缺失时 war3 真实前台与绑定激活态打架。
+# 注意 dx.mouse.raw.input / input.lock.api2|api3 / dx.mouse.cursor 是收费项，
+# 免费版 BindWindowEx 必失败。
+mouse = "dx.mouse.position.lock.api|dx.mouse.position.lock.message|dx.mouse.state.message|dx.mouse.input.lock.api"
 keypad = "windows"     # Windows 后台键盘
+public = "dx.public.active.api"  # 公共窗口激活（dx 系绑定必需，缺失时选择态点击失效）
 mode = 4
 bind_delay = 1.5       # 绑定后延时 1.5 秒等待后台生效（DX 绑定较慢）
 
