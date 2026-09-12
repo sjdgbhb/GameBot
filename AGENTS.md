@@ -61,6 +61,8 @@
     第一阶段替换 OCR 监测截图，第二阶段全项目截图统一为 WGC 并删除大漠 Capture /
     PrintWindow / ImageGrab 代码。**不做兜底/回退**：WGC 失败直接抛错终止任务，
     不退回大漠截图或前台模式 → 见 `docs/change_logs/war3后台开发记录.md`
+  - 钓鱼后台 2026-09-12 实测通过；WGC 第二阶段 find_color/find_pic 改走 WGC 帧后
+    钓鱼 `_check_hook` 链路直接受影响，**须回归重测**（含 display 降 normal 的绑定复测）
   - `dx.public.active.api` 保留：dx 系绑定要求窗口处于激活态
   - 定稿：`mouse=windows2|dx.mouse.input.lock.api`、`public=dx.public.active.api`
   - 注意：KK 的"锁定鼠标在窗口内"必须关——它把真实光标钳进 war3 窗口，

@@ -5,6 +5,31 @@
 
 ---
 
+## 2026-09-12 后台实机测试：钓鱼通过，城门骚扰暴露 dx2 Capture 干扰
+
+> 状态：**钓鱼已通过；城门骚扰问题单独立项（见下一条目），WGC 落地后钓鱼须回归** | 关联任务：`others/fishing`、`atomic/blackstone_gate_harassment`
+
+### 测试范围与结论
+
+| 任务 | bind_mode | 结果 |
+|---|---|---|
+| 钓鱼（`others/fishing`） | background | ✅ 全流程通过：抛竿、找色中钩检测、预判收竿、循环均正常 |
+| 城门骚扰（`atomic/blackstone_gate_harassment`） | background | ❌ 选择态点击失效、光标干扰、周期性卡帧，详见下一条目 |
+
+### 城门骚扰暴露的问题（摘要，详情见下一条目）
+
+- 监测线程每 0.2s 一次 dx2 `Capture` 撕开鼠标注入锁：A+左键落空或落到物理光标处、游戏光标跟随物理鼠标、画面周期性卡帧
+- 配套实测定稿鼠标组合 `windows2|dx.mouse.input.lock.api`、`public=dx.public.active.api`（矩阵过程见 AGENTS.md）
+- 根因是 dx 系 Capture 固有的跨进程同步卡帧/撕锁，大漠截图体系内无解 → 决定迁移 WGC
+
+### 后续行动
+
+- WGC 迁移改动面较大（第一阶段换 OCR 监测截图，第二阶段全项目截图统一并删除大漠 Capture/PrintWindow/ImageGrab），改动清单见下一条目
+- **钓鱼须在 WGC 落地后回归重测**：第二阶段 `find_color`/`find_pic` 将改为 WGC 帧上的 numpy 计算，钓鱼 `_check_hook` 找色链路直接受影响；且 `display` 可能从 dx2 降为 normal，绑定参数需复测
+- 其他走大漠找图找色/截图的任务同步列入第二阶段回归范围
+
+---
+
 ## 2026-09-12 OCR 监测截图改用 WGC，消除 dx2 Capture 对鼠标注入的干扰
 
 > 状态：**方案已定，待实施** | 关联任务：`atomic/blackstone_gate_harassment.toml`（城门骚扰，后台模式）
