@@ -132,6 +132,41 @@ class LocalInferenceClient:
         img = Image.open(img_path).convert("RGB")
         return self._ocr(np.array(img))
 
+    def _ocr_from_array_impl(self, img):
+        """对内存图像 OCR，返回 RapidOCR result 对象。
+
+        :param img: ndarray，BGRA（WGC 帧，4 通道）或 RGB（3 通道）
+        """
+        import numpy as np
+
+        if self._ocr is None:
+            self._ocr = self._build_ocr()
+        arr = np.asarray(img)
+        if arr.ndim == 3 and arr.shape[2] == 4:
+            arr = np.ascontiguousarray(arr[:, :, [2, 1, 0]])  # BGRA → RGB
+        return self._ocr(arr)
+
+    def ocr_from_array(self, img) -> str:
+        """对内存图像（WGC 帧裁剪区域）OCR，返回识别文字。"""
+        try:
+            result = self._ocr_from_array_impl(img)
+            txts = getattr(result, "txts", None)
+            if not txts:
+                return ""
+            return "".join(t for t in txts if t)
+        except Exception as e:
+            logger.debug(f"OCR 数组识别异常: {e}")
+            return ""
+
+    def ocr_lines_from_array(self, img, merge_lines: bool = True) -> list:
+        """对内存图像 OCR 逐行结果，参数含义同 ocr_lines_from_file。"""
+        try:
+            result = self._ocr_from_array_impl(img)
+            return self._merge_ocr_result(result, merge_lines=merge_lines)
+        except Exception as e:
+            logger.debug(f"OCR 数组逐行识别异常: {e}")
+            return []
+
     def ocr_from_file(self, img_path: str) -> str:
         """从图片文件 OCR（大漠截图存盘后读图），支持后台窗口截图识别。"""
         try:

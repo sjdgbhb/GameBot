@@ -21,6 +21,7 @@ dependencies = [
     "loguru>=0.7.3",
     # ── Windows COM（IDE 静态分析需要；运行时走 bridge 驱动，不直接导入 win32com）──
     "pywin32>=311; sys_platform == 'win32'",
+    "windows-capture==2.0.1",
 ]
 
 [project.scripts]

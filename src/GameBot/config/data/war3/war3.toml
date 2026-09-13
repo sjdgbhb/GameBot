@@ -32,6 +32,11 @@ mini_map_signal_delta_color = '202020'
 
 check_interval_time = 2 # 检测间隔
 
+# OCR 文字监测截图走 WGC（Windows Graphics Capture，按 hwnd 从 DWM 取帧，不进游戏进程），
+# 不用大漠 Capture —— dx2 截图与 dx 系鼠标注入共用游戏进程内钩子，每次截图都撕开注入锁并卡一帧。
+# 详见 docs/change_logs/war3后台开发记录.md。WGC 失败直接报错终止任务，不回退大漠截图。
+wgc_min_interval_ms = 100 # WGC 最小出帧间隔（毫秒），略小于 monitor_interval 即可；帧超过 max(2×间隔, 2s) 未更新视为帧流停止
+
 # 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
 #   - 顶层任务可在自身 [this] 中设置 bind_mode 覆盖此默认值
 #   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
@@ -54,11 +59,12 @@ keypad = "normal"      # 可选：normal / windows
 mode = 0               # 大漠 BindWindow 附加模式
 
 # 后台绑定参数（bind_mode = background 或多成员组队时生效）
-# War3 是 DirectX 渲染窗口，用 dx2 后台截图
 # dx2 + windows3 + windows 需要管理员权限
 # 注意：dx2 模式要求窗口有一部分在屏幕外（Win7/Vista 不需要），且不可连续操作需加 10ms 延时
 [this.bind_background]
-display = "dx2"        # DirectX 后台截图，窗口进程崩溃风险低于 dx
+# display 现只服务大漠找图找色（find_pic / find_color / get_color，主线程低频）；
+# OCR 监测截图已改走 WGC（见上方 wgc_min_interval_ms）。第二阶段找图找色也迁到 WGC 后可改 normal。
+display = "dx2"
 # 实机矩阵测试结论（详见 AGENTS.md 文本输入/鼠标体系）：
 # windows2（position.lock.api|position.lock.message|state.message）后台解耦，
 # 再追加 dx.mouse.input.lock.api 封锁鼠标输入接口。

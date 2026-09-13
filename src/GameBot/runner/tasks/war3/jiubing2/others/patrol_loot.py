@@ -161,6 +161,8 @@ class PatrolLootTask:
                         if self.storage_full or self._all_items_satisfied():
                             break
                 except StopTaskError:
+                    if monitor is not None and monitor.error is not None:
+                        raise monitor.error
                     logger.info("用户请求停止，终止巡逻")
                     break
                 self._stats["rounds_completed"] = round_idx
@@ -178,9 +180,16 @@ class PatrolLootTask:
     def _make_monitor(self, hwnd: int):
         atomic_task_cfg = self.task_cfg.get("atomic_task", {})
         interval = atomic_task_cfg.get("monitor_interval", 0.2)
-        monitor = TextMonitor(self.war3, self.task_cfg.get("prompt_text"), interval=interval)
+        # 监测线程截图出错 → set stop_event 让主线程尽快中断，异常由 monitor.stop() 抛出
+        monitor = TextMonitor(
+            self.war3, self.task_cfg.get("prompt_text"), interval=interval, on_error=self._on_monitor_error
+        )
         monitor.start(hwnd)
         return monitor
+
+    def _on_monitor_error(self, _exc: BaseException):
+        if self._stop_event is not None:
+            self._stop_event.set()
 
     # ── 路线点导航 & 杀怪 ────────────────────────────────
 

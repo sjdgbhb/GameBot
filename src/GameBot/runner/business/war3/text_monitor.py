@@ -1,21 +1,54 @@
 """OCR 文字监测 — 从 war3.py 拆分。
 
 包含 War3Business 的文字识别 mixin 和独立的 TextMonitor 常驻监测类。
+
+截图统一走 WGC（runner/driver/wgc_capture.py），不经大漠：大漠 dx2 Capture 与 dx 系
+鼠标注入共用游戏进程内钩子，每次截图都会撕开注入锁并卡游戏一帧。
+截图失败抛 CaptureError 终止任务，不回退其他截图方式。
 """
 
 import threading
 import time
-from typing import List, Optional
+from typing import Callable, Dict, List, Optional
 
+from GameBot.inference.client import get_inference_client
+from GameBot.runner.driver.wgc_capture import WgcCapture
 from GameBot.utils import logger
+from GameBot.utils.exception_handler import CaptureError
+
+
+class WatchEvent(threading.Event):
+    """start_text_watcher 返回的事件：监测线程出错时记录在 error，stop_text_watcher 时抛出。"""
+
+    def __init__(self):
+        super().__init__()
+        self.error: Optional[BaseException] = None
 
 
 class TextMonitorMixin:
     """War3Business 的 OCR 文字识别 mixin。
 
     提供 OCR 区域识别、文字等待、后台文字监测等能力。
-    依赖 self.dm（DmClient）和 self.war3_cfg（dict）。
+    依赖 self.war3_cfg（dict）；截图走 WGC，不依赖 self.dm。
     """
+
+    _wgc_sessions: Dict[int, WgcCapture]
+
+    def _wgc(self, hwnd: int) -> WgcCapture:
+        """获取 hwnd 的 WGC 截图会话（首次 acquire 后缓存，release_wgc 时释放）。"""
+        sessions = self.__dict__.setdefault("_wgc_sessions", {})
+        cap = sessions.get(hwnd)
+        if cap is None:
+            interval_ms = int(self.war3_cfg.get("wgc_min_interval_ms", 100))
+            cap = WgcCapture.acquire(hwnd, min_interval_ms=interval_ms)
+            sessions[hwnd] = cap
+        return cap
+
+    def release_wgc(self):
+        """释放本对象持有的全部 WGC 会话（任务结束时调用）。"""
+        sessions = self.__dict__.pop("_wgc_sessions", {})
+        for cap in sessions.values():
+            cap.release()
 
     @staticmethod
     def _normalize_ocr(text: str) -> str:
@@ -40,17 +73,17 @@ class TextMonitorMixin:
         return text.translate(replacements)
 
     def _ocr_region_text(self, ocr_cfg: dict, hwnd: int = None) -> str:
-        """OCR 指定区域，返回原始识别文字（未规范化）。
+        """OCR 指定区域（客户区坐标 area_coords），返回原始识别文字（未规范化）。
 
-        统一用大漠后台截图 → OCR（支持后台窗口/多开场景）。
-        需在窗口绑定上下文内调用。
+        WGC 取帧 → 裁剪 → RapidOCR。不经大漠、不需要绑定上下文，可在任意线程调用。
+        截图失败抛 CaptureError。
         """
         if hwnd is None:
             hwnd = self._find_war3_hwnd()
         if not hwnd:
-            raise RuntimeError("未找到 war3 窗口，无法计算 OCR 区域")
-        bind_cfg = self.war3_cfg.get("bind", {})
-        return self.ocr_text(self.dm, hwnd, ocr_cfg, bind_cfg=bind_cfg)
+            raise CaptureError("未找到 war3 窗口，无法 OCR")
+        img = self._wgc(hwnd).grab_client(tuple(ocr_cfg["area_coords"]))
+        return get_inference_client(load_chest=False, load_combat=False).ocr_from_array(img)
 
     def wait_for_text(
         self,
@@ -68,6 +101,8 @@ class TextMonitorMixin:
                 return False
             try:
                 result = self._ocr_region_text(ocr_cfg)
+            except CaptureError:
+                raise
             except Exception as e:
                 logger.debug(f"wait_for_text 识别异常: {e}")
                 result = ""
@@ -101,6 +136,8 @@ class TextMonitorMixin:
                 return None
             try:
                 result = self._ocr_region_text(ocr_cfg)
+            except CaptureError:
+                raise
             except Exception as e:
                 logger.debug(f"wait_for_any_text 识别异常: {e}")
                 result = ""
@@ -120,50 +157,51 @@ class TextMonitorMixin:
 
     # ── 后台 OCR 文字监测 ─────────────────────────────────
 
-    def start_text_watcher(
-        self, ocr_cfg: dict, expected_text: str, interval: float = 1.0, hwnd: int = None
-    ) -> threading.Event:
+    def start_text_watcher(self, ocr_cfg: dict, expected_text: str, interval: float = 1.0, hwnd: int = None) -> WatchEvent:
         """启动后台线程持续 OCR 监测指定文字，检测到后设置返回的 Event。
 
-        屏幕 bbox 在主线程用大漠算好（大漠 COM 线程亲和，子线程不能用），
-        子线程只把这个固定 bbox 转发给 OCR 子进程截屏识别。子线程既不碰大漠
-        也不碰 win32gui。war3 在自动化期间窗口位置不动，算一次即可。
+        子线程走 WGC 取帧 + OCR，不碰大漠。截图出错时线程退出并把异常记在
+        event.error，由 stop_text_watcher 抛出。
 
         :param ocr_cfg: OCR 配置（仅使用 area_coords；color/sim 在 RapidOCR 下忽略）
         :param expected_text: 期待出现的文字
         :param interval: 检测间隔（秒）
-        :param hwnd: 目标窗口句柄（不传则用大漠 find_window 查找）
-        :return: threading.Event，检测到文字时被设置
+        :param hwnd: 目标窗口句柄（不传则用 find_window 查找）
+        :return: WatchEvent，检测到文字时被设置
         """
-        event = threading.Event()
-
-        # 主线程：用大漠算好屏幕 bbox（子线程不能调大漠）
+        event = WatchEvent()
         if hwnd is None:
             hwnd = self._find_war3_hwnd()
         if not hwnd:
-            logger.warning("后台 OCR 线程：未找到 war3 窗口")
-            return event
+            raise CaptureError("后台 OCR 线程：未找到 war3 窗口")
+        # 会话在主线程建好（首帧等待、偏移计算在此完成），子线程只取帧
+        self._wgc(hwnd)
         _expected = self._normalize_ocr(expected_text)
 
         def _loop():
             while not event.is_set():
                 try:
                     result = self._normalize_ocr(self._ocr_region_text(ocr_cfg, hwnd))
-                    if result and _expected in result:
-                        event.set()
-                        return
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.error(f"文字监测线程截图/识别失败，线程退出: {e}")
+                    event.error = e
+                    return
+                if result and _expected in result:
+                    event.set()
+                    return
                 time.sleep(interval)
 
         t = threading.Thread(target=_loop, daemon=True, name="TextWatcher")
         t.start()
         return event
 
-    @staticmethod
-    def stop_text_watcher(event: threading.Event):
-        """停止文字监测。"""
+    def stop_text_watcher(self, event: threading.Event):
+        """停止文字监测并释放 WGC 会话；监测线程曾出错时在此抛出该异常。"""
         event.set()
+        self.release_wgc()
+        err = getattr(event, "error", None)
+        if err is not None:
+            raise err
 
 
 class TextMonitor:
@@ -174,11 +212,14 @@ class TextMonitor:
     2) 检测更快：后台线程以较小间隔持续 OCR，文字一出现下一周期即可捕获，避免
        主线程阻塞轮询的 sleep 死区。
 
-    屏幕 bbox 在主线程用大漠算好（大漠 COM 线程亲和，子线程不能调），子线程只把
-    固定 bbox 转发给 OCR 子进程截屏识别。
+    子线程走 WGC 取帧 + OCR，不碰大漠，与主线程的大漠输入互不干扰。
+
+    错误处理：截图/识别抛异常时线程退出并记录在 error；之后任何 watch/wait_for/
+    wait_for_any/latest 调用立即抛出该异常，同时调用 on_error 回调（任务侧用它
+    set stop_event，让行走中的主线程尽快中断）。不静默重试。
 
     用法：
-      monitor = TextMonitor(war3, ocr_cfg, interval=0.2)
+      monitor = TextMonitor(war3, ocr_cfg, interval=0.2, on_error=stop_event.set)
       monitor.start(hwnd)
       ...
       evt = monitor.watch("已完成")   # 注册一次性触发，出现即 set（供行走中断 stop_event）
@@ -188,27 +229,37 @@ class TextMonitor:
       monitor.stop()
     """
 
-    def __init__(self, war3: "TextMonitorMixin", ocr_cfg: dict, interval: float = 0.2):
+    def __init__(
+        self,
+        war3: "TextMonitorMixin",
+        ocr_cfg: dict,
+        interval: float = 0.2,
+        on_error: Optional[Callable[[BaseException], None]] = None,
+    ):
         self._war3 = war3
         self._ocr_cfg = ocr_cfg
         self._interval = interval
+        self._on_error = on_error
         self._latest = ""  # 最新识别文本（规范化后）
         self._lock = threading.Lock()
         self._watchers = []  # [(normalized_expected, event)]
         self._stop = threading.Event()
         self._thread = None
         self._hwnd = None
+        self.error: Optional[BaseException] = None
 
     def start(self, hwnd: int = None):
-        """启动后台监测线程（已运行则跳过）。"""
+        """启动后台监测线程（已运行则跳过）。WGC 会话建不起来直接抛 CaptureError。"""
         if self._thread is not None and self._thread.is_alive():
             return
         if hwnd is None:
             hwnd = self._war3._find_war3_hwnd()
         if not hwnd:
-            logger.warning("TextMonitor：未找到 war3 窗口，不启动监测")
-            return
+            raise CaptureError("TextMonitor：未找到 war3 窗口")
+        # 会话在主线程建好（首帧等待、偏移计算在此完成并直接报错），子线程只取帧
+        self._war3._wgc(hwnd)
         self._hwnd = hwnd
+        self.error = None
         self._stop.clear()
         self._thread = threading.Thread(target=self._loop, daemon=True, name="TextMonitor")
         self._thread.start()
@@ -218,26 +269,35 @@ class TextMonitor:
         while not self._stop.is_set():
             try:
                 text = self._war3._ocr_region_text(self._ocr_cfg, self._hwnd)
-                norm = self._war3._normalize_ocr(text)
-                with self._lock:
-                    self._latest = norm
-                    # 检查所有已注册的一次性触发
-                    for expected, event in self._watchers:
-                        if expected and not event.is_set() and expected in norm:
-                            event.set()
-                            # logger.info(f"检测到文字: {norm}")
             except Exception as e:
-                logger.debug(f"TextMonitor 异常: {e}")
+                logger.error(f"文字监测线程截图/识别失败，线程退出: {e}")
+                self.error = e
+                if self._on_error is not None:
+                    self._on_error(e)
+                return
+            norm = self._war3._normalize_ocr(text)
+            with self._lock:
+                self._latest = norm
+                # 检查所有已注册的一次性触发
+                for expected, event in self._watchers:
+                    if expected and not event.is_set() and expected in norm:
+                        event.set()
             # 可中断睡眠：stop() 时立即唤醒退出
             self._stop.wait(self._interval)
 
+    def _raise_if_error(self):
+        if self.error is not None:
+            raise self.error
+
     @property
     def latest(self) -> str:
+        self._raise_if_error()
         with self._lock:
             return self._latest
 
     def watch(self, expected: str) -> threading.Event:
         """注册一次性监测：当 expected 出现时设置返回的 Event（用完需 unwatch）。"""
+        self._raise_if_error()
         event = threading.Event()
         with self._lock:
             self._watchers.append((self._war3._normalize_ocr(expected), event))
@@ -280,11 +340,13 @@ class TextMonitor:
         return None
 
     def stop(self):
-        """停止后台监测线程。"""
+        """停止后台监测线程并释放 WGC 会话；监测线程曾出错时在此抛出该异常。"""
         self._stop.set()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2)
         self._thread = None
         with self._lock:
             self._watchers.clear()
+        self._war3.release_wgc()
         logger.info("文字监测线程已停止")
+        self._raise_if_error()

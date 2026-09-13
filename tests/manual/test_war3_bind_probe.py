@@ -23,9 +23,15 @@
   ③注入有效：英雄应朝目标点攻击移动（人工确认）
   用于验证「按 A 后注入点击落在物理光标处（raw input 干扰）」这类目标
   选择态专属问题——普通截图/绑定测试覆盖不到。
-- 默认同时启动并发截图线程（复刻 start_text_watcher/TextMonitor 每
-  monitor_interval 秒一次 dm.Capture 的压力），--no-watch 可关闭，
-  用于隔离「并发截图是否干扰注入输入」这一变量。
+- 默认同时启动并发截图线程，复刻 TextMonitor 的生产路径（WGC 取帧 + OCR，
+  每 monitor_interval 秒一次，不碰大漠）；--capture-dm 改用旧的 dm.Capture
+  压力（用于对照复现"截图撕开注入锁"的旧症状，验证完成后删除）；
+  --no-watch 关闭并发截图，用于隔离「并发截图是否干扰注入输入」这一变量。
+
+--wgc-dump：按生产 bind_cfg 绑定（dx2 挂钩态）后，用 WGC 抓一帧整窗 + prompt_text
+  区域存到 logs/diag_war3_bind_probe/，目测客户区偏移与 OCR 区域是否正确，然后退出。
+
+--mouse MODE：只测指定 mouse 模式（默认跑全部候选）。
 
 运行带浮窗（同生产任务）：倒计时结束开始测试，按 Num- 可随时停止。
 """
@@ -42,6 +48,7 @@ from PIL import Image
 from GameBot.config import config
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.driver import create_dm_client
+from GameBot.runner.driver.wgc_capture import WgcCapture
 from GameBot.runner.ui import run_with_float_window
 from GameBot.utils import logger, setup_log_file
 from GameBot.utils.exception_handler import DmError
@@ -148,11 +155,12 @@ def _get_cursor_pos() -> tuple[int, int]:
     return pt.x, pt.y
 
 
-def _start_capture_pressure(dm, area_coords, interval: float, stop_event=None):
-    """启动并发截图线程，复刻 start_text_watcher/TextMonitor 的 dm.Capture 压力。
+def _start_capture_pressure(war3, ocr_cfg, interval: float, use_dm: bool, dm, stop_event=None):
+    """启动并发截图线程，复刻 TextMonitor 的截图压力。
 
-    真实任务中监测线程每 interval 秒经 ocr_text → capture_to_temp → Capture
-    截取 prompt_text 区域；OCR 推理部分不碰大漠，此处只复现大漠侧压力。
+    use_dm=False（默认）：走生产路径 war3._ocr_region_text（WGC 取帧 + OCR），
+    与任务运行时完全一致；失败直接打日志并继续（探针只复现压力）。
+    use_dm=True：旧的 dm.Capture 压力（对照复现"截图撕开注入锁"的旧症状）。
     """
     evt = threading.Event()
 
@@ -161,11 +169,14 @@ def _start_capture_pressure(dm, area_coords, interval: float, stop_event=None):
             if stop_event is not None and stop_event.is_set():
                 return
             try:
-                p = dm.capture_to_temp(*area_coords, prefix="probe_watch")
-                if p:
-                    os.remove(p)
-            except Exception:
-                pass
+                if use_dm:
+                    p = dm.capture_to_temp(*ocr_cfg["area_coords"], prefix="probe_watch")
+                    if p:
+                        os.remove(p)
+                else:
+                    war3._ocr_region_text(ocr_cfg)
+            except Exception as e:
+                logger.debug(f"探针并发截图异常: {e}")
             evt.wait(interval)
 
     t = threading.Thread(target=_loop, daemon=True, name="ProbeCapturePressure")
@@ -182,6 +193,7 @@ def probe(
     click=None,
     watch_area=None,
     watch_interval: float = 0.2,
+    capture_dm: bool = False,
     stop_event=None,
 ) -> tuple[str, str, dict]:
     """绑定 + 截图探测，返回 (绑定结果, 截图结果, 点击测试结论)。
@@ -220,7 +232,9 @@ def probe(
             mini_coords, target_coords = click
             watch_evt = None
             if watch_area:
-                watch_evt, _ = _start_capture_pressure(dm, watch_area, watch_interval, stop_event)
+                watch_evt, _ = _start_capture_pressure(
+                    war3, watch_area, watch_interval, capture_dm, dm, stop_event
+                )
             try:
                 # 检查②：系统→游戏方向隔离（绑定态下、脚本无操作时晃动物理鼠标）
                 input("  [绑定中] 请晃动你的物理鼠标后回车——游戏光标是否跟随了物理鼠标？ ")
@@ -259,6 +273,23 @@ def probe(
     return "OK", shot, verdict
 
 
+def _wgc_dump(dm, war3: War3Business, hwnd: int, base_cfg: dict, ocr_cfg: dict):
+    """dx2 绑定态下用 WGC 抓整窗 + OCR 区域存盘，验证客户区偏移是否正确。"""
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    with dm.bind_window(hwnd, bind_cfg=base_cfg):
+        cap = WgcCapture.acquire(hwnd, min_interval_ms=200)
+        try:
+            frame = cap.grab_window()
+            (ox, oy), (cw, ch) = cap._client_offset(frame)
+            print(f"WGC 整窗帧 {frame.shape[1]}x{frame.shape[0]}，客户区偏移=({ox},{oy})，客户区={cw}x{ch}")
+            cap.save(str((OUT_DIR / "wgc_full.png").resolve()))
+            area = tuple(ocr_cfg["area_coords"])
+            cap.save(str((OUT_DIR / "wgc_prompt_area.png").resolve()), area)
+            print(f"已存盘: {OUT_DIR}/wgc_full.png, wgc_prompt_area.png —— 请目测 prompt 区域内容")
+        finally:
+            cap.release()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="war3 后台绑定矩阵探针")
     parser.add_argument("--delay", type=int, default=5, help="浮窗倒计时秒数")
@@ -275,7 +306,23 @@ def main() -> int:
     parser.add_argument(
         "--no-watch",
         action="store_true",
-        help="点击测试时不启动并发截图线程（默认开启，复刻任务监测线程的 Capture 压力）",
+        help="点击测试时不启动并发截图线程（默认开启，复刻任务监测线程的截图压力）",
+    )
+    parser.add_argument(
+        "--capture-dm",
+        action="store_true",
+        help="并发截图压力改用旧的 dm.Capture（对照复现旧症状，验证完成后删除此选项）",
+    )
+    parser.add_argument(
+        "--wgc-dump",
+        action="store_true",
+        help="按生产 bind_cfg 绑定（dx2 挂钩态）后用 WGC 抓整窗 + prompt_text 区域存盘，目测后退出",
+    )
+    parser.add_argument(
+        "--mouse",
+        type=str,
+        default=None,
+        help="只测指定 mouse 模式（默认跑全部候选）",
     )
     args = parser.parse_args()
     click = None
@@ -294,12 +341,17 @@ def main() -> int:
     war3_cfg = cfg.get("war3", {})
     base_cfg = dict(war3_cfg.get("bind", {}))
     # 并发截图线程复刻任务监测线程：同区域（prompt_text）、同间隔（monitor_interval）
-    watch_area = cfg.get("prompt_text", {}).get("area_coords")
+    watch_ocr_cfg = cfg.get("prompt_text")
     watch_interval = cfg.get("atomic_task", {}).get("monitor_interval", 0.2)
-    logger.info(f"基准绑定配置: {base_cfg}，监测区域: {watch_area}，间隔: {watch_interval}s")
+    logger.info(
+        f"基准绑定配置: {base_cfg}，监测区域: {watch_ocr_cfg.get('area_coords')}，间隔: {watch_interval}s，"
+        f"截图: {'dm.Capture(旧)' if args.capture_dm else 'WGC(生产)'}"
+    )
+    mice = [args.mouse] if args.mouse else CANDIDATE_MICE
 
     def task_wrapper(stop_event, progress_callback=None):
         dm = create_dm_client()
+        war3 = None
         try:
             war3 = War3Business(dm, war3_cfg)
             hwnd = find_war3(dm, war3_cfg)
@@ -311,6 +363,10 @@ def main() -> int:
             # resize 会重建交换链导致闪屏（同生产任务入口顺序）
             war3.set_client_size(hwnd)
 
+            if args.wgc_dump:
+                _wgc_dump(dm, war3, hwnd, base_cfg, watch_ocr_cfg)
+                return
+
             print(f"\n{'mouse 模式':<90} {'绑定':<22} {'截图'}")
             print("-" * 130)
             if click:
@@ -318,11 +374,11 @@ def main() -> int:
                 print("  ①脚本→系统：A+点击期间系统光标不动（自动检测）")
                 print("  ②系统→游戏：晃动物理鼠标时游戏光标不跟随（人工确认）")
                 print("  ③注入有效：英雄朝目标点攻击移动（人工确认）")
-            for i, mouse in enumerate(CANDIDATE_MICE, 1):
+            for i, mouse in enumerate(mice, 1):
                 if stop_event is not None and stop_event.is_set():
                     break
                 if progress_callback:
-                    progress_callback(f"探针 {i}/{len(CANDIDATE_MICE)}")
+                    progress_callback(f"探针 {i}/{len(mice)}")
                 bind_res, shot_res, verdict = probe(
                     dm,
                     war3,
@@ -330,8 +386,9 @@ def main() -> int:
                     mouse,
                     base_cfg,
                     click=click,
-                    watch_area=watch_area if (click and not args.no_watch) else None,
+                    watch_area=watch_ocr_cfg if (click and not args.no_watch) else None,
                     watch_interval=watch_interval,
+                    capture_dm=args.capture_dm,
                     stop_event=stop_event,
                 )
                 line = f"{mouse:<90} {bind_res:<22} {shot_res}"
@@ -352,6 +409,8 @@ def main() -> int:
             print("-" * 130)
             print("挑「绑定OK + 截图非黑 + ①②③全OK」的组合填入 war3.toml [this.bind_background].mouse")
         finally:
+            if war3 is not None:
+                war3.release_wgc()
             dm.close()
 
     run_with_float_window(

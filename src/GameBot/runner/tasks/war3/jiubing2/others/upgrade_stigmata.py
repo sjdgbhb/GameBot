@@ -196,6 +196,8 @@ class UpgradeStigmataTask(AtomicLoopTask):
 
                     self._interruptible_sleep(loop_interval)
             except StopTaskError:
+                if monitor is not None and monitor.error is not None:
+                    raise monitor.error
                 logger.info("用户请求停止，终止圣痕升级")
             finally:
                 if monitor is not None:

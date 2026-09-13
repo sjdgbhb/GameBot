@@ -32,7 +32,8 @@
 
 ## 2026-09-12 OCR 监测截图改用 WGC，消除 dx2 Capture 对鼠标注入的干扰
 
-> 状态：**方案已定，待实施** | 关联任务：`atomic/blackstone_gate_harassment.toml`（城门骚扰，后台模式）
+> 状态：**第一阶段代码已完成，待实机验证**（探针 `--wgc-dump` / `--click` / 城门骚扰端到端）
+> | 关联任务：`atomic/blackstone_gate_harassment.toml`（城门骚扰，后台模式）
 
 ### 解决的问题
 
@@ -75,11 +76,10 @@ WGC 从 DWM 合成面读取窗口自身的重定向表面，**完全不进游戏
 
 选 WGC 的理由：零打扰 + 性能余量，可以承接第二阶段全项目截图统一（含战斗状态 20+ fps 连续截帧，PrintWindow 撑不住）。PrintWindow 不作为备选保留——项目只维护一种截图方式。
 
-#### 依赖
+#### 依赖（已完成）
 
-- `windows-capture`（PyPI，当前最新 2.0.1，`requires_python >= 3.9`，依赖 `numpy`、`opencv-python`——主环境 `.venv` 已有 numpy 2.5.1 / opencv 5.0.0）
+- `windows-capture==2.0.1`（2026-08-08 发布，已 `uv add` 固定进主环境 `.venv`；`requires_python >= 3.9`，依赖 `numpy`、`opencv-python`——主环境已有 numpy 2.5.1 / opencv 5.0.0）。**已确认该版本 `WindowsCapture.__init__` 含 `window_hwnd` 参数**
 - **只装到主环境 `.venv`**，禁止进 `.venv-dm`
-- 用 `uv add` 固定到发布 ≥ 7 天的版本；实施前确认该版本的 `WindowsCapture.__init__` 含 `window_hwnd` 参数（main 分支已有，PyPI 发布版需核对）。**没有该参数的版本不可用**，不做改标题等变通
 - 多开机器上存在多个 `Warcraft III` 同名窗口（KK 残留闲置进程），库的 `window_name` 是标题子串匹配、命中哪个实例不确定，截错实例的症状与"截图失效"完全相同。**必须用 `war3.find_game_window()` 返回的 hwnd 建会话**，不能按标题
 
 #### 原则：不做兜底 / 兼容 / 回退
@@ -130,21 +130,25 @@ class WgcCapture:
 - 也走 `_ocr_region_text`，自动受益：主线程的 OCR 也不再触发 dx2 Capture，接取/交任务阶段的卡帧同样消失
 - 大漠 `find_pic` / `find_color` / `get_color` 本步暂不动（主线程串行、低频），在第二阶段统一迁到 WGC 帧上的 numpy 计算（见下）
 
-#### 改动清单
+#### 改动清单（已实施）
 
 | 文件 | 改动 |
 |---|---|
-| `pyproject.toml` | `uv add windows-capture==<固定版本>`（主环境） |
-| `runner/driver/wgc_capture.py` | 新增：`WgcCapture`、`CaptureError`、hwnd → 会话引用计数 |
-| `inference/local.py` | 新增 `ocr_from_array` / `ocr_lines_from_array`；抽 `_ocr_impl(ndarray)` |
-| `inference/worker.py` | 同步新增数组入口（若子进程模式仍在用） |
-| `runner/business/war3/text_monitor.py` | `_ocr_region_text` 改走 WGC，删大漠截图路径；`TextMonitor.start/stop`、`start_text_watcher/stop_text_watcher` 管理会话生命周期 |
-| `config/data/war3/war3.toml` | `[this.bind_background]` 注释更新：display 仅用于大漠找图找色，截图走 WGC；不新增可选项 |
-| `tests/manual/test_war3_bind_probe.py` | 监测压力改为 WGC 截图（旧 dm 截图压力仅保留 `--capture-dm` 用于对照复现，验证完成后删除）；新增 `--wgc-dump` 抓一帧存盘用于目测 |
-| `AGENTS.md` | 更新"并发 dx2 Capture 会撕开鼠标注入锁"条目：待实施方案改为本方案，链接本文 |
-| `docs/modules/driver.md` / `docs/modules/business.md` | 补 WGC 截图一节 |
+| `pyproject.toml` / `uv.lock` | `windows-capture==2.0.1`（主环境） |
+| `runner/driver/wgc_capture.py` | 新增：`WgcCapture`（整窗/客户区取帧、save 存盘、`on_closed`、帧过期检测、客户区偏移计算）、hwnd → 会话引用计数（`acquire`/`release`）、`atexit` 收尾 |
+| `utils/exception_handler.py` | 新增 `CaptureError` |
+| `inference/local.py` | 新增 `ocr_from_array` / `ocr_lines_from_array`（BGRA→RGB），复用 `_merge_ocr_result` |
+| `runner/business/war3/text_monitor.py` | `_ocr_region_text` 改走 WGC（`grab_client` → `ocr_from_array`），删大漠截图路径；新增 `WatchEvent`（error 字段）；`TextMonitor` 加 `error`/`on_error`，出错线程退出并在 watch/wait_for/wait_for_any/latest/stop 抛出；`start_text_watcher/stop_text_watcher` 管理会话生命周期 |
+| `runner/tasks/war3/jiubing2/base.py` | `_make_monitor` 传 `on_error=self._on_monitor_error`（set stop_event 加速中断）；`_run_loop`/`_run_multi_loop` 的 `except StopTaskError` 分支检查 `monitor.error` 并上抛 |
+| `runner/tasks/war3/jiubing2/others/patrol_loot.py` | 同上：`on_error` + `except StopTaskError` 检查 |
+| `runner/tasks/war3/jiubing2/others/upgrade_stigmata.py` | `except StopTaskError` 分支检查 `monitor.error` 并上抛 |
+| `config/data/war3/war3.toml` | 新增 `wgc_min_interval_ms = 100`；`bind_background.display` 注释更新（仅服务大漠找图找色，OCR 截图走 WGC） |
+| `tests/manual/test_war3_bind_probe.py` | 并发截图压力默认走生产路径（`war3._ocr_region_text` WGC+OCR）；`--capture-dm` 用旧 dm.Capture 对照复现旧症状（验证完成后删除）；新增 `--wgc-dump`（绑定态抓整窗+prompt 区域存盘）、`--mouse` |
+| `tests/manual/test_wgc_smoke.py` | 新增：对任意窗口建会话、取帧、裁客户区、存盘的冒烟脚本（已实测通过：首帧 0.27s，整客户区抓帧 1.7ms，extended_frame 偏移正确） |
+| `AGENTS.md` | 已更新"待实施方案"为 WGC 方案并注明不做兜底/回退 |
+| `inference/worker.py` | 无需改动——实际走的是 `LocalInferenceClient`（进程内），worker 子进程版本不在使用 |
 
-不动的部分：`atomic/base.py`、`jiubing2/base.py`、`patrol_loot.py`、`upgrade_stigmata.py`、`endless_runner.py` 的 monitor 参数链与事件中断逻辑全部保留。
+不动的部分：`atomic/base.py`、`patrol_loot.py`、`upgrade_stigmata.py`、`endless_runner.py` 的 monitor 参数链与事件中断逻辑全部保留（只加了 `except StopTaskError` 分支的错误上抛）。
 
 #### 风险与约束
 

@@ -150,9 +150,16 @@ class AtomicLoopTask:
         """创建持续文字监测器；子类可覆写返回 None 以禁用。"""
         atomic_task_cfg = self.full_cfg.get("atomic_task", {})
         interval = atomic_task_cfg.get("monitor_interval", 0.2)
-        monitor = TextMonitor(self.war3, self.full_cfg.get("prompt_text"), interval=interval)
+        # 监测线程截图出错 → set stop_event 让主线程尽快中断，异常由 monitor.stop() 抛出
+        monitor = TextMonitor(
+            self.war3, self.full_cfg.get("prompt_text"), interval=interval, on_error=self._on_monitor_error
+        )
         monitor.start(hwnd)
         return monitor
+
+    def _on_monitor_error(self, _exc: BaseException):
+        if self._stop_event is not None:
+            self._stop_event.set()
 
     def _run_loop(self, times: int, loop_interval: float, monitor=None) -> int:
         """循环执行原子任务，返回成功次数。"""
@@ -162,6 +169,8 @@ class AtomicLoopTask:
             try:
                 ok = self._run_one_atomic(monitor=monitor)
             except StopTaskError:
+                if monitor is not None and monitor.error is not None:
+                    raise monitor.error
                 logger.info("用户请求停止，终止循环")
                 break
 
@@ -354,6 +363,8 @@ class MultiAtomicLoopTask(AtomicLoopTask):
                 submitted = self._submit_all(accepted_keys, hwnd)
                 done += submitted
             except StopTaskError:
+                if monitor is not None and monitor.error is not None:
+                    raise monitor.error
                 logger.info("用户请求停止，终止循环")
                 break
 

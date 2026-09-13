@@ -56,11 +56,15 @@
     截图在持锁区段之外仍会周期性卡顿/丢光标，不满足"截图不能影响脚本流程"
   - 根因是 dx 系 Capture 固有的卡帧/撕锁（bridge 已串行 COM 调用，并发不是根源），
     任何走大漠 dx 截图的方案（含同步轮询）都无法满足"截图不影响主流程"
-  - 待实施方案（WGC）：截图改走 Windows Graphics Capture（`windows-capture`，仅主环境，
-    按 hwnd 建会话），从 DWM 合成面取帧不进游戏进程；TextMonitor 架构不动。
-    第一阶段替换 OCR 监测截图，第二阶段全项目截图统一为 WGC 并删除大漠 Capture /
-    PrintWindow / ImageGrab 代码。**不做兜底/回退**：WGC 失败直接抛错终止任务，
-    不退回大漠截图或前台模式 → 见 `docs/change_logs/war3后台开发记录.md`
+  - WGC 方案（第一阶段代码已完成 2026-09-13，待实机验证）：截图走 Windows Graphics
+    Capture（`windows-capture==2.0.1`，仅主环境，按 hwnd 建会话），从 DWM 合成面取帧
+    不进游戏进程；`_ocr_region_text` → `WgcCapture.grab_client` → `ocr_from_array`。
+    会话生命周期：`WgcCapture.acquire/release`（hwnd 引用计数），由
+    TextMonitor.start/stop、start_text_watcher/stop_text_watcher 管理；
+    监测线程出错记 monitor.error/event.error，watch/wait_for/stop 时抛出。
+    第二阶段全项目截图统一为 WGC 并删除大漠 Capture / PrintWindow / ImageGrab 代码。
+    **不做兜底/回退**：WGC 失败直接抛 CaptureError 终止任务，不退回大漠截图或前台模式
+    → 见 `docs/change_logs/war3后台开发记录.md`
   - 钓鱼后台 2026-09-12 实测通过；WGC 第二阶段 find_color/find_pic 改走 WGC 帧后
     钓鱼 `_check_hook` 链路直接受影响，**须回归重测**（含 display 降 normal 的绑定复测）
   - `dx.public.active.api` 保留：dx 系绑定要求窗口处于激活态
