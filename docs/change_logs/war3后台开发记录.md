@@ -235,6 +235,26 @@ class WgcCapture:
 - KK 组队流程（`KK_TEST_NO_START_GAME=1`）回归
 - `display=dx2` → `normal` 优化：需探针确认 dx.mouse.* 不依赖 display 钩子，未验证前保留 dx2
 
+### 第三阶段：War3 多开窗口认领（2026-09-14 代码完成，待实机验证）
+
+需求：同机两个 war3 各跑各自脚本，互不干扰、不错领窗口。
+
+- `runner/driver/process_lock.py`：通用 `NamedMutex`（CreateMutexW + 非阻塞等待，
+  锁持有到进程退出、崩溃自动释放）
+- `window_manager.claim_war3_window(target_player)`：枚举 → 互斥锁认领（已认领跳过
+  不发 token）→ 配置了 target_player 时向窗口发随机 token（gb+pid+随机hex）并
+  OCR 聊天区 `[this.multi_instance].chat_area_coords`，从"玩家名：token"行提取
+  归属名匹配；不匹配释放锁换下一个。认领后 `_claimed_hwnd`/`claimed_owner` 记录，
+  `_find_war3_hwnd` 改为返回认领 hwnd（IsWindow 校验），不再重新枚举
+- `find_game_window`（background 模式）自动走认领流程；`War3Business.target_player`
+  由任务侧从 `cfg["target_player"]`（顶层可继承键）注入
+- 变体配置：完整复制任务 toml 改 `name`（如 `tasks/others/fishing_player_a.toml`），
+  `target_player` 写在自己的 `[this]` 里；启动时传配置名参数
+  `python -m ...fishing fishing_player_a`，任务按实际加载名读自己的配置段
+- 冒烟脚本 `tests/manual/test_war3_claim.py`（`--player`/`--hold`）
+- 待实机：聊天行格式（全角/半角冒号、名字分隔符）、token 上屏延迟、
+  双脚本互斥认领回归、加载页兜底场景
+
 ### 已否决方案
 
 **同步轮询**（原 `docs/review_reports/war3_monitor_sync_polling_plan.md`，已删除）

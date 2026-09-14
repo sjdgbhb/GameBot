@@ -60,6 +60,8 @@ class AtomicLoopTask:
         hero_cfg = cfg.get("hero", {})
 
         self.war3 = War3Business(self.dm, war3_cfg)
+        # 多开认领：本任务段或父级段配置的 target_player（如 daily_reputation → blackstone 继承）
+        self.war3.target_player = self.cfg.get("target_player", self._parent_cfg.get("target_player", ""))
         self.ui = GameUI(self.dm, war3_cfg, hero_cfg, cfg, self.war3)
         self.combat = CombatHelper(self.dm, war3_cfg, hero_cfg, cfg, self.war3)
         self.war3_cfg = war3_cfg

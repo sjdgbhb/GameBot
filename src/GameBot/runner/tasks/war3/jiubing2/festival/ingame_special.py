@@ -9,6 +9,7 @@
 """
 
 import copy
+import sys
 
 from GameBot.config import config
 from GameBot.runner.tasks.war3.jiubing2.others.fishing import FishingTask
@@ -21,8 +22,14 @@ from GameBot.utils.exception_handler import setup_global_exception_hook
 class IngameSpecialTask:
     """局内特殊任务 — 顺序编排：每日声望 → 步行至鱼点 → 钓鱼。"""
 
-    def __init__(self, cfg: dict):
-        self.cfg = cfg["war3"]["jiubing2"]["tasks"]["festival"]["ingame_special"]
+    def __init__(self, cfg: dict, task_name: str = "war3.jiubing2.tasks.festival.ingame_special"):
+        # 变体支持：self.cfg = 基础 ingame_special 段 + 变体段深度合并
+        # 变体文件的 [this] 展开到自身命名空间（tasks.festival.<变体名>），合并回基础段
+        leaf = task_name.split(".")[-1]
+        festival_tasks = cfg["war3"]["jiubing2"]["tasks"]["festival"]
+        self.cfg = copy.deepcopy(festival_tasks.get("ingame_special", {}))
+        if leaf != "ingame_special":
+            config._deep_merge(self.cfg, festival_tasks.get(leaf, {}))
         # 先应用本任务的子配置覆盖，再以生效配置构造子任务
         self.full_cfg = self._apply_overrides(cfg)
         self.daily = DailyReputationTask(self.full_cfg)
@@ -46,6 +53,12 @@ class IngameSpecialTask:
             overrides = self.cfg.get(section)
             if isinstance(overrides, dict):
                 config._deep_merge(node, overrides)
+        # 多开认领：target_player 透传到子任务命名空间，
+        # 声望子任务经 _parent_cfg 兜底读取，钓鱼子任务经 fishing 段读取
+        target_player = self.cfg.get("target_player")
+        if target_player:
+            tasks["reputation"]["daily_reputation"]["target_player"] = target_player
+            tasks["others"]["fishing"]["target_player"] = target_player
         return effective
 
     def run(self, stop_event=None, progress_callback=None, progress_lines_callback=None):
@@ -123,18 +136,33 @@ class IngameSpecialTask:
 
 def main():
     setup_global_exception_hook()
-    setup_log_file("局内特殊任务")
-    logger.info("############################# 局内特殊任务 #############################")
-    cfg = config.load_task("war3.jiubing2.tasks.festival.ingame_special")
+    # 命令行参数可指定变体配置名（如 ingame_special_善木木 认领指定玩家窗口）
+    # 用法：python -m GameBot.runner.tasks.war3.jiubing2.festival.ingame_special ingame_special_善木木
+    task_name = "war3.jiubing2.tasks.festival.ingame_special"
+    if len(sys.argv) > 1:
+        leaf_arg = sys.argv[1]
+        task_name = leaf_arg if "." in leaf_arg else f"war3.jiubing2.tasks.festival.{leaf_arg}"
+    cfg = config.load_task(task_name)
+
+    # 显示名动态计算：变体配置带 target_player 时拼上玩家名
+    leaf = task_name.split(".")[-1]
+    leaf_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("tasks", {}).get("festival", {}).get(leaf, {})
+    target_player = leaf_cfg.get("target_player", "")
+    title = f"局内特殊-{target_player}" if target_player else "局内特殊任务"
+
+    setup_log_file(title)
+    logger.info(f"############################# {title} #############################")
+    if task_name != "war3.jiubing2.tasks.festival.ingame_special":
+        logger.info(f"使用指定配置: {task_name}")
 
     def task_wrapper(stop_event, progress_callback=None, progress_lines_callback=None):
-        IngameSpecialTask(cfg).run(
+        IngameSpecialTask(cfg, task_name=task_name).run(
             stop_event=stop_event,
             progress_callback=progress_callback,
             progress_lines_callback=progress_lines_callback,
         )
 
-    run_with_float_window("局内特殊任务", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
+    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
 
 
 if __name__ == "__main__":

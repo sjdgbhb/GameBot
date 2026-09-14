@@ -1,0 +1,12 @@
+# =============================================================================
+# 钓鱼任务变体 — 善木木（多开认领）
+# 继承 fishing.toml 全部配置，[this] 只写差异字段；文件名即启动参数。
+# 启动：python -m GameBot.runner.tasks.war3.jiubing2.others.fishing fishing_善木木
+# =============================================================================
+extends = ["war3.jiubing2.tasks.others.fishing"]
+
+[this]
+# 多开认领目标玩家名：向候选窗口发随机 token，OCR 聊天区匹配
+# "玩家名：token" 行提取归属名，仅匹配此值才认领；删除该行则认领任意空闲窗口。
+target_player = "善木木"
+bind_mode = "background"  # 后台模式：多开认领要求后台绑定

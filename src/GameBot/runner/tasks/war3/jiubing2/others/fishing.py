@@ -2,6 +2,7 @@
 钓鱼任务
 """
 
+import sys
 import time
 from typing import TYPE_CHECKING, Optional
 
@@ -19,14 +20,25 @@ if TYPE_CHECKING:
 class FishingTask:
     __doc__ = "钓鱼业务"
 
-    def __init__(self, cfg: dict, stop_event=None, progress_callback=None, dm: Optional["DmClientBase"] = None):
+    def __init__(
+        self,
+        cfg: dict,
+        task_name: str = "war3.jiubing2.tasks.others.fishing",
+        stop_event=None,
+        progress_callback=None,
+        dm: Optional["DmClientBase"] = None,
+    ):
         self.task_cfg = cfg
         self.dm: "DmClientBase" = dm or create_dm_client()
         self._stop_event = stop_event
         self._progress_callback = progress_callback or (lambda text: None)
         self.war3_cfg = cfg.get("war3", {})
         self.war3 = War3Business(self.dm, self.war3_cfg)
-        self.fishing_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("tasks", {}).get("others", {}).get("fishing", {})
+        # 任务配置段按实际加载的任务名取（变体配置是自己的命名空间），
+        # target_player 在变体 [this] 里配置，注入 war3 做多开窗口认领
+        leaf = task_name.split(".")[-1]
+        self.fishing_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("tasks", {}).get("others", {}).get(leaf, {})
+        self.war3.target_player = self.fishing_cfg.get("target_player", "")
         self.check_cfg = self.fishing_cfg.get("check", {})
         self.prompt_cfg = cfg.get("prompt_text", {})
         self.hero_cfg = cfg.get("hero", {})
@@ -255,14 +267,29 @@ class FishingTask:
 
 def main():
     setup_global_exception_hook()
-    setup_log_file("钓鱼")
-    logger.info("############################# 钓鱼任务 #############################")
-    cfg = config.load_task("war3.jiubing2.tasks.others.fishing")
+    # 第一个命令行参数可指定任务配置名（变体配置，如 fishing_player_a 认领指定玩家窗口）
+    # 用法：python -m GameBot.runner.tasks.war3.jiubing2.others.fishing fishing_player_a
+    task_name = "war3.jiubing2.tasks.others.fishing"
+    if len(sys.argv) > 1:
+        leaf_arg = sys.argv[1]
+        task_name = leaf_arg if "." in leaf_arg else f"war3.jiubing2.tasks.others.{leaf_arg}"
+    cfg = config.load_task(task_name)
+
+    # 显示名动态计算：变体配置带 target_player 时拼上玩家名，如"钓鱼-玩家A"
+    leaf = task_name.split(".")[-1]
+    leaf_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("tasks", {}).get("others", {}).get(leaf, {})
+    target_player = leaf_cfg.get("target_player", "")
+    title = f"钓鱼-{target_player}" if target_player else "钓鱼"
+
+    setup_log_file(title)
+    logger.info(f"############################# {title} #############################")
+    if task_name != "war3.jiubing2.tasks.others.fishing":
+        logger.info(f"使用指定配置: {task_name}")
 
     def task_wrapper(stop_event, progress_callback):
-        FishingTask(cfg, stop_event=stop_event, progress_callback=progress_callback).run()
+        FishingTask(cfg, task_name=task_name, stop_event=stop_event, progress_callback=progress_callback).run()
 
-    run_with_float_window("钓鱼", task_wrapper, countdown_seconds=5, float_cfg=(cfg.get("float_window", {})))
+    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=(cfg.get("float_window", {})))
 
 
 if __name__ == "__main__":

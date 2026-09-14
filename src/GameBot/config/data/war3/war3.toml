@@ -85,6 +85,15 @@ bind_delay = 1.5       # 绑定后延时 1.5 秒等待后台生效（DX 绑定�
 # 多开识别配置
 [this.multi_instance]
 
+# 聊天 token 认领（游戏内）：向候选窗口发随机 token，OCR 聊天区匹配"玩家名：token"定归属。
+# 互斥锁先行——已认领窗口跳过不发 token；token = 前缀+pid+随机hex，进程唯一不错领。
+chat_area_coords = [11, 436, 355, 676]  # 聊天信息显示区（客户区坐标）
+token_prefix = "gb"                     # token 前缀（须 ASCII，war3 聊天仅支持 ASCII）
+send_retries = 3                        # 每个窗口 token 验证重试次数
+verify_wait = 1.0                       # 每次发送后等待上屏的秒数
+claim_timeout = 60                      # 认领总超时（秒）：全局锁排队+窗口占用重试直到超时
+claim_retry_interval = 0.5              # 每轮扫描间隔（秒）
+
 [this.multi_instance.loading_page]
 area_coords = [231,295,1532,581]  # 加载页面玩家列表 OCR 区域
 exclude_keywords = []  # 需过滤的非玩家名文本关键词（如称号前缀等），留空则仅按位置取第一个非空行

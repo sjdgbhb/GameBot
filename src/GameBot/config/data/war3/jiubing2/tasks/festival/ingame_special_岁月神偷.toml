@@ -1,0 +1,17 @@
+# =============================================================================
+# 局内特殊任务变体 — 岁月神偷（多开认领）
+# 继承 ingame_special 全部配置，[this] 只写差异字段（target_player / 覆盖参数）。
+# 启动：.venv\Scripts\python -m GameBot.runner.tasks.war3.jiubing2.festival.ingame_special ingame_special_岁月神偷
+# =============================================================================
+name = "war3.jiubing2.tasks.festival.ingame_special_岁月神偷"
+extends = ["war3.jiubing2.tasks.festival.ingame_special"]
+
+# 浮窗位置错开：另一脚本用默认 y，本变体偏移避免遮挡
+[float_window]
+y = 500
+
+[this]
+# 多开认领目标玩家名：向候选窗口发随机 token，OCR 聊天区匹配
+# "玩家名：token" 行提取归属名，仅匹配此值才认领；删除该行则认领任意空闲窗口。
+target_player = "岁月神偷"
+bind_mode = "background"

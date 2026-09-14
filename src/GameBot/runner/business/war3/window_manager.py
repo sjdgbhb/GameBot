@@ -1,13 +1,22 @@
 """窗口管理 — 从 war3.py 拆分。
 
 包含 War3Business 的窗口管理 mixin：窗口尺寸设置/验证、窗口刷新、
-窗口查找、进出游戏判断等。
+窗口查找、多开认领、进出游戏判断等。
 """
 
+import ctypes
+import os
+import secrets
 import time
+from ctypes import wintypes
 from typing import Optional
 
+from GameBot.runner.driver.process_lock import NamedMutex
 from GameBot.utils import WindowLostError, logger
+
+_user32 = ctypes.windll.user32
+_user32.IsWindow.argtypes = [wintypes.HWND]
+_user32.IsWindow.restype = wintypes.BOOL
 
 
 class WindowManagerMixin:
@@ -66,25 +75,145 @@ class WindowManagerMixin:
             logger.info("[主脚本] 未找到游戏窗口，跳过刷新")
 
     def _find_war3_hwnd(self) -> int:
-        """用大漠按类名/标题查找魔兽窗口句柄（主线程调用，大漠 COM 线程亲和）。"""
+        """返回本脚本认领的 war3 窗口；未走认领流程时退化为按类名/标题查找。
+
+        认领后不再重新枚举窗口——多开场景下重新 find_window 可能拿到
+        其他玩家的窗口，存活判断用 IsWindow 校验认领句柄。
+        """
+        claimed = getattr(self, "_claimed_hwnd", 0)
+        if claimed:
+            return claimed if _user32.IsWindow(claimed) else 0
         return self.dm.find_window(
             self.war3_cfg.get("window_class", ""),
             self.war3_cfg.get("window_title", ""),
         )
 
+    # ── 多开窗口认领 ─────────────────────────────────────
+
+    def claim_war3_window(self, target_player: str = "", stop_event=None) -> int:
+        """认领一个 war3 窗口（多开隔离），返回 hwnd。
+
+        协议：先拿全局认领锁 `Local\\GameBot_War3_Claim`（串行化整个认领过程，
+        防止两脚本同时发 token/占用窗口互踩）→ 枚举窗口逐个尝试窗口锁（已被
+        认领的直接跳过，不发 token）→ 配了 target_player 时向窗口发随机 token，
+        OCR 聊天区"〔盟友〕玩家名：token"行提取归属名匹配；不匹配释放窗口锁换
+        下一个。认领成功或本轮全部失败都释放全局锁，让其他脚本认领。
+
+        认领成功后窗口互斥锁一直持有到进程退出（崩溃自动释放），
+        self._claimed_hwnd / self.claimed_owner 记录结果，全链路只用该 hwnd。
+
+        :param target_player: 目标玩家名；为空则认领第一个未被占用的窗口
+        :param stop_event: 停止事件
+        :return: 认领的窗口句柄，无可用窗口返回 0
+        """
+        if getattr(self, "_claimed_hwnd", 0):
+            return self._claimed_hwnd
+        mi_cfg = self.war3_cfg.get("multi_instance", {})
+        claim_timeout = float(mi_cfg.get("claim_timeout", 60))
+        retry_interval = float(mi_cfg.get("claim_retry_interval", 0.5))
+        start = time.time()
+        last_wins = 0
+        while time.time() - start < claim_timeout:
+            # 全局认领锁：整个扫描+验证过程串行，其他脚本排队等待
+            claim_lock = NamedMutex("Local\\GameBot_War3_Claim")
+            remaining_ms = int(max(0, claim_timeout - (time.time() - start)) * 1000)
+            if not claim_lock.acquire(timeout_ms=remaining_ms):
+                break  # 超时还没拿到全局锁，放弃
+            try:
+                wins = self.dm.find_windows(
+                    self.war3_cfg.get("window_class", ""),
+                    self.war3_cfg.get("window_title", ""),
+                )
+                if wins:
+                    last_wins = len(wins)
+                claimed = self._claim_one_pass(wins, target_player, stop_event)
+            finally:
+                claim_lock.release()
+            if claimed:
+                return claimed
+            # 本轮没认领到（都被占用或不匹配），稍后重扫
+            self.interruptible_wait(retry_interval, stop_event)
+        logger.error(f"认领超时（{claim_timeout}s）：共 {last_wins} 个 war3 窗口，均已被占用或不匹配")
+        return 0
+
+    def _claim_one_pass(self, wins: list, target_player: str, stop_event=None) -> int:
+        """单轮认领：在全局认领锁保护下逐个尝试窗口锁并验证归属。"""
+        for w in wins:
+            hwnd = w["hwnd"]
+            mutex = NamedMutex(f"Local\\GameBot_War3_{hwnd}")
+            if not mutex.try_acquire():
+                logger.info(f"war3 窗口 {hwnd} 已被其他脚本认领，跳过")
+                continue
+            owner = ""
+            if target_player:
+                # 先统一客户区尺寸：chat_area_coords 按配置分辨率校准，
+                # 尺寸不一致时 OCR 区域与真实聊天区错位，token 永远找不到
+                self.set_client_size(hwnd)
+                owner = self._identify_owner_by_chat(hwnd, stop_event)
+                # 包含匹配：target_player 出现在"："左边的发送者段中即归属
+                if not owner or target_player not in owner:
+                    logger.info(
+                        f"war3 窗口 {hwnd} 归属 {owner or '未知'}，与目标玩家 {target_player} 不匹配，释放"
+                    )
+                    mutex.release()
+                    continue
+            self._claimed_mutex = mutex
+            self._claimed_hwnd = hwnd
+            self.claimed_owner = owner
+            logger.info(f"已认领 war3 窗口 hwnd={hwnd}" + (f"，归属玩家 {owner}" if owner else ""))
+            return hwnd
+        return 0
+
+    def _identify_owner_by_chat(self, hwnd: int, stop_event=None) -> str:
+        """向 hwnd 发送随机 token，OCR 聊天区匹配"玩家名：token"行，返回玩家名。
+
+        token 进程级唯一（gb + pid16进制 + 随机hex），多开同图时广播到所有
+        窗口但各自只搜自己的 token，不会错领。
+        聊天行格式"玩家名：消息"，取 token 所在行分隔符前的文本为归属名。
+
+        :return: 玩家名；token 未上屏/超时返回空字符串
+        """
+        mi_cfg = self.war3_cfg.get("multi_instance", {})
+        area = mi_cfg.get("chat_area_coords")
+        if not area:
+            logger.warning("未配置 multi_instance.chat_area_coords，无法聊天识别归属")
+            return ""
+        # token = 前缀+pid+随机尾；校验只查 marker（前缀+pid）——
+        # OCR 可能丢/错读 token 尾部字符，精确匹配整串会漏
+        marker = f"{mi_cfg.get('token_prefix', 'gb')}{os.getpid():x}"
+        token = f"{marker}{secrets.token_hex(2)}"
+        retries = int(mi_cfg.get("send_retries", 3))
+        verify_wait = float(mi_cfg.get("verify_wait", 1.0))
+        for attempt in range(1, retries + 1):
+            with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+                self.send_msg(token, stop_event=stop_event)
+            self.interruptible_wait(verify_wait, stop_event)
+            lines = self.ocr_lines(hwnd, {"area_coords": area})
+            for line in lines:
+                text = line.get("text", "").strip()
+                if marker in text:
+                    # 聊天行格式"〔盟友〕玩家名：消息"，返回 ： 左边的发送者段
+                    for sep in ("：", ":"):
+                        if sep in text:
+                            return text.split(sep, 1)[0].strip()
+                    return ""  # 找到 token 但无名字分隔符
+            # 诊断：打出聊天区实际 OCR 内容，便于排查 token 未上屏原因
+            seen = [line.get("text", "").strip() for line in lines if line.get("text", "").strip()]
+            logger.debug(f"窗口 {hwnd} 第 {attempt}/{retries} 次 token 未上屏，聊天区 OCR: {seen}")
+        return ""
+
     def find_game_window(self, capture: bool = True) -> int:
         """按绑定模式查找 war3 窗口句柄（任务入口统一走这里）。
 
         - 前台绑定（bind_foreground）：要求 war3 是活动窗口（真实键鼠输入需要前台焦点）。
-        - 后台绑定（bind_background）：按类名+标题直接找，不要求 war3 是前台窗口。
-          bind_background.mouse 已含 dx.mouse.input.lock.api，war3 前台时也能锁住
-          物理鼠标的 raw input 干扰；若日后 mouse 配置去掉该项，前台干扰会复现。
+        - 后台绑定（bind_background）：走多开认领协议（claim_war3_window），
+          单开时同样生效（互斥锁即取即得），保证与其他脚本互不干扰。
         """
         if self.war3_cfg.get("bind", {}).get("bind_mode") != "background":
             return self.dm.get_active_window(
                 self.war3_cfg["window_class"], self.war3_cfg["window_title"], capture=capture
             )
-        return self._find_war3_hwnd() or 0
+        return self.claim_war3_window(target_player=getattr(self, "target_player", ""))
 
     def wait_for_game_window(self, stop_event=None, timeout: int = 60) -> int:
         """等待 War3 窗口出现（从 KK 启动后），返回 hwnd 或 None。
