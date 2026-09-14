@@ -20,11 +20,11 @@ desc = "迅猛野兽所在位置（远古森林外围，即森之城所在区域
 mini_coords = [252,818]     # TODO
 coords = [948,387]          # TODO
 walk_mode = 1
-time = 55
+time = 60
 
 [[this.points]]
 desc = "月之女祭司狄安娜附近（交/接任务）"
 mini_coords = [230,986]     # TODO: 与 scenes/forest_city.toml 中 npcs.diana.mini_coords 一致
 coords = [936,532]          # TODO: npc 附近偏移点
 walk_mode = 0
-time = 35
+time = 30

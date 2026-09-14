@@ -45,4 +45,4 @@ time = 15              # TODO: 步行等待时间（秒）
 
 # 钓鱼参数覆盖（深度合并到 tasks.others.fishing 节点）
 [this.fishing]
-max_times = 40            # 抛竿次数：钓鱼 300 次按 350 竿计
+max_times = 40            # 抛竿次数
