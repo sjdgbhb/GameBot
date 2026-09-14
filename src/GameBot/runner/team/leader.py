@@ -235,7 +235,7 @@ class TeamLeader(TeamMemberBase):
         for attempt in range(1, 4):
             if attempt > 1:
                 self.dm.force_refresh_layered(room_hwnd)
-            lines = self.kk.ocr_kk_lines(self.dm, room_hwnd, {"area_coords": ocr_area})
+            lines = self.kk.ocr_kk_lines(room_hwnd, {"area_coords": ocr_area})
             # 从 OCR 文本中提取纯数字房间号（OCR 可能返回"房间号：106660"或"106660"）
             for line in lines:
                 text = line.get("text", "").strip()

@@ -1,16 +1,20 @@
-"""推理子进程 worker —— 由 64 位 Python 运行。
+"""推理子进程 worker —— 由 64 位 Python 运行（exe 打包用）。
 
 合并三种推理能力在一个常驻子进程中：
-1. OCR（RapidOCR / onnxruntime 后端）—— 屏幕区域截图识别文字
-2. 宝箱检测（YOLOv8 ONNX）—— 全屏截图目标检测
-3. 战斗状态检测（分类 ONNX）—— 英雄头像截图二分类
+1. OCR（RapidOCR / onnxruntime 后端）—— 图片文件识别文字
+2. 宝箱检测（YOLOv8 ONNX）—— 图片文件目标检测
+3. 战斗状态检测（分类 ONNX）—— 英雄头像图片二分类
+
+截图统一由主进程 WGC 完成，本子进程只接收图片文件/路径，不再有截屏入口。
 
 主进程通过行式 JSON 通信：
-  请求：{"cmd": "ocr", "bbox": [x1,y1,x2,y2]}
+  请求：{"cmd": "ocr_from_file", "img_path": "C:/temp/xxx.png"}
+        {"cmd": "ocr_lines_from_file", "img_path": "...", "merge_lines": true}
         {"cmd": "detect_chests", "img_path": "C:/temp/xxx.bmp"}
         {"cmd": "predict_combat", "img_paths": ["C:/temp/a.bmp", ...]}
         {"cmd": "quit"}
   响应：{"text": "..."}
+        {"lines": [...]}
         {"chests": [[x1,y1,x2,y2,conf], ...]}
         {"combat": [true, false, ...]}
         {"ready": true}
@@ -33,7 +37,7 @@ import os
 import sys
 
 import numpy as np
-from PIL import Image, ImageGrab
+from PIL import Image
 
 try:
     from . import model_loader
@@ -155,23 +159,6 @@ def _extract_lines(result, merge_lines: bool = True) -> list:
         lines.append({"text": text, "x_center": x_center, "y_center": y_center})
     lines.sort(key=lambda l: l["y_center"])
     return lines
-
-
-def _handle_ocr(bbox):
-    if _ocr is None:
-        raise RuntimeError("OCR 引擎未初始化")
-    img = ImageGrab.grab(bbox=tuple(bbox), all_screens=True)
-    result = _ocr(np.array(img))
-    return {"text": _extract_text(result)}
-
-
-def _handle_ocr_lines(bbox, merge_lines: bool = True):
-    """OCR 截屏并返回逐行结果（含 y 坐标），用于任务弹窗行数解析。"""
-    if _ocr is None:
-        raise RuntimeError("OCR 引擎未初始化")
-    img = ImageGrab.grab(bbox=tuple(bbox), all_screens=True)
-    result = _ocr(np.array(img))
-    return {"lines": _extract_lines(result, merge_lines=merge_lines)}
 
 
 def _handle_ocr_from_file(img_path: str) -> dict:
@@ -303,16 +290,6 @@ def _handle_detect_chests(img_path: str) -> dict:
     return _run_chest_detection(img)
 
 
-def _handle_capture_and_detect_chests(bbox: list = None) -> dict:
-    """子进程直接截屏 + 宝箱检测，避免主进程写临时 BMP 文件。"""
-    if bbox:
-        img = ImageGrab.grab(bbox=tuple(bbox), all_screens=True)
-    else:
-        img = ImageGrab.grab(all_screens=True)
-    img = img.convert("RGB")
-    return _run_chest_detection(img)
-
-
 # ── 战斗状态检测 ──────────────────────────────────────
 
 
@@ -341,48 +318,6 @@ def _handle_predict_combat(img_paths: list) -> dict:
         img = Image.open(path).convert("RGB").resize((img_w, img_h))
         arr = np.array(img).transpose(2, 0, 1).astype(np.float32) / 255.0
         batch.append(arr)
-    batch = np.stack(batch)
-
-    result = session.run(["output"], {"input": batch})
-    probs = result[0].flatten()
-    combat = [bool(p > threshold) for p in probs]
-    return {"combat": combat}
-
-
-def _handle_capture_and_predict_combat(
-    bbox: list, frame_count: int, frame_interval: float, cancel_file: str = ""
-) -> dict:
-    """子进程直接截屏 + 战斗检测，避免主进程写临时 BMP 文件。
-
-    :param bbox: 屏幕区域 [x1, y1, x2, y2]
-    :param frame_count: 采样帧数
-    :param frame_interval: 采样间隔（秒）
-    :param cancel_file: 取消信号文件路径，存在时提前终止截帧
-    :return: {"combat": [True/False, ...]}
-    """
-    session = _get_combat_session()
-    img_w = int(_cfg.get("combat_img_w", 87))
-    img_h = int(_cfg.get("combat_img_h", 61))
-    threshold = float(_cfg.get("combat_threshold", 0.5))
-
-    batch = []
-    for i in range(frame_count):
-        if cancel_file and os.path.exists(cancel_file):
-            break
-        img = ImageGrab.grab(bbox=tuple(bbox), all_screens=True)
-        img = img.convert("RGB").resize((img_w, img_h))
-        arr = np.array(img).transpose(2, 0, 1).astype(np.float32) / 255.0
-        batch.append(arr)
-        if i < frame_count - 1 and not (cancel_file and os.path.exists(cancel_file)):
-            import time as _time
-
-            _time.sleep(frame_interval)
-    if cancel_file and os.path.exists(cancel_file):
-        try:
-            os.remove(cancel_file)
-        except OSError:
-            pass
-        return {"combat": [False] * max(len(batch), 1), "cancelled": True}
     batch = np.stack(batch)
 
     result = session.run(["output"], {"input": batch})
@@ -430,12 +365,6 @@ def main():
         try:
             if action == "quit":
                 break
-            elif action == "ocr":
-                result = _handle_ocr(cmd.get("bbox"))
-                _send(result)
-            elif action == "ocr_lines":
-                result = _handle_ocr_lines(cmd.get("bbox"), merge_lines=cmd.get("merge_lines", True))
-                _send(result)
             elif action == "ocr_from_file":
                 result = _handle_ocr_from_file(cmd.get("img_path", ""))
                 _send(result)
@@ -445,19 +374,8 @@ def main():
             elif action == "detect_chests":
                 result = _handle_detect_chests(cmd.get("img_path", ""))
                 _send(result)
-            elif action == "capture_and_detect_chests":
-                result = _handle_capture_and_detect_chests(cmd.get("bbox"))
-                _send(result)
             elif action == "predict_combat":
                 result = _handle_predict_combat(cmd.get("img_paths", []))
-                _send(result)
-            elif action == "capture_and_predict_combat":
-                result = _handle_capture_and_predict_combat(
-                    cmd.get("bbox", []),
-                    int(cmd.get("frame_count", 10)),
-                    float(cmd.get("frame_interval", 0.3)),
-                    cmd.get("cancel_file", ""),
-                )
                 _send(result)
             else:
                 _send({"error": f"unknown cmd: {action}"})

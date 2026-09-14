@@ -41,6 +41,7 @@ import os
 import sys
 import threading
 import time
+import uuid
 from pathlib import Path
 
 from PIL import Image
@@ -54,6 +55,14 @@ from GameBot.utils import logger, setup_log_file
 from GameBot.utils.exception_handler import DmError
 
 OUT_DIR = Path("logs/diag_war3_bind_probe")
+
+
+def _probe_dm_shot() -> str:
+    """--capture-dm 压力线程的 dm.Capture 输出路径。"""
+    import tempfile
+
+    path = os.path.join(tempfile.gettempdir(), f"probe_watch_{os.getpid()}_{uuid.uuid4().hex}.bmp")
+    return path
 
 # 默认点击测试点：城门骚扰首个路线点「小道入口附近」（小地图 + 主屏目标坐标）
 DEFAULT_CLICK = "173,828,1158,314"
@@ -170,8 +179,10 @@ def _start_capture_pressure(war3, ocr_cfg, interval: float, use_dm: bool, dm, st
                 return
             try:
                 if use_dm:
-                    p = dm.capture_to_temp(*ocr_cfg["area_coords"], prefix="probe_watch")
-                    if p:
+                    # 直接走大漠 Capture COM 原语复现旧症状（capture_to_temp 已是 WGC 实现）
+                    p = _probe_dm_shot()
+                    dm._com_call("Capture", *ocr_cfg["area_coords"], p)
+                    if os.path.exists(p):
                         os.remove(p)
                 else:
                     war3._ocr_region_text(ocr_cfg)

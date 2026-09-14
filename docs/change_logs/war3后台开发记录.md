@@ -32,8 +32,9 @@
 
 ## 2026-09-12 OCR 监测截图改用 WGC，消除 dx2 Capture 对鼠标注入的干扰
 
-> 状态：**第一阶段代码已完成，待实机验证**（探针 `--wgc-dump` / `--click` / 城门骚扰端到端）
-> | 关联任务：`atomic/blackstone_gate_harassment.toml`（城门骚扰，后台模式）
+> 状态：**第一阶段已实机验证通过**（2026-09-14：`--wgc-dump` 客户区偏移正确、WGC 压力下
+> `--click` 三项解耦全过且无卡帧、城门骚扰后台端到端正常、4 场景帧流测试完成）
+> | **第二阶段（全项目截图统一 WGC）代码已完成，待实机回归** | 关联任务：`atomic/blackstone_gate_harassment.toml`（城门骚扰，后台模式）
 
 ### 解决的问题
 
@@ -150,12 +151,26 @@ class WgcCapture:
 
 不动的部分：`atomic/base.py`、`patrol_loot.py`、`upgrade_stigmata.py`、`endless_runner.py` 的 monitor 参数链与事件中断逻辑全部保留（只加了 `except StopTaskError` 分支的错误上抛）。
 
+#### 实机冒烟结果（2026-09-14，`test_wgc_smoke.py --watch`）
+
+| 场景 | 结果 |
+|---|---|
+| 大部分移出屏幕 | 最大帧龄 1000ms，0 次 CaptureError ✅ |
+| 完全遮挡 | 最大帧龄 219ms，0 次 CaptureError ✅ |
+| 最小化 | 会话启动即 `CaptureError`（fail-fast，符合设计）✅ |
+| 锁屏（Win+L） | 锁屏期间帧流停止（帧龄涨至 20s+），解锁后自动恢复 ✅→前置条件 |
+
+确认：WGC 帧流在锁屏/RDP 断开期间会停止，窗口与会话不死亡，解锁后自动恢复。
+**挂机机前置条件：war3 窗口不最小化 + 系统不锁屏**（屏幕关闭省电无碍，禁的是
+`Win+L`/自动锁屏/组策略锁屏超时）。锁屏发生时 `grab_client` 在 stale 阈值
+（默认 2s）后抛 `CaptureError` 终止任务，不会拿冻结帧误跑。
+
 #### 风险与约束
 
 | 风险 | 说明 / 对策 |
 |---|---|
-| 窗口最小化 | DWM 不再合成，WGC 帧流停止 → `CaptureError` 终止任务。前置条件：KK 多开时 war3 窗口只能被盖住，不能最小化 |
-| 锁屏 / RDP 断开 | DWM 系方案共同风险，有反馈锁屏后帧流停滞。**必须在真实挂机环境跑一次冻结帧测试**；若确认停滞，前置条件加"挂机机器不锁屏 / RDP 断开前切控制台会话"，运行期不做回退 |
+| 窗口最小化 | DWM 不再合成，WGC 帧流停止 → `CaptureError` 终止任务（2026-09-14 实测：启动即报）。前置条件：KK 多开时 war3 窗口只能被盖住，不能最小化 |
+| 锁屏 / RDP 断开 | 2026-09-14 实测：锁屏期间帧流停止、解锁后自动恢复。前置条件：挂机机器不锁屏（屏幕关闭省电无碍）；运行期不做回退 |
 | 黄色边框 | Win10 1903~1909 无法关闭；2004+ `draw_border=False` 生效。挂机场景可接受 |
 | `window_hwnd` 参数 | 需核对 PyPI 固定版本是否包含；无则该版本不可用，等待/换版本，不做改标题变通 |
 | 帧内客户区偏移 | 帧含边框/标题栏，偏移算错 OCR 区域整体错位。探针 `--wgc-dump` 先目测再接入；越界抛 `CaptureError` |
@@ -168,7 +183,7 @@ class WgcCapture:
 2. 探针 `--click`（WGC 并发截图压力）：三项解耦（①脚本→系统 ②系统→脚本 ③选择态点击）全过，**且游戏无周期性卡帧、光标不消失**
 3. 对照 `--capture-dm --click` 复现旧症状，确认差异来自截图方式；对照完成后删除该选项
 4. 城门骚扰任务后台端到端 ≥ 3 轮：接取提示、"已完成"中断行走、回 NPC 交任务全部命中
-5. 真实挂机环境冻结帧测试：被遮挡 / 移出屏幕 / 锁屏 / RDP 断开 各持续 5 分钟，检查 `_latest` 时间戳持续更新
+5. ~~真实挂机环境冻结帧测试~~ 已完成（2026-09-14，结果见上）：遮挡/屏幕外正常，最小化/锁屏报错。剩余可选：RDP 断开场景（与锁屏同理，挂机机以"RDP 断开前切控制台会话"规避）
 6. 无尽模式 boss 死亡监测（`start_text_watcher` 路径）回归一轮
 
 ### 第二阶段（稍后做）：全项目截图统一为 WGC，删除其他截图代码
@@ -199,16 +214,26 @@ class WgcCapture:
 - AGENTS.md "待办：统一截图方式，消除 ImageGrab 坐标转换" 三项全部关闭；"Layered window 刷新"一节里"截图继续用大漠 Capture（gdi2/dx2）"的表述同步更新
 - 大漠 bind 与截图解耦后，"大漠 COM 非线程安全"不再约束截图线程（战斗状态检测线程的重构障碍消失）
 
-#### 执行顺序
+#### 执行顺序与落地状态（2026-09-14 已完成代码改造）
 
-1. `WgcCapture` 加整窗抓帧 + 存盘接口（`grab_window()` / `save()`），供调试截图使用
-2. `find_pic` / `find_color` / `get_color` 的 numpy 实现 + 与大漠结果的对照测试（同一帧、同一模板/颜色，结果一致后才切）
-3. `business/base.py` OCR 入口切换 → KK 端组队流程（`KK_TEST_NO_START_GAME=1`）回归
-4. `inference` ImageGrab 入口删除 → 圣痕面板、宝箱检测、战斗状态检测逐个迁移并回归
-5. `screenshot.py` 调试截图切换
-6. 删除 `visual.py` 大漠/PrintWindow 截图代码、`is_layered_window` 分支、`_current_bind_params` 重绑逻辑
-7. 探针验证 `display=normal` 可行后改配置
-8. 更新 `docs/modules/driver.md` / `inference.md` / AGENTS.md
+1. ✅ `WgcCapture` 补 `grab_window()` / `save()` / `for_hwnd()`（常驻会话）/ `grab_client_rgb()` / `client_size()`
+2. ✅ `visual.py` 重写：`find_pic`/`find_pics`/`find_color`/`get_color`/`capture_region`/`capture_to_temp` 全部走 WGC 帧 numpy 实现（`sliding_window_view` 分块模板匹配，delta_color 每通道容差、sim 为容差内像素占比，颜色串按大漠 RRGGBB/RGB 序解析）；PrintWindow 全部删除；本地自测：模板自匹配命中原位、精确找色/容差找色正确
+3. ✅ `business/base.py`：`ocr_lines`/`ocr_text` 签名改为 `(hwnd, ocr_cfg)`，WGC ndarray → `ocr_*_from_array`，不再 `bind_window` 包裹、不落临时文件；`ocr_kk_lines` 同步去掉 dm 参数；全部 10 个调用点已更新（hall/join_room/room_manager/multi_instance/leader/follower/window_manager/game_ui/jiubing2.base/patrol_loot）
+4. ✅ `inference/local.py`：删 `ocr_screen`/`ocr_lines`/`capture_and_detect_chests`/`capture_and_predict_combat`/`predict_combat_batch` 及 ImageGrab import；新增 `detect_chests_from_array` / `predict_combat_from_arrays`
+5. ✅ `inference/worker.py`：删全部 ImageGrab 命令（`ocr`/`ocr_lines`/`capture_and_*`），保留 `*_from_file`/`predict_combat` 文件入口（exe 打包用）
+6. ✅ `patrol_loot`：战斗检测线程改 WGC 循环抓帧 + `predict_combat_from_arrays`，cancel_file 机制删除（同进程直接查 `_combat_check_running`）；`_find_all_chests` 改 `grab_client` 全客户区 + `detect_chests_from_array`，屏幕坐标转换删除
+7. ✅ `upgrade_stigmata`：`read_stigmata_stats` 两段 OCR 改 `grab_client_rgb` + `ocr_lines_from_array`，手动屏幕坐标转换删除
+8. ✅ `screenshot.py`：`save_screenshot`/`save_active_window_screenshot` 改 WGC；bbox 语义统一为客户区坐标；无绑定时用 `_last_bind_hwnd`（最近绑定目标）兜底，再没有才前台窗口
+9. ✅ `window.py`：删 `_current_bind_params`（PrintWindow 重绑残留），加 `_last_bind_hwnd`
+10. ✅ 探针 `--capture-dm` 对照组改直接调 `dm._com_call("Capture")`（`capture_to_temp` 已是 WGC 实现）
+
+#### 待实机回归
+
+- War3 后台端到端（`--task atomic.blackstone_gate_harassment --bg`），确认无卡帧、选择态点击正常
+- 遮挡 / 移出屏幕场景下 find_pic / OCR / 宝箱 / 战斗检测回归
+- 钓鱼找色：`find_color` 的颜色串按大漠 RRGGBB（RGB 序）解析，需实机确认与旧 dm.FindColor 一致
+- KK 组队流程（`KK_TEST_NO_START_GAME=1`）回归
+- `display=dx2` → `normal` 优化：需探针确认 dx.mouse.* 不依赖 display 钩子，未验证前保留 dx2
 
 ### 已否决方案
 

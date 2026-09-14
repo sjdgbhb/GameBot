@@ -56,12 +56,14 @@
     截图在持锁区段之外仍会周期性卡顿/丢光标，不满足"截图不能影响脚本流程"
   - 根因是 dx 系 Capture 固有的卡帧/撕锁（bridge 已串行 COM 调用，并发不是根源），
     任何走大漠 dx 截图的方案（含同步轮询）都无法满足"截图不影响主流程"
-  - WGC 方案（第一阶段代码已完成 2026-09-13，待实机验证）：截图走 Windows Graphics
+  - WGC 方案（第一阶段代码已完成，冒烟实测 2026-09-14）：截图走 Windows Graphics
     Capture（`windows-capture==2.0.1`，仅主环境，按 hwnd 建会话），从 DWM 合成面取帧
     不进游戏进程；`_ocr_region_text` → `WgcCapture.grab_client` → `ocr_from_array`。
     会话生命周期：`WgcCapture.acquire/release`（hwnd 引用计数），由
     TextMonitor.start/stop、start_text_watcher/stop_text_watcher 管理；
     监测线程出错记 monitor.error/event.error，watch/wait_for/stop 时抛出。
+    **前置条件（实测）**：窗口被遮挡/移出屏幕无碍；最小化启动即报错；
+    锁屏/RDP 断开期间帧流停止、解锁后自动恢复 → 挂机机禁止锁屏。
     第二阶段全项目截图统一为 WGC 并删除大漠 Capture / PrintWindow / ImageGrab 代码。
     **不做兜底/回退**：WGC 失败直接抛 CaptureError 终止任务，不退回大漠截图或前台模式
     → 见 `docs/change_logs/war3后台开发记录.md`
@@ -90,19 +92,25 @@
 
 ## 截图与 OCR 体系
 
-### 当前状态
+### 当前状态（2026-09-14：全项目截图已统一 WGC，待实机回归）
 
-- **后台窗口截图**：大漠 Capture（gdi2/dx2），客户区坐标，无需转换
-- **前台/屏幕截图**：PIL ImageGrab，屏幕坐标，需手动转换客户区→屏幕
-- **OCR**：统一用 RapidOCR（ONNXRuntime 后端），不用大漠 OCR
-- **找图找色**：大漠 FindPic/FindColor/GetColor
-- **AI 推理**：ONNXRuntime（宝箱检测、战斗状态检测）
+- **截图**：统一 WGC（Windows Graphics Capture，`runner/driver/wgc_capture.py`），
+  按 hwnd 从 DWM 合成面取帧，不进游戏进程；窗口被遮挡/移出屏幕均可取帧，
+  **不可最小化、不可锁屏**（帧流停止 → `CaptureError`，无回退）
+- **大漠仅剩输入注入**（`move_to`/`key_press`/`send_string` 等），不再承担任何截图职责；
+  `display=dx2` 暂留待验证，确认 dx.mouse.* 不依赖 display 钩子后可改 `normal`
+- **找图找色**：`visual.py` numpy 实现（WGC 帧 + `sliding_window_view` 模板匹配），
+  颜色串按大漠 RRGGBB（RGB 序）解析；**调用接口与返回语义不变**
+- **OCR**：RapidOCR（ONNXRuntime），输入为 WGC 帧 ndarray，不再落临时文件
+- **AI 推理**：ONNXRuntime（宝箱 `detect_chests_from_array`、战斗 `predict_combat_from_arrays`）
+- **ImageGrab / PrintWindow / 大漠 Capture 已全部移除**；WGC 失败直接抛 `CaptureError`
+- 会话管理：`WgcCapture.acquire()`/`release()` 引用计数（监测线程用），
+  `WgcCapture.for_hwnd(hwnd)` 常驻会话（业务一次性调用用，无需绑定上下文）
 
 ### Layered window 刷新（2026-09-01 更新）
 
 KK 平台 Qt 5.15.2 窗口是 `WS_EX_LAYERED`，后台输入/点击后画面不刷新。
 解决方案：`force_refresh_layered(hwnd)` — 取消 layered → RedrawWindow → 恢复 layered。
-截图继续用大漠 Capture（gdi2/dx2），无需 PrintWindow。
 已在 hall_manager/join_room/room_manager 的输入/点击操作后调用。
 
 **重要约束（2026-09-01 实机测试确认）**：
@@ -117,19 +125,3 @@ KK 平台 Qt 5.15.2 窗口是 `WS_EX_LAYERED`，后台输入/点击后画面不�
       # 点击确认等后续操作
   ```
 - 已在 `create_room`（输入密码→刷新→点击创建）和 `join_room`（输入密码→刷新→点击确认）中应用此模式。
-
-### 待办：统一截图方式，消除 ImageGrab 坐标转换
-
-**目标**：把以下 ImageGrab 场景改为大漠截图（客户区坐标，无需转换）。
-
-| 场景 | 文件 | 当前方式 | 改造难度 |
-|---|---|---|---|
-| 圣痕面板 OCR | `runner/tasks/war3/jiubing2/others/upgrade_stigmata.py:330` | ImageGrab + 手动坐标转换 | 低 — war3 窗口已绑定，改走 `base.ocr_lines` |
-| 宝箱检测 | `runner/tasks/war3/jiubing2/others/patrol_loot.py:486` | ImageGrab 全屏截图 | 中 — 需在绑定上下文内调用，或用 `capture_to_temp` + `detect_chests` |
-| 战斗状态检测 | `runner/tasks/war3/jiubing2/others/patrol_loot.py:239` | ImageGrab 独立线程连续截帧 | 高 — 大漠 COM 非线程安全，需重构线程模型 |
-
-**注意事项**：
-- `inference/local.py` 中的 `ocr_screen`/`ocr_lines`（ImageGrab 版）和 `capture_and_detect_chests`/`capture_and_predict_combat` 是 ImageGrab 入口
-- `inference/local.py` 中的 `ocr_from_file`/`ocr_lines_from_file`/`detect_chests`/`predict_combat_batch` 是文件入口（可配合大漠截图使用）
-- 战斗状态检测的线程模型重构是主要障碍，大漠 `bind_window` 不是线程安全的
-- `inference/worker.py` 中有对应的子进程版本（ImageGrab），如统一截图方式也需同步处理

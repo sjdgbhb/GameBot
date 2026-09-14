@@ -220,7 +220,6 @@ class TeamFollower(TeamMemberBase):
             if ocr_area == [0, 0, 0, 0]:
                 return ""
             lines = self.kk.ocr_kk_lines(
-                self.dm,
                 room_hwnd,
                 {"area_coords": ocr_area},
             )

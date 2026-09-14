@@ -1,43 +1,112 @@
-"""视觉操作 Mixin — 找图找色、截图、OCR（基于 _com_call 原语组合）。
+"""视觉操作 Mixin — 找图找色、截图（基于 WGC 帧的 numpy 实现）。
 
-含 PrintWindow + PW_RENDERFULLCONTENT 截图，用于 WS_EX_LAYERED 窗口
-（KK 的 Qt 5.15.2 弹窗），大漠 gdi2/dx2 对 layered window 截图无效。
+所有截图统一走 Windows Graphics Capture（WGC），不再使用大漠 Capture 或
+PrintWindow。坐标均为**绑定窗口客户区坐标**（与大漠 FindPic 语义一致）。
+
+模板匹配语义与大漠对齐：
+- delta_color "RRGGBB"：每通道允许的颜色偏差（大漠颜色串为 RGB 序）
+- sim：相似度阈值，等于"模板中容差内像素占比"的最小值
+- find_pic 返回 (index, x, y)：index=0 命中 / -1 未命中；x,y 为命中图片
+  左上角的**客户区绝对坐标**（搜索区偏移 + 区内偏移）
 """
 
-import ctypes
-import ctypes.wintypes
 import os
 import tempfile
 import time
 import uuid
-from typing import Tuple
+from typing import List, Tuple
 
+import numpy as np
+from PIL import Image
+
+from GameBot.runner.driver.wgc_capture import WgcCapture
 from GameBot.runner.resource_manager import res_mgr
+from GameBot.utils.exception_handler import CaptureError
 from GameBot.utils.logger import logger
 
-# PrintWindow 标志
-PW_CLIENTONLY = 0x00000001
-PW_RENDERFULLCONTENT = 0x00000002
-PW_CLIENT_FULL = PW_CLIENTONLY | PW_RENDERFULLCONTENT  # 0x3
+
+def _parse_rgb(hex_color: str) -> Tuple[int, int, int]:
+    """解析大漠颜色串 "RRGGBB" 为 (R, G, B) 通道容差/颜色值。"""
+    s = hex_color.strip().lstrip("#").lower()
+    if len(s) != 6:
+        raise ValueError(f"颜色格式错误（应为6位十六进制 RRGGBB）: {hex_color!r}")
+    return int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16)
 
 
 class VisualMixin:
-    """视觉相关操作：找图、找色、截图、OCR。
+    """视觉相关操作：找图、找色、截图。
 
-    依赖子类提供 `_com_call(name, *args)` 原语。
+    依赖子类提供 `_current_bind_hwnd`（bind_window 上下文内由 WindowMixin 设置）。
     """
 
+    # ── WGC 会话 ─────────────────────────────────────────
+
+    def _wgc(self) -> WgcCapture:
+        """当前绑定窗口的 WGC 常驻会话；未绑定直接报错（不做前台/其他回退）。"""
+        hwnd = getattr(self, "_current_bind_hwnd", 0)
+        if not hwnd:
+            raise CaptureError("当前未绑定窗口（_current_bind_hwnd=0），无法用 WGC 取帧")
+        return WgcCapture.for_hwnd(hwnd)
+
+    # ── 模板匹配 ─────────────────────────────────────────
+
+    @staticmethod
+    def _match_scores(region: np.ndarray, tpl: np.ndarray, tol: Tuple[int, int, int]) -> np.ndarray:
+        """计算每个位置"模板像素全部落在容差内"的比例，返回 (ph, pw) 分数图。
+
+        region/tpl 均为 RGB 三通道 uint8。按位置行分块计算，控制内存。
+        """
+        rh, rw = region.shape[:2]
+        th, tw = tpl.shape[:2]
+        ph, pw = rh - th + 1, rw - tw + 1
+        scores = np.zeros((ph, pw), dtype=np.float32)
+        tol_arr = np.asarray(tol, dtype=np.int16)
+        tpl_i16 = tpl.astype(np.int16)
+        # 每块处理的"位置行"数：约 64MB 的 int16 上限
+        rows_per_chunk = max(1, int(32 * 1024 * 1024 // max(1, pw * th * tw * 3)))
+        for y0 in range(0, ph, rows_per_chunk):
+            y1 = min(y0 + rows_per_chunk, ph)
+            # 滑窗视图：(chunk_rows, pw, 3, th, tw) → 调整轴序为 (chunk_rows, pw, th, tw, 3)
+            win = np.lib.stride_tricks.sliding_window_view(
+                region[y0 : y0 + th + (y1 - y0) - 1], (th, tw), axis=(0, 1)
+            ).transpose(0, 1, 3, 4, 2)
+            ok = (np.abs(win.astype(np.int16) - tpl_i16) <= tol_arr).all(axis=-1)
+            scores[y0:y1] = ok.mean(axis=(-1, -2))
+        return scores
+
+    _TPL_CACHE: dict = {}
+
+    def _load_template(self, pic_name: str) -> np.ndarray:
+        """加载模板图片为 RGB ndarray（带缓存）。"""
+        path = res_mgr.get_image_path(pic_name)
+        tpl = self._TPL_CACHE.get(path)
+        if tpl is None:
+            tpl = np.array(Image.open(path).convert("RGB"))
+            self._TPL_CACHE[path] = tpl
+        return tpl
+
+    # ── 找图 ─────────────────────────────────────────────
+
     def find_pic(self, x1, y1, x2, y2, pic_name, sim=0.9, delta_color="000000", dir=0) -> Tuple[int, int, int]:
-        """找图，返回 (是否找到, x, y)"""
-        pic_path = res_mgr.get_image_path(pic_name)
-        # 直接调用，不传入输出参数
-        result = self._com_call("FindPic", x1, y1, x2, y2, pic_path, delta_color, sim, dir)
-        return result
+        """找图，返回 (index, x, y)。index=0 命中，-1 未命中；x,y 为命中图左上角客户区坐标。
+
+        与大漠 FindPic 语义一致：delta_color 每通道容差，sim 为容差内像素占比阈值。
+        dir 仅支持 0（左上→右下扫描序的第一个命中，取分数最高者）。
+        """
+        region = self._wgc().grab_client_rgb((x1, y1, x2, y2))
+        tpl = self._load_template(pic_name)
+        if tpl.shape[0] > region.shape[0] or tpl.shape[1] > region.shape[1]:
+            return -1, -1, -1
+        scores = self._match_scores(region, tpl, _parse_rgb(delta_color))
+        best = np.unravel_index(int(np.argmax(scores)), scores.shape)
+        if float(scores[best]) >= sim:
+            return 0, x1 + int(best[1]), y1 + int(best[0])
+        return -1, -1, -1
 
     def click_pic(self, pic_name, x1=0, y1=0, x2=1920, y2=1080, delta_color="000000", sim=0.9, offset_x=0, offset_y=0):
         """点击图片中心（偏移后）"""
         is_found, x, y = self.find_pic(x1, y1, x2, y2, pic_name, delta_color, sim)
-        if not is_found:
+        if is_found < 0:
             return False
         click_x = x + offset_x
         click_y = y + offset_y
@@ -46,264 +115,82 @@ class VisualMixin:
         logger.info(f"点击图片: {pic_name} 坐标({click_x},{click_y})")
         return True
 
-    def find_pics(self, x1, y1, x2, y2, pic_names, delta_color="000000", sim=0.9, dir=0):
-        """
-        使用大漠 FindPicEx 查找多个图片。
-        Args:
-            pic_names: 多个图片名用 "|" 分隔
-        Returns:
-            List[Tuple[int, int, int]]：[(index, x, y), ...]，空则返回 []
-        """
-        pic_paths = "|".join(str(res_mgr.get_image_path(pic_name)) for pic_name in pic_names.split("|"))
-        result = self._com_call("FindPicEx", x1, y1, x2, y2, pic_paths, delta_color, sim, dir)
-        if not result:
-            return []
-
+    def find_pics(self, x1, y1, x2, y2, pic_names, delta_color="000000", sim=0.9, dir=0) -> List[Tuple[int, int, int]]:
+        """多模板找图，返回 [(index, x, y), ...]（index 为模板序号），空则返回 []。"""
+        region = self._wgc().grab_client_rgb((x1, y1, x2, y2))
+        tol = _parse_rgb(delta_color)
         matches = []
-        for item in result.split("|"):
-            parts = item.split(",")
-            if len(parts) != 3:
+        for idx, name in enumerate(pic_names.split("|")):
+            tpl = self._load_template(name)
+            if tpl.shape[0] > region.shape[0] or tpl.shape[1] > region.shape[1]:
                 continue
-            index, x, y = parts
-            matches.append((int(index), int(x), int(y)))
+            scores = self._match_scores(region, tpl, tol)
+            best = np.unravel_index(int(np.argmax(scores)), scores.shape)
+            if float(scores[best]) >= sim:
+                matches.append((idx, x1 + int(best[1]), y1 + int(best[0])))
         return matches
 
+    # ── 找色 ─────────────────────────────────────────────
+
     def find_color(self, x1, y1, x2, y2, color="ff0000-000000", sim=0.9, dir=0) -> Tuple[int, int, int]:
-        """找色，返回 (是否找到, x, y)"""
-        result = self._com_call("FindColor", x1, y1, x2, y2, color, sim, dir)
-        return result
+        """找色，返回 (是否找到, x, y)。
+
+        color 格式 "RRGGBB-DDGGBB"（大漠语义：目标色-每通道偏色，RGB 序）。
+        命中条件：搜索区内存在像素，其三通道与目标色各差值 ≤ 容差。
+        容差取值：偏色 delta 非 0 时用 delta；delta 为 0 时用 (1-sim)*255 推导
+        （与大漠"无偏色时 sim 控制色差范围"的行为一致）。
+        """
+        if "-" in color:
+            target_hex, delta_hex = color.split("-", 1)
+        else:
+            target_hex, delta_hex = color, "000000"
+        tr, tg, tb = _parse_rgb(target_hex)
+        dr, dg, db = _parse_rgb(delta_hex)
+        if dr == 0 and dg == 0 and db == 0:
+            tol = round((1.0 - sim) * 255)
+            dr = dg = db = tol
+        region = self._wgc().grab_client_rgb((x1, y1, x2, y2)).astype(np.int16)
+        mask = (
+            (np.abs(region[..., 0] - tr) <= dr)
+            & (np.abs(region[..., 1] - tg) <= dg)
+            & (np.abs(region[..., 2] - tb) <= db)
+        )
+        ys, xs = np.nonzero(mask)
+        if len(xs) == 0:
+            return 0, -1, -1
+        # dir=0：左上→右下扫描序第一个命中
+        return 1, x1 + int(xs[0]), y1 + int(ys[0])
 
     def get_color(self, x: int, y: int) -> str:
-        """获取指定像素颜色（十六进制字符串，如 'ff0000'）"""
-        return self._com_call("GetColor", x, y)
+        """获取指定客户区坐标像素颜色（"RRGGBB" 六位十六进制，RGB 序，与大漠一致）。"""
+        px = self._wgc().grab_client_rgb((x, y, x + 1, y + 1))[0, 0]
+        return f"{int(px[0]):02x}{int(px[1]):02x}{int(px[2]):02x}"
+
+    # ── 截图 ─────────────────────────────────────────────
 
     def capture_region(self, x1, y1, x2, y2, filepath: str) -> bool:
-        """截取屏幕区域到文件，返回是否成功。
-
-        对 WS_EX_LAYERED 窗口（KK 的 Qt 弹窗）自动使用 PrintWindow + PW_RENDERFULLCONTENT，
-        因为大漠 gdi2/dx2 对 layered window 截图无效（全黑或旧画面）。
-        需在窗口绑定上下文内调用。
-        """
-        hwnd = getattr(self, "_current_bind_hwnd", 0)
-        if hwnd and self.is_layered_window(hwnd):
-            return self.capture_region_printwindow(hwnd, x1, y1, x2, y2, filepath)
-        ret = self._com_call("Capture", x1, y1, x2, y2, filepath)
-        return ret == 1
-
-    def capture_region_printwindow(self, hwnd: int, x1: int, y1: int, x2: int, y2: int, filepath: str) -> bool:
-        """使用 PrintWindow + PW_RENDERFULLCONTENT 截取 layered window 区域。
-
-        对 WS_EX_LAYERED 窗口，PrintWindow + PW_RENDERFULLCONTENT 能从 DWM
-        合成表面抓取当前完整内容，不依赖窗口 DC（layered window 的窗口 DC 无内容）。
-
-        :param hwnd: 目标窗口句柄
-        :param x1,y1,x2,y2: 客户区坐标
-        :param filepath: 输出 BMP 文件路径
-        :return: 是否成功
-        """
-        try:
-            user32 = ctypes.windll.user32
-            gdi32 = ctypes.windll.gdi32
-
-            # 大漠 bind_window (dx2) 会 hook 窗口 GDI 调用，导致 PrintWindow 抓到黑屏。
-            # 对 layered window，需要临时解绑后再 PrintWindow，然后重新绑定。
-            was_bound = getattr(self, "_current_bind_hwnd", 0)
-            bind_params = getattr(self, "_current_bind_params", None)
-            if was_bound:
-                try:
-                    self._com_call("UnBindWindow")
-                except Exception:
-                    pass
-
-            # 设置 argtypes/restype，避免 64 位系统上句柄溢出
-            user32.GetDC.argtypes = [ctypes.wintypes.HWND]
-            user32.GetDC.restype = ctypes.wintypes.HDC
-            user32.ReleaseDC.argtypes = [ctypes.wintypes.HWND, ctypes.wintypes.HDC]
-            user32.ReleaseDC.restype = ctypes.wintypes.BOOL
-            user32.GetClientRect.argtypes = [ctypes.wintypes.HWND, ctypes.c_void_p]
-            user32.GetClientRect.restype = ctypes.wintypes.BOOL
-            user32.PrintWindow.argtypes = [
-                ctypes.wintypes.HWND,
-                ctypes.wintypes.HDC,
-                ctypes.wintypes.UINT,
-            ]
-            user32.PrintWindow.restype = ctypes.wintypes.BOOL
-
-            gdi32.CreateCompatibleDC.argtypes = [ctypes.wintypes.HDC]
-            gdi32.CreateCompatibleDC.restype = ctypes.wintypes.HDC
-            gdi32.DeleteDC.argtypes = [ctypes.wintypes.HDC]
-            gdi32.DeleteDC.restype = ctypes.wintypes.BOOL
-            gdi32.CreateCompatibleBitmap.argtypes = [
-                ctypes.wintypes.HDC,
-                ctypes.c_int,
-                ctypes.c_int,
-            ]
-            gdi32.CreateCompatibleBitmap.restype = ctypes.wintypes.HBITMAP
-            gdi32.SelectObject.argtypes = [ctypes.wintypes.HDC, ctypes.wintypes.HGDIOBJ]
-            gdi32.SelectObject.restype = ctypes.wintypes.HGDIOBJ
-            gdi32.DeleteObject.argtypes = [ctypes.wintypes.HGDIOBJ]
-            gdi32.DeleteObject.restype = ctypes.wintypes.BOOL
-            gdi32.GetCurrentObject.argtypes = [ctypes.wintypes.HDC, ctypes.c_uint]
-            gdi32.GetCurrentObject.restype = ctypes.wintypes.HGDIOBJ
-            gdi32.GetDIBits.argtypes = [
-                ctypes.wintypes.HDC,
-                ctypes.wintypes.HBITMAP,
-                ctypes.c_uint,
-                ctypes.c_uint,
-                ctypes.c_void_p,
-                ctypes.c_void_p,
-                ctypes.c_uint,
-            ]
-            gdi32.GetDIBits.restype = ctypes.c_int
-
-            w = x2 - x1
-            h = y2 - y1
-            if w <= 0 or h <= 0:
-                logger.warning(f"PrintWindow 截图区域无效: ({x1},{y1},{x2},{y2})")
-                return False
-
-            # PrintWindow 总是把整个窗口画到 DC，因此先截取整个客户区，
-            # 再从结果中裁剪出目标区域（避免局部区域截图时内容错位）
-            client_rect = ctypes.wintypes.RECT()
-            user32.GetClientRect(hwnd, ctypes.byref(client_rect))
-            full_w = client_rect.right
-            full_h = client_rect.bottom
-            if full_w <= 0 or full_h <= 0:
-                logger.warning(f"PrintWindow: 客户区尺寸无效 ({full_w}x{full_h})")
-                return False
-
-            wnd_dc = user32.GetDC(hwnd)
-            if not wnd_dc:
-                logger.warning("PrintWindow: GetDC 失败")
-                return False
-            try:
-                mem_dc = gdi32.CreateCompatibleDC(wnd_dc)
-                bmp = gdi32.CreateCompatibleBitmap(wnd_dc, full_w, full_h)
-                old = gdi32.SelectObject(mem_dc, bmp)
-                try:
-                    ok = user32.PrintWindow(hwnd, mem_dc, PW_CLIENT_FULL)
-                    if not ok:
-                        logger.warning("PrintWindow 调用失败")
-                        return False
-                    # 从全窗口截图中裁剪出目标区域
-                    from PIL import Image
-
-                    full_path = filepath + ".full.tmp"
-                    if not self._save_dc_to_bmp(mem_dc, full_w, full_h, full_path):
-                        return False
-                    try:
-                        img = Image.open(full_path).convert("RGB")
-                        # 确保裁剪区域不越界
-                        cx2 = min(x2, full_w)
-                        cy2 = min(y2, full_h)
-                        crop = img.crop((x1, y1, cx2, cy2))
-                        crop.save(filepath, "BMP")
-                        return True
-                    finally:
-                        try:
-                            os.remove(full_path)
-                        except OSError:
-                            pass
-                finally:
-                    gdi32.SelectObject(mem_dc, old)
-                    gdi32.DeleteObject(bmp)
-                    gdi32.DeleteDC(mem_dc)
-            finally:
-                user32.ReleaseDC(hwnd, wnd_dc)
-        except Exception as e:
-            logger.warning(f"PrintWindow 截图异常: {e}")
-            return False
-        finally:
-            # 重新绑定窗口（如果之前已绑定）
-            if was_bound and bind_params:
-                try:
-                    display, mouse, keypad, public, mode = bind_params
-                    self._com_call("BindWindowEx", was_bound, display, mouse, keypad, public, mode)
-                except Exception as e:
-                    logger.warning(f"PrintWindow 后重新绑定窗口失败: {e}")
-
-    @staticmethod
-    def _save_dc_to_bmp(hdc, width: int, height: int, path: str) -> bool:
-        """从 HDC 当前位图创建 DIB，写入 24 位 BMP 文件。
-
-        使用 PIL ImageGrab.frombuffer 读取 DIB 数据，避免直接写文件时
-        GetDIBits 在 64 位系统上对大 HDC 句柄溢出的问题。
-        """
-        from PIL import Image
-
-        gdi32 = ctypes.windll.gdi32
-        DIB_RGB_COLORS = 0
-        OBJ_BITMAP = 7
-
-        # 设置 argtypes/restype，避免 64 位系统上句柄溢出
-        gdi32.GetCurrentObject.argtypes = [ctypes.wintypes.HDC, ctypes.c_uint]
-        gdi32.GetCurrentObject.restype = ctypes.wintypes.HGDIOBJ
-        gdi32.GetDIBits.argtypes = [
-            ctypes.wintypes.HDC,
-            ctypes.wintypes.HBITMAP,
-            ctypes.c_uint,
-            ctypes.c_uint,
-            ctypes.c_void_p,
-            ctypes.c_void_p,
-            ctypes.c_uint,
-        ]
-        gdi32.GetDIBits.restype = ctypes.c_int
-
-        class BITMAPINFOHEADER(ctypes.Structure):
-            _fields_ = [
-                ("biSize", ctypes.c_uint32),
-                ("biWidth", ctypes.c_long),
-                ("biHeight", ctypes.c_long),
-                ("biPlanes", ctypes.c_uint16),
-                ("biBitCount", ctypes.c_uint16),
-                ("biCompression", ctypes.c_uint32),
-                ("biSizeImage", ctypes.c_uint32),
-                ("biXPelsPerMeter", ctypes.c_long),
-                ("biYPelsPerMeter", ctypes.c_long),
-                ("biClrUsed", ctypes.c_uint32),
-                ("biClrImportant", ctypes.c_uint32),
-            ]
-
-        hbm = gdi32.GetCurrentObject(hdc, OBJ_BITMAP)
-        bmi = BITMAPINFOHEADER()
-        bmi.biSize = ctypes.sizeof(BITMAPINFOHEADER)
-        bmi.biWidth = width
-        bmi.biHeight = -height  # 自上而下（负值 = top-down）
-        bmi.biPlanes = 1
-        bmi.biBitCount = 32  # 用 32 位（BGRA），避免 24 位行对齐问题
-        bmi.biCompression = 0
-        buf_size = width * height * 4
-        buf = ctypes.create_string_buffer(buf_size)
-        ok = gdi32.GetDIBits(hdc, hbm, 0, height, buf, ctypes.byref(bmi), DIB_RGB_COLORS)
-        if not ok:
-            logger.warning("_save_dc_to_bmp: GetDIBits 失败")
-            return False
-        # 用 PIL 从 raw buffer 创建图像（32 位 BGRA → RGB）
-        img = Image.frombuffer("RGBA", (width, height), buf.raw, "raw", "BGRA", 0, 1)
-        img = img.convert("RGB")
-        img.save(path, "BMP")
+        """截取客户区区域到文件，返回是否成功。需在窗口绑定上下文内调用。"""
+        img = self._wgc().grab_client((x1, y1, x2, y2))[:, :, [2, 1, 0]]
+        Image.fromarray(img).save(filepath)
         return True
 
     def capture_to_temp(self, x1, y1, x2, y2, prefix: str = "ocr") -> str:
-        """截取屏幕区域到临时 BMP 文件，返回文件路径（失败返回空字符串）。
+        """截取客户区区域到临时文件，返回文件路径（失败抛 CaptureError）。
 
-        需在窗口绑定上下文内调用，以支持后台窗口截图。
-        调用方负责在使用完毕后删除临时文件。
+        需在窗口绑定上下文内调用。调用方负责在使用完毕后删除临时文件。
         """
         temp_dir = tempfile.gettempdir()
-        filename = f"gamebot_{prefix}_{os.getpid()}_{uuid.uuid4().hex}.bmp"
+        filename = f"gamebot_{prefix}_{os.getpid()}_{uuid.uuid4().hex}.png"
         filepath = os.path.join(temp_dir, filename)
-        if self.capture_region(x1, y1, x2, y2, filepath):
-            return filepath
-        logger.warning(f"截图失败: bbox=({x1},{y1},{x2},{y2})")
-        return ""
+        self.capture_region(x1, y1, x2, y2, filepath)
+        return filepath
 
     def wait_pic(self, pic_name, x1=0, y1=0, x2=1920, y2=1080, timeout=10, interval=0.5, **kwargs):
         """等待图片出现，默认全屏查找"""
         start = time.time()
         while time.time() - start < timeout:
             found, _, _ = self.find_pic(x1, y1, x2, y2, pic_name, **kwargs)
-            if found:
+            if found >= 0:
                 return True
             time.sleep(interval)
         logger.warning(f"等待图片超时: {pic_name}")

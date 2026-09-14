@@ -706,7 +706,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         # OCR 弹窗区域（逐行）
         area_coords = popup_cfg.get("area_coords", [600, 200, 1300, 600])
         ocr_cfg = {"area_coords": area_coords}
-        lines = self.war3.ocr_lines(self.war3.dm, hwnd, ocr_cfg, bind_cfg=self.war3.war3_cfg.get("bind", {}))
+        lines = self.war3.ocr_lines(hwnd, ocr_cfg)
 
         window_kw = popup_cfg.get("window_keyword", "任务")
         close_kw = popup_cfg.get("close_keyword", "关闭")

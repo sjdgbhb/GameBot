@@ -50,7 +50,6 @@ class RoomManagerMixin:
             # OCR 验证按钮文本是否为"开始游戏"
             if ocr_area != [0, 0, 0, 0]:
                 lines = self.ocr_kk_lines(
-                    dm,
                     room_hwnd,
                     {"area_coords": ocr_area},
                 )
@@ -108,7 +107,6 @@ class RoomManagerMixin:
             try:
                 x1, y1, x2, y2 = dm.get_client_rect(popup_hwnd)
                 lines = self.ocr_kk_lines(
-                    dm,
                     popup_hwnd,
                     {"area_coords": [0, 0, x2 - x1, y2 - y1]},
                 )

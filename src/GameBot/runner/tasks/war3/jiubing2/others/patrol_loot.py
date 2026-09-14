@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-import os
-import tempfile
 import threading
 import time
 from typing import Optional
@@ -16,6 +14,7 @@ from GameBot.inference import get_inference_client
 from GameBot.runner import create_dm_client
 from GameBot.runner.business.war3 import TextMonitor, War3Business
 from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI, get_inventory_hotkey, get_inventory_hotkeys
+from GameBot.runner.driver.wgc_capture import WgcCapture
 from GameBot.runner.ui import run_with_float_window
 from GameBot.utils import StopTaskError, logger, setup_log_file
 from GameBot.utils.exception_handler import setup_global_exception_hook
@@ -224,36 +223,35 @@ class PatrolLootTask:
     def _start_combat_check(self):
         """启动持续战斗检测线程，在移动等待期间循环检测战斗状态。
 
-        线程会不断调用 capture_and_predict_combat（每轮约 3s），
-        将最新结果存入 _combat_check_result，直到 _stop_combat_check 被调用。
-        如果线程已在运行则不重复启动。
+        线程每轮用 WGC 抓 frame_count 帧头像区域（frame_interval 间隔），
+        送入 ONNX 战斗分类模型，将最新结果存入 _combat_check_result，
+        直到 _stop_combat_check 被调用。如果线程已在运行则不重复启动。
         """
         if self._combat_check_thread is not None and self._combat_check_running:
             return
         cfg = self.combat_cfg
         area = cfg["in_combat_area_coords"]
-        cx, cy, _, _ = self.dm.get_client_rect(self.hwnd)
-        bbox = [cx + area[0], cy + area[1], cx + area[2], cy + area[3]]
         frame_count = cfg.get("frame_count", 10)
         frame_interval = cfg.get("frame_interval", 0.3)
+        wgc_min_interval = self.war3_cfg.get("wgc_min_interval_ms", 100)
 
         self._combat_check_result = None
         self._combat_check_error = None
         self._combat_check_round = 0
         self._combat_check_running = True
-        # 取消信号文件，脱战时创建此文件中断子进程截帧
-        self._combat_cancel_file = os.path.join(tempfile.gettempdir(), "patrol_combat_cancel.tmp")
 
         def _do_check():
+            cap = WgcCapture.for_hwnd(self.hwnd, min_interval_ms=wgc_min_interval)
             while self._combat_check_running:
                 try:
-                    results = get_inference_client().capture_and_predict_combat(
-                        bbox,
-                        frame_count=frame_count,
-                        frame_interval=frame_interval,
-                        cancel_file=self._combat_cancel_file,
-                    )
-                    self._combat_check_result = results
+                    frames = []
+                    for i in range(frame_count):
+                        if not self._combat_check_running:
+                            break
+                        frames.append(cap.grab_client(area))
+                        if i < frame_count - 1:
+                            time.sleep(frame_interval)
+                    self._combat_check_result = get_inference_client().predict_combat_from_arrays(frames)
                     self._combat_check_round += 1
                 except Exception as e:
                     self._combat_check_error = e
@@ -264,16 +262,8 @@ class PatrolLootTask:
         self._combat_check_thread.start()
 
     def _stop_combat_check(self):
-        """停止持续战斗检测线程，通过取消信号中断子进程截帧后等待线程退出。"""
+        """停止持续战斗检测线程，等待线程退出。"""
         self._combat_check_running = False
-        # 创建取消信号文件，中断子进程正在进行的截帧循环
-        cancel_file = getattr(self, "_combat_cancel_file", None)
-        if cancel_file:
-            try:
-                with open(cancel_file, "w") as f:
-                    f.write("1")
-            except OSError:
-                pass
         if self._combat_check_thread is not None:
             self._combat_check_thread.join(timeout=5)
             self._combat_check_thread = None
@@ -483,25 +473,25 @@ class PatrolLootTask:
     # ── 宝箱检测 ──────────────────────────────────────────
 
     def _find_all_chests(self):
-        """全屏AI检测宝箱，返回 [(index, x, y, confidence), ...]，x/y 为宝箱中心坐标。"""
+        """全客户区 AI 检测宝箱（WGC 取帧），返回 [(index, x, y, confidence), ...]，x/y 为宝箱中心坐标。"""
         # 截图前用大漠 MoveTo 移动鼠标到远处，触发 war3 tooltip 消失
         avoid_x, avoid_y = self.mouse_avoid_pos
         self.dm.move_to(avoid_x, avoid_y)
         time.sleep(0.15)
 
-        # 获取客户区屏幕坐标，让子进程直接截屏+检测，无需写读 BMP 文件
-        cx, cy, _, _ = self.dm.get_client_rect(self.hwnd)
-        client_size = self.war3_cfg.get("client_size", [1902, 1033])
-        bbox = [cx, cy, cx + client_size[0], cy + client_size[1]]
+        # WGC 整客户区帧（客户区坐标），检测返回的坐标即客户区坐标
+        wgc_min_interval = self.war3_cfg.get("wgc_min_interval_ms", 100)
+        cap = WgcCapture.for_hwnd(self.hwnd, min_interval_ms=wgc_min_interval)
+        cw, ch = cap.client_size()
+        img = cap.grab_client((0, 0, cw, ch))
         t0 = time.time()
-        detections = get_inference_client().capture_and_detect_chests(bbox)
+        detections = get_inference_client().detect_chests_from_array(img)
         logger.debug(f"宝箱检测耗时: {time.time() - t0:.3f}s，检测到 {len(detections) if detections else 0} 个")
         if not detections:
             return []
 
         results = []
         for i, (x1, y1, x2, y2, confidence) in enumerate(detections):
-            # 子进程返回的坐标是相对截屏区域的，需转为客户区坐标
             cx_pt = (x1 + x2) // 2
             cy_pt = (y1 + y2) // 2
             results.append((i, cx_pt, cy_pt, confidence))
@@ -522,9 +512,7 @@ class PatrolLootTask:
             chest_x + half_w,
             text_y + half_h,
         ]
-        text = self.war3.ocr_text(
-            self.war3.dm, self.hwnd, {"area_coords": area_coords}, bind_cfg=self.war3.war3_cfg.get("bind", {})
-        )
+        text = self.war3.ocr_text(self.hwnd, {"area_coords": area_coords})
         return self.war3._normalize_ocr(text)
 
     # ── 辅助 ──────────────────────────────────────────────

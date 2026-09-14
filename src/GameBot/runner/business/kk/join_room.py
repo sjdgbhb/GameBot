@@ -130,7 +130,7 @@ class JoinRoomMixin:
                 dm.left_double_click()
         else:
             # 如果配置了 4 元素 OCR 区域，走 OCR 匹配逻辑
-            lines = self.ocr_kk_lines(dm, hall_hwnd, {"area_coords": ocr_area}, merge_lines=False)
+            lines = self.ocr_kk_lines(hall_hwnd, {"area_coords": ocr_area}, merge_lines=False)
             # 按 (y_center, x_center) 排序
             sorted_lines = sorted(lines, key=lambda l: (round(l.get("y_center", 0) / 20), l.get("x_center", 0)))
             target_line = None
@@ -281,7 +281,7 @@ class JoinRoomMixin:
 
         # OCR 检测搜索结果列表
         ocr_area = main_cfg.get("map_result_ocr_area_coords", [0, 0, 0, 0])
-        lines = self.ocr_kk_lines(dm, hall_hwnd, {"area_coords": ocr_area}, merge_lines=False)
+        lines = self.ocr_kk_lines(hall_hwnd, {"area_coords": ocr_area}, merge_lines=False)
         sorted_lines = sorted(lines, key=lambda l: (round(l.get("y_center", 0) / 20), l.get("x_center", 0)))
         target_line = None
         for line in sorted_lines:

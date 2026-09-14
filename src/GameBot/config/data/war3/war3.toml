@@ -32,9 +32,10 @@ mini_map_signal_delta_color = '202020'
 
 check_interval_time = 2 # 检测间隔
 
-# OCR 文字监测截图走 WGC（Windows Graphics Capture，按 hwnd 从 DWM 取帧，不进游戏进程），
-# 不用大漠 Capture —— dx2 截图与 dx 系鼠标注入共用游戏进程内钩子，每次截图都撕开注入锁并卡一帧。
-# 详见 docs/change_logs/war3后台开发记录.md。WGC 失败直接报错终止任务，不回退大漠截图。
+# 所有截图/找图/找色/OCR/AI 检测统一走 WGC（Windows Graphics Capture，按 hwnd 从 DWM
+# 取帧，不进游戏进程），不再调用大漠 Capture —— dx2 截图与 dx 系鼠标注入共用游戏进程内
+# 钩子，每次截图都撕开注入锁并卡一帧。详见 docs/change_logs/war3后台开发记录.md。
+# WGC 失败直接报错终止任务，不回退大漠截图。前置条件：窗口不可最小化、挂机机不锁屏。
 wgc_min_interval_ms = 100 # WGC 最小出帧间隔（毫秒），略小于 monitor_interval 即可；帧超过 max(2×间隔, 2s) 未更新视为帧流停止
 
 # 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
@@ -62,8 +63,9 @@ mode = 0               # 大漠 BindWindow 附加模式
 # dx2 + windows3 + windows 需要管理员权限
 # 注意：dx2 模式要求窗口有一部分在屏幕外（Win7/Vista 不需要），且不可连续操作需加 10ms 延时
 [this.bind_background]
-# display 现只服务大漠找图找色（find_pic / find_color / get_color，主线程低频）；
-# OCR 监测截图已改走 WGC（见上方 wgc_min_interval_ms）。第二阶段找图找色也迁到 WGC 后可改 normal。
+# display 已无任何实际用途——所有截图/找图/找色/OCR 均走 WGC（见上方 wgc_min_interval_ms），
+# 大漠仅剩鼠标/键盘输入注入。但为保守起见暂留 dx2（dm 输入注入与该显示钩子配套实测通过）；
+# 后续如确认 dx.mouse.* 不依赖 display=dx 可改 normal。
 display = "dx2"
 # 实机矩阵测试结论（详见 AGENTS.md 文本输入/鼠标体系）：
 # windows2（position.lock.api|position.lock.message|state.message）后台解耦，

@@ -90,15 +90,14 @@ class WindowMixin:
         # 绑定后延时等待后台生效（大漠文档建议 1~2 秒）
         if bind_delay > 0:
             time.sleep(bind_delay)
-        # 记录当前绑定的窗口句柄和参数，供 capture_region 判断是否走 PrintWindow 路径
-        # 以及临时解绑后重新绑定
+        # 记录当前绑定的窗口句柄，供 WGC 取帧（visual/screenshot）确定目标窗口；
+        # _last_bind_hwnd 解绑后仍保留，供绑定外的诊断截图找到最近的绑定目标
         self._current_bind_hwnd = hwnd
-        self._current_bind_params = (display, mouse, keypad, public, mode)
+        self._last_bind_hwnd = hwnd
         try:
             yield
         finally:
             self._current_bind_hwnd = 0
-            self._current_bind_params = None
             try:
                 self._com_call("UnBindWindow")
             except Exception as e:

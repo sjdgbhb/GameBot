@@ -13,6 +13,7 @@ import time
 
 from GameBot.config import config
 from GameBot.inference import get_inference_client
+from GameBot.runner.driver.wgc_capture import WgcCapture
 from GameBot.runner.tasks.war3.jiubing2.atomic.blackstone_gate_harassment import GateHarassmentTask
 from GameBot.runner.tasks.war3.jiubing2.base import AtomicLoopTask
 from GameBot.runner.ui import run_with_float_window
@@ -333,25 +334,22 @@ class UpgradeStigmataTask(AtomicLoopTask):
             logger.warning("未配置 stigmata.num_coords，无法 OCR 圣痕面板")
             return {}
 
-        # 客户区坐标转屏幕坐标（OCR 子进程用 ImageGrab.grab 是屏幕坐标）
-        cx, cy, _, _ = self.dm.get_client_rect(hwnd)
-        screen_bbox = [cx + num_coords[0], cy + num_coords[1], cx + num_coords[2], cy + num_coords[3]]
-
         # 按 F2 打开圣痕面板
         self.dm.key_press_char(hotkey)
         self._interruptible_wait(self.war3_cfg.get("small_window_response_time", 0.5))
 
-        # OCR 读取圣痕词条区域
+        # OCR 读取圣痕词条区域（WGC 截图，num_coords 即客户区坐标）
+        wgc_min_interval = self.war3_cfg.get("wgc_min_interval_ms", 100)
+        cap = WgcCapture.for_hwnd(hwnd, min_interval_ms=wgc_min_interval)
         client = get_inference_client()
-        lines = client.ocr_lines(screen_bbox)
+        x1, y1, x2, y2 = num_coords
+        lines = client.ocr_lines_from_array(cap.grab_client_rgb((x1, y1, x2, y2)))
         logger.debug(f"圣痕面板 OCR 原始行(首次): {lines}")
 
         # 行数不足 4 时，对下半部分单独二次 OCR（RapidOCR 可能漏检底部行）
         if len(lines) < 4:
-            x1, y1, x2, y2 = screen_bbox
             mid_y = y1 + (y2 - y1) // 2
-            lower_bbox = [x1, mid_y, x2, y2]
-            lower_lines = client.ocr_lines(lower_bbox)
+            lower_lines = client.ocr_lines_from_array(cap.grab_client_rgb((x1, mid_y, x2, y2)))
             # 二次 OCR 的 y 坐标是相对于子区域的，需加上偏移
             for line in lower_lines:
                 line["y_center"] = line.get("y_center", 0) + (mid_y - y1)

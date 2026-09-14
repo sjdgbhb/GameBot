@@ -175,7 +175,6 @@ class MultiInstanceMixin:
             owner = ""
             with dm.bind_window(dd_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
                 lines = self.ocr_lines(
-                    dm,
                     dd_hwnd,
                     {"area_coords": [0, 0, dd_w, dd_h]},
                 )

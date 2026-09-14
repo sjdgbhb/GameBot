@@ -108,6 +108,25 @@ class WgcCapture:
             cls._sessions[hwnd] = cap
             return cap
 
+    @classmethod
+    def for_hwnd(cls, hwnd: int, min_interval_ms: Optional[int] = None) -> "WgcCapture":
+        """取 hwnd 的常驻会话（进程生命周期），不需 release。
+
+        供 find_pic / ocr / save_screenshot 等"一次性"调用使用：会话创建后常驻，
+        进程退出时由 atexit 统一关闭；窗口关闭后再次调用会自动重建。
+        """
+        if not hwnd:
+            raise CaptureError("无有效窗口句柄，无法建立 WGC 会话")
+        with cls._sessions_lock:
+            cap = cls._sessions.get(hwnd)
+            if cap is not None and not cap._closed:
+                return cap
+            cap = cls(hwnd, min_interval_ms=min_interval_ms)
+            cap.start()
+            cap._refs = 1  # 常驻引用，不会被 release 到 0
+            cls._sessions[hwnd] = cap
+            return cap
+
     def release(self):
         """释放一次引用；引用归零时关闭会话。"""
         with type(self)._sessions_lock:
@@ -275,6 +294,16 @@ class WgcCapture:
         if not (0 <= x1 < x2 <= cw and 0 <= y1 < y2 <= ch):
             raise CaptureError(f"bbox 超出客户区: bbox={bbox}, client={cw}x{ch}, hwnd={self._hwnd}")
         return frame[oy + y1 : oy + y2, ox + x1 : ox + x2].copy()
+
+    def grab_client_rgb(self, bbox: Tuple[int, int, int, int]) -> np.ndarray:
+        """同 grab_client，返回 RGB 三通道 ndarray（供找图/找色/推理用）。"""
+        return self.grab_client(bbox)[:, :, [2, 1, 0]]
+
+    def client_size(self) -> Tuple[int, int]:
+        """当前帧客户区尺寸 (w, h)。"""
+        frame = self.latest_frame()
+        _, (cw, ch) = self._client_offset(frame)
+        return cw, ch
 
     def save(self, path: str, bbox: Optional[Tuple[int, int, int, int]] = None):
         """把最新帧（或客户区 bbox 区域）存为图片文件，供调试目测。"""

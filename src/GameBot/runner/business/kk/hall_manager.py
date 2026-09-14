@@ -77,7 +77,6 @@ class HallManagerMixin:
                     if x2 - x1 < min_width or y2 - y1 < min_height:
                         continue
                     lines = self.ocr_kk_lines(
-                        dm,
                         hwnd,
                         {"area_coords": [0, 0, x2 - x1, y2 - y1]},
                     )
@@ -326,7 +325,7 @@ class HallManagerMixin:
                 round(ocr_area[2] * scale_x),
                 round(ocr_area[3] * scale_y),
             ]
-            lines = self.ocr_kk_lines(dm, hwnd, {"area_coords": scaled_ocr_area})
+            lines = self.ocr_kk_lines(hwnd, {"area_coords": scaled_ocr_area})
             button_text = " ".join(line.get("text", "").strip() for line in lines)
             return any(keyword in button_text for keyword in keywords)
         except Exception:
@@ -379,7 +378,6 @@ class HallManagerMixin:
                 ):
                     return hwnd
                 lines = self.ocr_kk_lines(
-                    dm,
                     hwnd,
                     {"area_coords": [0, 0, width, height]},
                 )
@@ -465,7 +463,7 @@ class HallManagerMixin:
         # OCR 检测搜索结果列表
         ocr_area = main_cfg.get("map_result_ocr_area_coords", [0, 0, 0, 0])
         logger.info(f"OCR 搜索结果区域: {ocr_area}")
-        lines = self.ocr_kk_lines(dm, hall_hwnd, {"area_coords": ocr_area}, merge_lines=False)
+        lines = self.ocr_kk_lines(hall_hwnd, {"area_coords": ocr_area}, merge_lines=False)
         # 按行排序：y_center 接近的视为同一行，同行内按 x_center 排序
         # 避免网格布局中 y 微小差异导致顺序错乱
         sorted_lines = sorted(lines, key=lambda l: (round(l.get("y_center", 0) / 20), l.get("x_center", 0)))

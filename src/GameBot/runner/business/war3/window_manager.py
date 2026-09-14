@@ -211,7 +211,7 @@ class WindowManagerMixin:
         loading_cfg = multi_cfg.get("loading_page", {})
         exclude_keywords = loading_cfg.get("exclude_keywords", [])
 
-        lines = self.ocr_lines(self.dm, hwnd, loading_cfg, bind_cfg=self.war3_cfg.get("bind", {}))
+        lines = self.ocr_lines(hwnd, loading_cfg)
         # 按 (y_center, x_center) 排序：先按行排列，再按列排列
         sorted_lines = sorted(lines, key=lambda l: (l.get("y_center", 0), l.get("x_center", 0)))
         for line in sorted_lines:

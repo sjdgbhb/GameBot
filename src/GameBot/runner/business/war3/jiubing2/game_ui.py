@@ -90,7 +90,7 @@ class GameUI:
             return
 
         area_coords = diff_cfg.get("area_coords", [0, 0, 0, 0])
-        lines = self._war3.ocr_lines(self._war3.dm, hwnd, diff_cfg, bind_cfg=self._war3.war3_cfg.get("bind", {}))
+        lines = self._war3.ocr_lines(hwnd, diff_cfg)
         for line in lines:
             if target in line.get("text", ""):
                 x = int(line.get("x_center", 0)) + area_coords[0]
