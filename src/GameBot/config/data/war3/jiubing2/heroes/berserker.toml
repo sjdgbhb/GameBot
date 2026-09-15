@@ -1,5 +1,4 @@
 ############## 狂战士 ##############
-name = "war3.jiubing2.heroes.berserker"
 extends = ["war3.jiubing2"]
 
 

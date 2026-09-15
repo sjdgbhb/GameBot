@@ -3,7 +3,6 @@
 # 任务流程：走到 NPC → 点技能格接 → 沿路线 A 清怪 → OCR 检测完成 → 回 NPC 交
 # NPC 坐标、技能格等场景信息见 scenes/blackstone_city.toml
 # =============================================================================
-name = "war3.jiubing2.tasks.atomic.blackstone_gate_harassment"
 extends = ["war3.jiubing2.scenes.blackstone_city", "kk"]
 
 [this]

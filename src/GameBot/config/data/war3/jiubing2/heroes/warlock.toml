@@ -1,5 +1,4 @@
 ############## 术士 ##############
-name = "war3.jiubing2.heroes.warlock"
 extends = ["war3.jiubing2"]
 
 

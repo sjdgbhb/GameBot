@@ -40,18 +40,17 @@
 
 ### 1. 依赖继承
 
-TOML 文件通过顶层 `name` 声明自身命名空间，并通过 `extends` 数组声明继承。`extends` 中每项是点分路径，对应 `config/data/` 下的目录结构：
+TOML 文件通过 `extends` 数组声明继承。`extends` 中每项是点分路径，对应 `config/data/` 下的目录结构：
 
 ```toml
-name = "war3.jiubing2.tasks.others.fishing"
 extends = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
 [this]
 name = "钓鱼"
 ```
 
-- 每个文件必须声明 `name`，通常与它在 `config/data/` 下的点分路径一致。
-- `[this]` 是文件级简写，展开后等价于 `name` 所指的完整命名空间段。
+- 配置命名空间由**文件路径自动推导**（`config/data/` 下的点分路径，如 `war3/jiubing2/tasks/others/fishing.toml` → `war3.jiubing2.tasks.others.fishing`），**配置文件中不要写顶层 `name`**（该字段已废弃，会被忽略）。
+- `[this]` 是文件级简写，展开后等价于文件路径推导名所指的完整命名空间段。
 - 按**深度优先后序**（DFS post-order）递归展开继承链，生成线性加载顺序。
 - 每个文件只加载一次（类似 Python import），首次到达的位置生效。
 - **后加载覆盖先加载**：同名可继承节点**深度合并**（未覆盖的字段从父配置继承，已覆盖的字段递归覆盖）。
@@ -92,12 +91,12 @@ base → war3 → war3.jiubing2 → war3.jiubing2.scenes.blackstone_city → war
 | `[hero]` | 否（`hero` 不是一级目录/文件名） | ✅ 可继承，提升到顶层 |
 | `[war3]` | 是（`war3` 是一级目录名） | ❌ 不可继承，保留在 `result["war3"]` |
 | `[kk]` | 是（`kk.toml` 是顶层文件） | ❌ 不可继承，保留在 `result["kk"]` |
-| `[this]` | 否（简写，展开后为当前文件的完整命名空间） | ❌ 不可继承，保留在 `result[name]` 路径下 |
-| `[this.patrol]` | 否（简写，展开为 `name + ".patrol"`） | ❌ 不可继承，保留在命名空间路径下 |
+| `[this]` | 否（简写，展开后为当前文件的完整命名空间） | ❌ 不可继承，保留在文件路径对应的命名空间路径下 |
+| `[this.patrol]` | 否（简写，展开为 `文件路径名 + ".patrol"`） | ❌ 不可继承，保留在命名空间路径下 |
 
 > **注意**：新格式使用 `[this]` 与 `[this.*]` 简写代替长命名空间前缀。
-> 例如 `name = "war3.jiubing2.tasks.others.fishing"` 的文件中，`[this]` 等价于旧 `[war3.jiubing2.tasks.others.fishing]`。
-> 旧 `dependencies` 与完整的命名空间段已不再支持。
+> 例如 `war3/jiubing2/tasks/others/fishing.toml` 中，`[this]` 等价于旧 `[war3.jiubing2.tasks.others.fishing]`。
+> 旧 `dependencies`、顶层 `name` 与完整的命名空间段已不再支持。
 
 ### 3. 英雄互斥
 

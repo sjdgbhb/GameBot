@@ -1,5 +1,4 @@
 ############## 炎魔 ##############
-name = "war3.jiubing2.heroes.ifrit"
 extends = ["war3.jiubing2"]
 
 

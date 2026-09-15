@@ -9,7 +9,6 @@
 # =============================================================================
 # 默认依赖 heroes.engineer（城门骚扰路线点配置了 id=17「奥古斯振波」技能，需构造师技能池）；
 # 用户可在 Web 端通过 user_configs.json 的 hero 字段替换为其他英雄（英雄互斥，后加载者生效）。
-name = "war3.jiubing2.tasks.others.upgrade_stigmata"
 extends = ["war3.jiubing2.tasks.atomic.blackstone_gate_harassment", "war3.jiubing2.heroes.mk", "kk"]
 
 [this]

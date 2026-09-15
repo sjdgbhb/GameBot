@@ -6,7 +6,6 @@
 # 前置要求：本局游戏内必须完成至少一次「毒蛇」任务才能接取
 # 接取前会检查 _prerequisite_done 标志，由 MultiAtomicLoopTask 在编排时设置
 # =============================================================================
-name = "war3.jiubing2.tasks.atomic.little_flame_snake"
 extends = ["war3.jiubing2.scenes.kami_village", "war3.jiubing2.heroes.hxd", "kk"]
 
 [this]

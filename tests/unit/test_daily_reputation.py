@@ -11,7 +11,7 @@
 
 import math
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -22,7 +22,6 @@ pytestmark = [pytest.mark.unit]
 # ── 测试用 TOML 文件内容 ──
 
 BASE_TOML = """
-name = "base"
 extends = []
 [paths]
 log_path = "logs"
@@ -32,7 +31,6 @@ version = "3.1233"
 """
 
 WAR3_TOML = """
-name = "war3"
 extends = ["base"]
 
 [this]
@@ -45,7 +43,6 @@ small_window_response_time = 0.5
 """
 
 JIUBING2_TOML = """
-name = "war3.jiubing2"
 extends = ["war3"]
 
 [game]
@@ -67,7 +64,6 @@ area_coords = [100, 100, 800, 600]
 """
 
 PALADIN_TOML = """
-name = "war3.jiubing2.heroes.paladin"
 extends = ["war3.jiubing2"]
 [[hero.inventory]]
 id = 6
@@ -84,7 +80,6 @@ attack = 120
 """
 
 BLACKSTONE_CITY_TOML = """
-name = "scenes.blackstone_city"
 extends = ["war3.jiubing2"]
 
 [this.npcs.guard_captain]
@@ -96,7 +91,6 @@ time = 0.5
 """
 
 KAMI_VILLAGE_TOML = """
-name = "scenes.kami_village"
 extends = ["war3.jiubing2"]
 [this.npcs.jephite]
 desc = "村民杰菲特"
@@ -108,7 +102,6 @@ time = 0.5
 """
 
 FOREST_CITY_TOML = """
-name = "scenes.forest_city"
 extends = ["war3.jiubing2"]
 [this.npcs.diana]
 desc = "月之女祭司狄安娜"
@@ -119,7 +112,6 @@ time = 0.5
 """
 
 MENETHIL_TOML = """
-name = "scenes.menethil"
 extends = ["war3.jiubing2"]
 [this.teleport.forest_waygate]
 desc = "远古森林入口传送圈"
@@ -129,7 +121,6 @@ time = 3
 """
 
 GATE_HARASSMENT_TOML = """
-name = "tasks.atomic.blackstone_gate_harassment"
 extends = ["war3.jiubing2.scenes.blackstone_city"]
 
 [this]
@@ -140,7 +131,6 @@ combat_mode = "auto_attack"
 """
 
 SWIFT_BEAST_TOML = """
-name = "tasks.atomic.swift_beast"
 extends = ["war3.jiubing2.scenes.forest_city", "war3.jiubing2.heroes.hxd"]
 
 [this]
@@ -151,7 +141,6 @@ combat_mode = "auto_attack"
 """
 
 DAILY_REPUTATION_TOML = """
-name = "tasks.reputation.daily_reputation"
 extends = ["war3.jiubing2.tasks.atomic.blackstone_gate_harassment", "war3.jiubing2.tasks.atomic.swift_beast", "war3.jiubing2.scenes.menethil", "war3.jiubing2.heroes.paladin"]
 
 [this]
@@ -175,7 +164,6 @@ loop_interval_time = 60
 
 # heroes.hxd — swift_beast 依赖（被 paladin 互斥）
 HXD_TOML = """
-name = "war3.jiubing2.heroes.hxd"
 extends = ["war3.jiubing2"]
 [[hero.inventory]]
 id = 0
@@ -242,14 +230,14 @@ class TestDailyReputationConfig(TestDailyReputationBase):
         """加载 daily_reputation 任务，应包含依赖闭包中的所有配置段。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
         # 任务自身命名空间
-        self.assertEqual(result["tasks"]["reputation"]["daily_reputation"]["name"], "每日声望")
+        self.assertEqual(result["war3"]["jiubing2"]["tasks"]["reputation"]["daily_reputation"]["name"], "每日声望")
         # 嵌套子表
-        blackstone = result["tasks"]["reputation"]["daily_reputation"]["blackstone"]
+        blackstone = result["war3"]["jiubing2"]["tasks"]["reputation"]["daily_reputation"]["blackstone"]
         self.assertEqual(blackstone["name"], "每日黑石城声望")
         self.assertEqual(blackstone["target_reputation"], 150)
         self.assertEqual(blackstone["reputation_per_run"], 5)
 
-        forest = result["tasks"]["reputation"]["daily_reputation"]["forest"]
+        forest = result["war3"]["jiubing2"]["tasks"]["reputation"]["daily_reputation"]["forest"]
         self.assertEqual(forest["name"], "每日森之城声望")
         self.assertEqual(forest["target_reputation"], 150)
         self.assertEqual(forest["reputation_per_run"], 10)
@@ -258,12 +246,12 @@ class TestDailyReputationConfig(TestDailyReputationBase):
         """daily_reputation 的依赖链应包含原子任务和场景配置。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
         # 原子任务配置
-        self.assertIn("blackstone_gate_harassment", result.get("tasks", {}).get("atomic", {}))
-        self.assertIn("swift_beast", result.get("tasks", {}).get("atomic", {}))
+        self.assertIn("blackstone_gate_harassment", result["war3"]["jiubing2"]["tasks"].get("atomic", {}))
+        self.assertIn("swift_beast", result["war3"]["jiubing2"]["tasks"].get("atomic", {}))
         # 场景配置
-        self.assertIn("blackstone_city", result.get("scenes", {}))
-        self.assertIn("forest_city", result.get("scenes", {}))
-        self.assertIn("menethil", result.get("scenes", {}))
+        self.assertIn("blackstone_city", result["war3"]["jiubing2"].get("scenes", {}))
+        self.assertIn("forest_city", result["war3"]["jiubing2"].get("scenes", {}))
+        self.assertIn("menethil", result["war3"]["jiubing2"].get("scenes", {}))
 
     def test_hero_exclusivity_paladin(self):
         """heroes.paladin 置于最后加载，应覆盖 heroes.hxd。"""
@@ -279,7 +267,7 @@ class TestDailyReputationConfig(TestDailyReputationBase):
     def test_clear_nearby_interval_in_parent(self):
         """clear_nearby_interval 应在父级 daily_reputation 段中。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        daily = result["tasks"]["reputation"]["daily_reputation"]
+        daily = result["war3"]["jiubing2"]["tasks"]["reputation"]["daily_reputation"]
         self.assertEqual(daily.get("clear_nearby_interval"), 120)
         # 子表不应有 clear_nearby_interval
         self.assertNotIn("clear_nearby_interval", daily.get("blackstone", {}))
@@ -292,44 +280,26 @@ class TestReputationTaskConfigPath(TestDailyReputationBase):
 
     def test_blackstone_config_path(self):
         """BlackstoneReputationTask.task_config_path 应指向 daily_reputation.blackstone。"""
-        with patch.dict(
-            "sys.modules",
-            {
-                "win32com": MagicMock(),
-                "win32com.client": MagicMock(),
-                "pythoncom": MagicMock(),
-                "pywintypes": MagicMock(),
-            },
-        ):
-            from GameBot.runner.tasks.war3.jiubing2.reputation.blackstone_reputation import BlackstoneReputationTask
+        from GameBot.runner.tasks.war3.jiubing2.reputation.blackstone_reputation import BlackstoneReputationTask
 
-            self.assertEqual(
-                BlackstoneReputationTask.task_config_path,
-                ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "blackstone"),
-            )
+        self.assertEqual(
+            BlackstoneReputationTask.task_config_path,
+            ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "blackstone"),
+        )
 
     def test_forest_config_path(self):
         """ForestReputationTask.task_config_path 应指向 daily_reputation.forest。"""
-        with patch.dict(
-            "sys.modules",
-            {
-                "win32com": MagicMock(),
-                "win32com.client": MagicMock(),
-                "pythoncom": MagicMock(),
-                "pywintypes": MagicMock(),
-            },
-        ):
-            from GameBot.runner.tasks.war3.jiubing2.reputation.forest_reputation import ForestReputationTask
+        from GameBot.runner.tasks.war3.jiubing2.reputation.forest_reputation import ForestReputationTask
 
-            self.assertEqual(
-                ForestReputationTask.task_config_path,
-                ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "forest"),
-            )
+        self.assertEqual(
+            ForestReputationTask.task_config_path,
+            ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "forest"),
+        )
 
     def test_blackstone_cfg_extracted(self):
         """通过 task_config_path 从合并配置中提取黑石城子表。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        path = ("tasks", "reputation", "daily_reputation", "blackstone")
+        path = ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "blackstone")
         cfg = result
         for key in path:
             cfg = cfg.get(key, {})
@@ -340,7 +310,7 @@ class TestReputationTaskConfigPath(TestDailyReputationBase):
     def test_forest_cfg_extracted(self):
         """通过 task_config_path 从合并配置中提取森之城子表。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        path = ("tasks", "reputation", "daily_reputation", "forest")
+        path = ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "forest")
         cfg = result
         for key in path:
             cfg = cfg.get(key, {})
@@ -351,7 +321,7 @@ class TestReputationTaskConfigPath(TestDailyReputationBase):
     def test_parent_cfg_extracted(self):
         """_parent_cfg 应为 daily_reputation 段（子表的父级）。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        parent_path = ("tasks", "reputation", "daily_reputation")
+        parent_path = ("war3", "jiubing2", "tasks", "reputation", "daily_reputation")
         parent = result
         for key in parent_path:
             parent = parent.get(key, {})
@@ -364,16 +334,7 @@ class TestEffectiveTimes(TestDailyReputationBase):
 
     def _make_reputation_task(self, sub_cfg):
         """构造一个最小可用的 ReputationTask 实例（不触发 DmClient 初始化）。"""
-        with patch.dict(
-            "sys.modules",
-            {
-                "win32com": MagicMock(),
-                "win32com.client": MagicMock(),
-                "pythoncom": MagicMock(),
-                "pywintypes": MagicMock(),
-            },
-        ):
-            from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
+        from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
         task = ReputationTask.__new__(ReputationTask)
         task.cfg = sub_cfg
         task.atomic_name = "测试"
@@ -382,14 +343,14 @@ class TestEffectiveTimes(TestDailyReputationBase):
     def test_blackstone_times(self):
         """黑石城：150 / 5 = 30 次。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        sub = result["tasks"]["reputation"]["daily_reputation"]["blackstone"]
+        sub = result["war3"]["jiubing2"]["tasks"]["reputation"]["daily_reputation"]["blackstone"]
         task = self._make_reputation_task(sub)
         self.assertEqual(task._effective_times(), 30)
 
     def test_forest_times(self):
         """森之城：150 / 10 = 15 次。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        sub = result["tasks"]["reputation"]["daily_reputation"]["forest"]
+        sub = result["war3"]["jiubing2"]["tasks"]["reputation"]["daily_reputation"]["forest"]
         task = self._make_reputation_task(sub)
         self.assertEqual(task._effective_times(), 15)
 
@@ -413,7 +374,7 @@ class TestParentCfgFallback(TestDailyReputationBase):
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
 
         # 模拟 __init__ 中的 _parent_cfg 计算
-        path = ("tasks", "reputation", "daily_reputation", "blackstone")
+        path = ("war3", "jiubing2", "tasks", "reputation", "daily_reputation", "blackstone")
         sub_cfg = result
         for key in path:
             sub_cfg = sub_cfg.get(key, {})
@@ -444,21 +405,12 @@ class TestDailyReputationRun(TestDailyReputationBase):
     def _make_daily_task(self, cfg_override=None):
         """构造一个 mock 版 DailyReputationTask（不触发 DmClient 初始化）。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        daily_cfg = result["tasks"]["reputation"]["daily_reputation"]
+        daily_cfg = result["war3"]["jiubing2"]["tasks"]["reputation"]["daily_reputation"]
         if cfg_override:
             daily_cfg.update(cfg_override)
 
         # 用 __new__ 跳过 __init__ 中的 BlackstoneReputationTask / ForestReputationTask 创建
-        with patch.dict(
-            "sys.modules",
-            {
-                "win32com": MagicMock(),
-                "win32com.client": MagicMock(),
-                "pythoncom": MagicMock(),
-                "pywintypes": MagicMock(),
-            },
-        ):
-            from GameBot.runner.tasks.war3.jiubing2.reputation.daily_reputation import DailyReputationTask
+        from GameBot.runner.tasks.war3.jiubing2.reputation.daily_reputation import DailyReputationTask
         task = DailyReputationTask.__new__(DailyReputationTask)
         task.cfg = daily_cfg
         task.blackstone = MagicMock()

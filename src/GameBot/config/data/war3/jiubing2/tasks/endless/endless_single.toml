@@ -3,13 +3,12 @@
 # endless.py  创建好密码房即可运行
 # endless_single.py  英雄在3点石笋位置即可运行
 # =============================================================================
-name = "war3.jiubing2.tasks.endless.endless_single"
 extends = ["war3.jiubing2.heroes.hxd", "kk"]   # heroes.hxd 传递依赖 jiubing2；kk 提供物品栏快捷键
 
 [this]
 name = "局内无尽"
 min_level = 15  # 从该层数开始
-max_level = 45  # 到该层结束
+max_level = 46  # 到该层结束
 loop_interval_time = 5
 refresh_timer = 20  # 当层无尽打完后至下一层开始的刷新时间
 use_shard_floor = 20  # 从该层开始使用魔法水晶

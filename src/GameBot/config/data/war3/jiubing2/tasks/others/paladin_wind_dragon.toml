@@ -5,7 +5,6 @@
 # 技能面板坐标由 jiubing2.toml 的 [skill_panel]（first_coords + gap_x/gap_y）计算，
 # 因此运行时强制对齐客户区尺寸（war3.client_size，默认 1902x1033）。
 # =============================================================================
-name = "war3.jiubing2.tasks.others.paladin_wind_dragon"
 extends = ["war3.jiubing2.heroes.paladin", "kk"]
 
 [this]

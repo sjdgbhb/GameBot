@@ -228,7 +228,8 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
     def _apply_bind_mode(self, config: dict, task_name: str = None):
         """按 bind_mode 解析前台/后台绑定参数，结果写入 config[ns]["bind"]。
 
-        优先级：顶层任务的 [this].bind_mode > 平台级 war3.bind_mode / kk.bind_mode。
+        优先级：顶层任务的 [this].bind_mode > [this].target_player 推导 > 平台级
+        war3.bind_mode / kk.bind_mode。
         bind_mode 取值：
         - "foreground"：用 bind_foreground 参数（默认）
         - "background"：用 bind_background 参数
@@ -245,6 +246,9 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
                 node = node.get(part)
             if isinstance(node, dict):
                 task_mode = node.get("bind_mode")
+                if not task_mode and node.get("target_player"):
+                    # 多开认领（target_player 非空）必须后台绑定，自动推导无需显式配置
+                    task_mode = "background"
 
         for ns in ("war3", "kk"):
             ns_cfg = config.get(ns, {})

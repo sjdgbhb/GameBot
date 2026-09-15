@@ -12,7 +12,7 @@ from ctypes import wintypes
 from typing import Optional
 
 from GameBot.runner.driver.process_lock import NamedMutex
-from GameBot.utils import WindowLostError, logger
+from GameBot.utils import StopTaskError, WindowLostError, logger
 
 _user32 = ctypes.windll.user32
 _user32.IsWindow.argtypes = [wintypes.HWND]
@@ -90,26 +90,42 @@ class WindowManagerMixin:
 
     # ── 多开窗口认领 ─────────────────────────────────────
 
-    def claim_war3_window(self, target_player: str = "", stop_event=None) -> int:
+    def claim_war3_window(
+        self,
+        target_player: str = "",
+        stop_event=None,
+        claim_timeout: float = None,
+        identify=None,
+    ) -> int:
         """认领一个 war3 窗口（多开隔离），返回 hwnd。
 
         协议：先拿全局认领锁 `Local\\GameBot_War3_Claim`（串行化整个认领过程，
         防止两脚本同时发 token/占用窗口互踩）→ 枚举窗口逐个尝试窗口锁（已被
-        认领的直接跳过，不发 token）→ 配了 target_player 时向窗口发随机 token，
-        OCR 聊天区"〔盟友〕玩家名：token"行提取归属名匹配；不匹配释放窗口锁换
-        下一个。认领成功或本轮全部失败都释放全局锁，让其他脚本认领。
+        认领的直接跳过，不发 token）→ 配了 target_player 时验证窗口归属：
+        默认向窗口发随机 token，OCR 聊天区"〔盟友〕玩家名：token"行提取归属名；
+        也可传 identify=identify_war3_owner 走加载页面玩家列表 OCR（无需进游戏）。
+        不匹配释放窗口锁换下一个。认领成功或本轮全部失败都释放全局锁，让其他脚本认领。
 
-        认领成功后窗口互斥锁一直持有到进程退出（崩溃自动释放），
+        认领成功后窗口互斥锁一直持有到显式释放或进程退出（崩溃自动释放），
         self._claimed_hwnd / self.claimed_owner 记录结果，全链路只用该 hwnd。
+        多局任务每局新开 war3 窗口，须在局间调用 release_war3_claim 释放旧认领。
 
         :param target_player: 目标玩家名；为空则认领第一个未被占用的窗口
         :param stop_event: 停止事件
+        :param claim_timeout: 认领总超时（秒），None 时用 multi_instance.claim_timeout
+        :param identify: 归属验证函数 identify(hwnd) -> str（玩家名，未识别返回 ""）；
+            None 时用聊天 token 验证（_identify_owner_by_chat，需进游戏）；
+            传 self.identify_war3_owner 则走加载页面玩家列表（无需进游戏）
         :return: 认领的窗口句柄，无可用窗口返回 0
         """
         if getattr(self, "_claimed_hwnd", 0):
-            return self._claimed_hwnd
+            if _user32.IsWindow(self._claimed_hwnd):
+                return self._claimed_hwnd
+            # 认领窗口已销毁（如上局结束 war3 退出），释放窗口锁重新认领
+            self.release_war3_claim()
         mi_cfg = self.war3_cfg.get("multi_instance", {})
-        claim_timeout = float(mi_cfg.get("claim_timeout", 60))
+        if claim_timeout is None:
+            claim_timeout = float(mi_cfg.get("claim_timeout", 60))
         retry_interval = float(mi_cfg.get("claim_retry_interval", 0.5))
         start = time.time()
         last_wins = 0
@@ -126,7 +142,7 @@ class WindowManagerMixin:
                 )
                 if wins:
                     last_wins = len(wins)
-                claimed = self._claim_one_pass(wins, target_player, stop_event)
+                claimed = self._claim_one_pass(wins, target_player, stop_event, identify=identify)
             finally:
                 claim_lock.release()
             if claimed:
@@ -136,8 +152,23 @@ class WindowManagerMixin:
         logger.error(f"认领超时（{claim_timeout}s）：共 {last_wins} 个 war3 窗口，均已被占用或不匹配")
         return 0
 
-    def _claim_one_pass(self, wins: list, target_player: str, stop_event=None) -> int:
+    def release_war3_claim(self) -> None:
+        """释放当前认领的 war3 窗口锁并清除缓存句柄。
+
+        多局任务每局新开 war3 窗口，局间调用以便下一轮认领新句柄；
+        窗口锁按 hwnd 命名，仅影响本进程对该 hwnd 的占用标记。
+        """
+        mutex = getattr(self, "_claimed_mutex", None)
+        if mutex is not None:
+            mutex.release()
+        self._claimed_mutex = None
+        self._claimed_hwnd = 0
+        self.claimed_owner = ""
+
+    def _claim_one_pass(self, wins: list, target_player: str, stop_event=None, identify=None) -> int:
         """单轮认领：在全局认领锁保护下逐个尝试窗口锁并验证归属。"""
+        if identify is None:
+            identify = lambda h: self._identify_owner_by_chat(h, stop_event)
         for w in wins:
             hwnd = w["hwnd"]
             mutex = NamedMutex(f"Local\\GameBot_War3_{hwnd}")
@@ -146,10 +177,11 @@ class WindowManagerMixin:
                 continue
             owner = ""
             if target_player:
-                # 先统一客户区尺寸：chat_area_coords 按配置分辨率校准，
-                # 尺寸不一致时 OCR 区域与真实聊天区错位，token 永远找不到
+                # 先统一客户区尺寸：归属识别区域（聊天区/加载页玩家列表）
+                # 按配置分辨率校准，尺寸不一致时 OCR 区域与真实区域错位。
+                # 归属验证异常直接上抛终止（认领失败即停止，不做兜底）
                 self.set_client_size(hwnd)
-                owner = self._identify_owner_by_chat(hwnd, stop_event)
+                owner = identify(hwnd)
                 # 包含匹配：target_player 出现在"："左边的发送者段中即归属
                 if not owner or target_player not in owner:
                     logger.info(

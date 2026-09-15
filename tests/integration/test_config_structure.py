@@ -118,7 +118,10 @@ class TestTaskTomlStructure:
         return sorted(_TASKS_DIR.rglob("*.toml"))
 
     def test_all_task_tomls_have_name(self):
-        """每个任务 TOML 的 _find_task_section 应返回含 name 的字典。"""
+        """每个任务 TOML 的 _find_task_section 应返回含 name 的字典。
+
+        变体配置（无顶层 name，文件名即配置名）的 [this] 只写差异字段，不要求 name。
+        """
         files = self._all_task_tomls()
         assert len(files) >= 10, f"tasks/ 下应至少有 10 个 TOML 文件，实际 {len(files)}"
         missing = []
@@ -126,9 +129,14 @@ class TestTaskTomlStructure:
             with open(toml_path, "rb") as f:
                 data = tomllib.load(f)
             section = _find_task_section(data)
-            if not isinstance(section, dict) or "name" not in section:
-                rel = toml_path.relative_to(_TASKS_DIR)
-                missing.append(str(rel))
+            if isinstance(section, dict) and "name" in section:
+                continue
+            # 变体配置（<基础任务>_<后缀>.toml，extends 同目录基础任务）：[this] 只写差异字段，不要求 name
+            stem_base = toml_path.stem.rsplit("_", 1)[0]
+            if (toml_path.parent / f"{stem_base}.toml").exists():
+                continue
+            rel = toml_path.relative_to(_TASKS_DIR)
+            missing.append(str(rel))
         assert not missing, f"以下任务 TOML 缺少 name 字段: {missing}"
 
     def test_all_task_tomls_have_extends(self):
@@ -161,16 +169,15 @@ class TestTaskTomlStructure:
                     missing.append(f"{rel} -> {dep} (未找到对应文件)")
         assert not missing, "以下依赖路径未找到对应文件:\n" + "\n".join(missing)
 
-    def test_task_toml_ids_match_file_paths(self):
-        """任务 TOML 的相对路径应与顶层 name 一致。"""
-        files = self._all_task_tomls()
-        for toml_path in files:
-            rel = toml_path.relative_to(_TASKS_DIR).with_suffix("")
-            task_id = ".".join(rel.parts)
+    def test_no_top_level_name(self):
+        """任何配置 TOML 不应声明顶层 name（配置名由文件路径自动推导，顶层 name 已废弃）。"""
+        bad = []
+        for toml_path in sorted(_CONFIG_DIR.rglob("*.toml")):
             with open(toml_path, "rb") as f:
                 data = tomllib.load(f)
-            expected_name = f"war3.jiubing2.tasks.{task_id}"
-            assert data.get("name") == expected_name, f"{toml_path.name}: name 应为 '{expected_name}'"
+            if "name" in data:
+                bad.append(str(toml_path.relative_to(_CONFIG_DIR)))
+        assert not bad, f"以下 TOML 声明了已废弃的顶层 name: {bad}"
 
 
 # ── 英雄 TOML 结构验证 ──
@@ -357,15 +364,19 @@ class TestEndlessOptimizationConfig:
         loading_page = multi.get("loading_page", {})
         assert "area_coords" in loading_page, "war3.multi_instance.loading_page 应含 area_coords"
 
-    # I-03: endless.target_player 可读取
-    def test_endless_target_player_inherits(self):
-        """endless.toml 中 target_player 配置项应可读取。"""
-        endless_path = _TASKS_DIR / "endless" / "endless.toml"
-        assert endless_path.exists(), "endless/endless.toml 应存在"
-        with open(endless_path, "rb") as f:
-            data = tomllib.load(f)
-        section = _find_task_section(data)
-        assert "target_player" in section, "endless.toml 任务配置应含 target_player"
+    # I-03: endless 变体 target_player 可读取
+    def test_endless_variant_target_player(self):
+        """endless 变体配置应含非空 target_player（多开认领依据）。"""
+        variants = sorted(
+            p for p in _TASKS_DIR.glob("endless/endless_*.toml")
+            if p.stem != "endless_single"
+        )
+        assert variants, "应存在 endless 变体配置"
+        for path in variants:
+            with open(path, "rb") as f:
+                data = tomllib.load(f)
+            section = _find_task_section(data)
+            assert section.get("target_player"), f"{path.name} 应含非空 target_player"
 
 
 # ── 任务配置闭包完整性（load_task 真实加载） ──
@@ -422,7 +433,8 @@ class TestTaskConfigClosure:
                 errors.append(f"{name}: {e}")
                 continue
             node = self._dig(cfg, name)
-            if not isinstance(node, dict) or not node.get("name"):
+            # 变体节点只有差异字段（如 target_player），name 由任务代码动态拼接
+            if not isinstance(node, dict) or (not node.get("name") and "target_player" not in node):
                 errors.append(f"{name}: 合并后缺少任务节点或 name")
         assert not errors, "以下任务加载失败或缺少任务节点:\n" + "\n".join(errors)
 

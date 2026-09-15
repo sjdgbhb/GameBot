@@ -10,7 +10,6 @@
 #time = 8
 
 # 地图中具有传送功能的相关配置
-name = "war3.jiubing2.scenes.menethil"
 extends = []
 [this.teleport.palace_waygate]
 desc = "皇宫入口（传送圈）"

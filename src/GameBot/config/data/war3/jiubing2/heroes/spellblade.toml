@@ -1,5 +1,4 @@
 ############## 魔剑士 ##############
-name = "war3.jiubing2.heroes.spellblade"
 extends = ["war3.jiubing2"]
 
 

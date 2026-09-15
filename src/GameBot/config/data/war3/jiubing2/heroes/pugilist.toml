@@ -1,5 +1,4 @@
 ############## 拳师 ##############
-name = "war3.jiubing2.heroes.pugilist"
 extends = ["war3.jiubing2"]
 
 

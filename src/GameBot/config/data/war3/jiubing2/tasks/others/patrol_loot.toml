@@ -1,4 +1,3 @@
-name = "war3.jiubing2.tasks.others.patrol_loot"
 extends = [
   # "war3.jiubing2.heroes.paladin", 
   "kk"

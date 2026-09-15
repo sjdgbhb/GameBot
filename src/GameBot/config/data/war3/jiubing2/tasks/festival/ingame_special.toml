@@ -3,7 +3,6 @@
 # 起始位置：黑石城城门骚扰任务 NPC 附近（可直接接取任务的位置）
 # 流程：每日声望（黑石城 + 森之城）→ 森之城内步行至鱼点 → 钓鱼（默认 350 竿）
 # =============================================================================
-name = "war3.jiubing2.tasks.festival.ingame_special"
 extends = [
     "war3.jiubing2.tasks.reputation.daily_reputation",  # 城门骚扰 + 迅猛野兽 + 场景闭包
     "war3.jiubing2.tasks.others.fishing",               # 钓鱼检测参数

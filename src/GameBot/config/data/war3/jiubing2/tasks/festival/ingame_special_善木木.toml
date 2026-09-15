@@ -3,7 +3,6 @@
 # 继承 ingame_special 全部配置，[this] 只写差异字段（target_player / 覆盖参数）。
 # 启动：.venv\Scripts\python -m GameBot.runner.tasks.war3.jiubing2.festival.ingame_special ingame_special_善木木
 # =============================================================================
-name = "war3.jiubing2.tasks.festival.ingame_special_善木木"
 extends = ["war3.jiubing2.tasks.festival.ingame_special"]
 
 [this]

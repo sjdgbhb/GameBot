@@ -106,15 +106,14 @@ class ConfigLoaderMixin:
         d[last] = value
 
     def _expand_shorthand(self, raw: dict, config_name: str) -> dict:
-        """将 [this] 简写展开为以 name（或 config_name）为路径的完整命名空间。
+        """将 [this] 简写展开为完整命名空间路径。
 
-        这样任务 TOML 不需要重复写 [war3.jiubing2.tasks.xxx.yyy] 完整路径。
+        展开路径由加载名（文件路径）推导，无需在 TOML 里声明顶层 name。
         无 [this] 的文件直接返回（如 jiubing2.toml 等纯可继承配置）。
         """
         if "this" not in raw:
             return raw
-        layer_name = raw.get("name", config_name)
-        self._place_at_path(raw, layer_name, raw.pop("this"))
+        self._place_at_path(raw, config_name, raw.pop("this"))
         return raw
 
     @property

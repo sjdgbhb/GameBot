@@ -62,6 +62,9 @@ class TestDoWar3BossTimeout(unittest.TestCase):
         task.kk = MagicMock()
         task.endless_cfg = {"loop_interval_time": 0}
         task.war3_cfg = {"window_class": "War3Class", "window_title": "War3Title"}
+        task.target_player = ""
+        task.room_hwnd = 0
+        task.owner_pid = 0
         task._stop_event = None
         return task
 
@@ -116,53 +119,35 @@ class TestDoWar3BossTimeout(unittest.TestCase):
         self.assertFalse(result)
         task.war3.quit_game.assert_not_called()
 
-    # 多开：target_player 匹配时正常继续
+    # 多开：claim_war3_window 加载页面认领本账号窗口
     @patch("GameBot.runner.tasks.war3.jiubing2.endless.endless.time")
-    def test_do_war3_multi_instance_owner_matches(self, mock_time):
-        """target_player 匹配时应正常继续，不调用 _find_target_war3_hwnd。"""
+    def test_do_war3_multi_instance_claims_window(self, mock_time):
+        """target_player 配置时走 claim_war3_window + 加载页 identify 认领本账号窗口。"""
         task = self._make_task()
-        task.endless_cfg = {"loop_interval_time": 0, "target_player": "Player1"}
-        task.war3.wait_for_game_window.return_value = 123
-        task.war3.identify_war3_owner.return_value = "Player1"
-        task._find_target_war3_hwnd = MagicMock()
+        task.target_player = "Player1"
+        task.war3.claim_war3_window.return_value = 123
         ctx = MagicMock()
         task.dm.bind_window.return_value = ctx
 
         result = task.do_war3(1)
 
         self.assertTrue(result)
-        task._find_target_war3_hwnd.assert_not_called()
+        task.war3.release_war3_claim.assert_called_once()
+        task.war3.claim_war3_window.assert_called_once()
+        task.war3.wait_for_game_window.assert_not_called()
+        # 归属验证走加载页面玩家列表（identify_war3_owner），非聊天 token
+        _, kwargs = task.war3.claim_war3_window.call_args
+        self.assertIs(kwargs["identify"], task.war3.identify_war3_owner)
 
-    # 多开：target_player 不匹配但找到目标窗口
-    @patch("GameBot.runner.tasks.war3.jiubing2.endless.endless.time")
-    def test_do_war3_multi_instance_owner_mismatch_finds_target(self, mock_time):
-        """target_player 不匹配但 _find_target_war3_hwnd 找到目标时应使用目标窗口。"""
+    # 多开：认领失败终止任务
+    def test_do_war3_multi_instance_claim_fail_raises(self):
+        """认领不到本账号窗口时抛错终止任务，不调用 quit_game（未绑定任何窗口）。"""
         task = self._make_task()
-        task.endless_cfg = {"loop_interval_time": 0, "target_player": "Player2"}
-        task.war3.wait_for_game_window.return_value = 123
-        task.war3.identify_war3_owner.return_value = "Player1"
-        task._find_target_war3_hwnd = MagicMock(return_value=456)
-        ctx = MagicMock()
-        task.dm.bind_window.return_value = ctx
+        task.target_player = "Player2"
+        task.war3.claim_war3_window.return_value = 0
 
-        result = task.do_war3(1)
-
-        self.assertTrue(result)
-        task.war3.set_client_size.assert_called_once_with(456)
-
-    # 多开：target_player 不匹配且未找到目标窗口
-    def test_do_war3_multi_instance_owner_mismatch_no_target(self):
-        """target_player 不匹配且 _find_target_war3_hwnd 未找到时应 quit_game 并返回 False。"""
-        task = self._make_task()
-        task.endless_cfg = {"loop_interval_time": 0, "target_player": "Player2"}
-        task.war3.wait_for_game_window.return_value = 123
-        task.war3.identify_war3_owner.return_value = "Player1"
-        task._find_target_war3_hwnd = MagicMock(return_value=0)
-
-        result = task.do_war3(1)
-
-        self.assertFalse(result)
-        task.war3.quit_game.assert_called_once()
+        self.assertRaises(RuntimeError, task.do_war3, 1)
+        task.war3.quit_game.assert_not_called()
 
 
 class TestEndlessSingleBossTimeout(unittest.TestCase):
@@ -274,6 +259,9 @@ class TestDoWar3TimeoutError(unittest.TestCase):
         task.kk = MagicMock()
         task.endless_cfg = {"loop_interval_time": 0}
         task.war3_cfg = {"window_class": "War3Class", "window_title": "War3Title"}
+        task.target_player = ""
+        task.room_hwnd = 0
+        task.owner_pid = 0
         task._stop_event = None
         return task
 

@@ -125,3 +125,23 @@ KK 平台 Qt 5.15.2 窗口是 `WS_EX_LAYERED`，后台输入/点击后画面不�
       # 点击确认等后续操作
   ```
 - 已在 `create_room`（输入密码→刷新→点击创建）和 `join_room`（输入密码→刷新→点击确认）中应用此模式。
+
+## 多开单任务（非组队）用法（2026-09-15）
+
+同一台机器两个玩家各自跑同一任务、互不干扰，用"变体配置"模式（参考 ingame_special/fishing 变体）：
+
+- 变体文件：`tasks/<组>/<任务>_<玩家名>.toml`，`extends` 基础任务，`[this]` 只写
+  `target_player`（非空自动推导 bind_mode=background）；可加 `[float_window] y`
+  错开浮窗、`[hero.xxx]` 覆盖账号差异配置（hero 浅合并，子键整表覆盖须写全字段）
+- 启动：`.venv\Scripts\python -m GameBot.runner.tasks.war3.jiubing2.<组>.<任务> <任务>_<玩家名>`
+  （如 `...endless.endless endless_善木木`）
+- 隔离机制：
+  - KK 侧 `claim_room_window`：向房间聊天输入框发随机 token（含本进程 pid 标记），
+    OCR 聊天记录区"玩家名：token"提取归属；认领后拿 `owner_pid`，
+    房间/弹窗/掉线处理全按 PID 过滤。坐标在 `kk.toml [this.multi_instance]`
+  - war3 侧 `claim_war3_window(identify=identify_war3_owner)`：加载页面 OCR 玩家列表
+    判归属（无需进游戏），命名互斥锁防抢占；多局任务局间须 `release_war3_claim`，
+    旧 hwnd 销毁后复领新窗口
+  - **认领失败直接终止任务**——归属未确认时继续运行可能误操作另一账号窗口
+- 启动要求：账号停留在 **KK 房间**内（创建好密码房即可运行）
+- 注意：浮窗停止键 NumPad- 是全局热键，两个脚本同时按会一起停；单独停用各浮窗 ✕ 按钮

@@ -10,7 +10,6 @@
 # 1、英雄初始位置在npc左侧附近
 # 2、别带如辉耀等被动aoe技能，容易提前烫死怪
 # =============================================================================
-name = "war3.jiubing2.tasks.achievements.personal"
 extends = [
     "war3.jiubing2.tasks.atomic.venomous_snake",
     "war3.jiubing2.tasks.atomic.snake_egg",

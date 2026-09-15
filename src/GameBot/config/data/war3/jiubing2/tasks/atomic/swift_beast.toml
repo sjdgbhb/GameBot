@@ -3,7 +3,6 @@
 # 任务流程：走到狄安娜 → 点技能格接 → 沿路线清怪 → OCR 检测完成 → 回 NPC 交
 # NPC 坐标、技能格等场景信息见 scenes/forest_city.toml
 # =============================================================================
-name = "war3.jiubing2.tasks.atomic.swift_beast"
 extends = ["war3.jiubing2.scenes.forest_city", "kk"]
 
 [this]

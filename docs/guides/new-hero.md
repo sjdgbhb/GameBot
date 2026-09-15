@@ -17,7 +17,6 @@
 ### 最小配置（仅需物品栏）
 ```toml
 ############## {英雄中文名} ##############
-name = "war3.jiubing2.heroes.{hero_name}"
 extends = ["war3.jiubing2"]
 
 [hero]
@@ -32,7 +31,6 @@ inventory = [
 ### 完整配置（含技能、连招、学习顺序等）
 ```toml
 ############## {英雄中文名} ##############
-name = "war3.jiubing2.heroes.{hero_name}"
 extends = ["war3.jiubing2"]
 
 [hero]
@@ -133,7 +131,7 @@ absorb_index = [1, 4]
 
 ## 4. 验证
 
-- 检查 `name = "war3.jiubing2.heroes.{hero_name}"` 和 `extends = ["war3.jiubing2"]` 是否存在
+- 检查 `extends = ["war3.jiubing2"]` 是否存在（配置名由文件路径自动推导，无需顶层 `name`）
 - 检查物品栏是否包含 `item_id = 0`（拾取）项
 - 确认在任务配置中通过 `extends = ["war3.jiubing2.heroes.{hero_name}"]` 引用此英雄
 - **英雄配置互斥**：`heroes.*` 中最后加载的英雄独占生效

@@ -37,7 +37,6 @@ def make_test_config_dir() -> Path:
         tmp,
         "base.toml",
         """
-name = "base"
 extends = []
 [paths]
 log_path = "logs"
@@ -52,7 +51,6 @@ version = "3.1233"
         tmp,
         "war3/war3.toml",
         """
-name = "war3"
 extends = ["base"]
 
 [this]
@@ -69,7 +67,6 @@ general_time = 0.3
         tmp,
         "war3/jiubing2/jiubing2.toml",
         """
-name = "war3.jiubing2"
 extends = ["war3"]
 
 [game]
@@ -88,7 +85,6 @@ inventory = ["A", "B", "C"]
         tmp,
         "war3/jiubing2/heroes/mk.toml",
         """
-name = "war3.jiubing2.heroes.mk"
 extends = []
 [hero]
 inventory = ["D", "E", "F"]
@@ -101,7 +97,6 @@ attack = 100
         tmp,
         "war3/jiubing2/heroes/lancer.toml",
         """
-name = "war3.jiubing2.heroes.lancer"
 extends = []
 [hero]
 inventory = ["G", "H", "I"]
@@ -115,7 +110,6 @@ defense = 50
         tmp,
         "war3/jiubing2/tasks/others/fishing.toml",
         """
-name = "war3.jiubing2.tasks.others.fishing"
 extends = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
 [this]
@@ -130,7 +124,6 @@ loop_interval_time = 2.0
         tmp,
         "war3/jiubing2/tasks/others/patrol_loot.toml",
         """
-name = "war3.jiubing2.tasks.others.patrol_loot"
 extends = ["war3.jiubing2", "war3.jiubing2.heroes.lancer"]
 
 [this]
@@ -145,7 +138,6 @@ patrol_rounds = 10
         tmp,
         "war3/jiubing2/tasks/endless/endless_single.toml",
         """
-name = "war3.jiubing2.tasks.endless.endless_single"
 extends = ["war3.jiubing2", "war3.jiubing2.heroes.mk"]
 
 [this]
@@ -159,7 +151,6 @@ task_times = 1
         tmp,
         "circular_a.toml",
         """
-name = "circular_a"
 extends = ["circular_b"]
 [x]
 val = 1
@@ -169,7 +160,6 @@ val = 1
         tmp,
         "circular_b.toml",
         """
-name = "circular_b"
 extends = ["circular_a"]
 [y]
 val = 2

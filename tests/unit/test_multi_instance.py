@@ -172,7 +172,6 @@ class TestIdentifyHallOwner(unittest.TestCase):
         kk.dm.move_to.assert_called_once_with(100, 50)
         # OCR 应在下拉框绑定上下文内调用（bind_window 幂等，已绑定时自动复用）
         kk.ocr_lines.assert_called_once_with(
-            kk.dm,
             999,
             {"area_coords": [0, 0, 156, 252]},
         )
@@ -234,7 +233,6 @@ class TestIdentifyHallOwner(unittest.TestCase):
         self.assertEqual(result, "善木木#3686")
         # 应绑定 998，而不是 Z 序更靠前的 997
         kk.ocr_lines.assert_called_once_with(
-            kk.dm,
             998,
             {"area_coords": [0, 0, 156, 252]},
         )
@@ -267,7 +265,6 @@ class TestIdentifyHallOwner(unittest.TestCase):
         self.assertEqual(result, "岁月神偷#1234")
         # 应绑定 222（父窗口是当前大厅），跳过 111（旧的）和 333（Z 序更前但非本大厅）
         kk.ocr_lines.assert_called_once_with(
-            kk.dm,
             222,
             {"area_coords": [0, 0, 156, 252]},
         )
@@ -291,7 +288,6 @@ class TestIdentifyHallOwner(unittest.TestCase):
 
         self.assertEqual(result, "PlayerXYZ")
         kk.ocr_lines.assert_called_once_with(
-            kk.dm,
             222,
             {"area_coords": [0, 0, 156, 252]},
         )
@@ -323,3 +319,81 @@ class TestCheckParentChildRelation(unittest.TestCase):
         result = kk.check_parent_child_relation(kk.dm, 123)
 
         self.assertEqual(result, 0)
+
+
+class TestClaimRoomWindow(unittest.TestCase):
+    """claim_room_window 房间聊天 token 认领测试。"""
+
+    def setUp(self):
+        self._orig = _mock_dm_modules()
+
+    def tearDown(self):
+        _restore_dm_modules(self._orig)
+
+    def _make_kk(self):
+        from GameBot.runner.business.kk.multi_instance import MultiInstanceMixin
+
+        kk = MultiInstanceMixin.__new__(MultiInstanceMixin)
+        kk.dm = MagicMock()
+        kk.kk_cfg = {
+            "room": {"window_size": [1224, 904]},
+            "multi_instance": {"claim_timeout": 5, "claim_retry_interval": 0.01},
+            "bind": {},
+        }
+        return kk
+
+    def test_claim_room_matches_target_player(self):
+        """token 归属匹配目标玩家时应认领该窗口并返回 (hwnd, pid)。"""
+        kk = self._make_kk()
+        kk.find_room_windows = MagicMock(return_value=[500, 600])
+        kk._identify_room_owner_by_chat = MagicMock(side_effect=["其他玩家", "善木木"])
+        kk.dm.get_window_process_id.return_value = 456
+
+        hwnd, pid = kk.claim_room_window(kk.dm, "善木木", claim_timeout=5)
+
+        self.assertEqual((hwnd, pid), (600, 456))
+        kk.release_room_claim()
+
+    def test_claim_room_no_match_returns_zero(self):
+        """所有窗口归属都不匹配时应返回 (0, 0)。"""
+        kk = self._make_kk()
+        kk.find_room_windows = MagicMock(return_value=[500])
+        kk._identify_room_owner_by_chat = MagicMock(return_value="其他玩家")
+
+        hwnd, pid = kk.claim_room_window(kk.dm, "善木木", claim_timeout=0.2)
+
+        self.assertEqual((hwnd, pid), (0, 0))
+
+    def test_claim_room_reuses_cached_hwnd(self):
+        """已认领且窗口存活（PID 一致）时直接复用缓存，不重复验证。"""
+        kk = self._make_kk()
+        kk.find_room_windows = MagicMock(return_value=[500])
+        kk._identify_room_owner_by_chat = MagicMock(return_value="善木木")
+        kk.dm.get_window_process_id.return_value = 456
+
+        hwnd, pid = kk.claim_room_window(kk.dm, "善木木", claim_timeout=5)
+        self.assertEqual((hwnd, pid), (500, 456))
+
+        kk.find_room_windows.reset_mock()
+        kk._identify_room_owner_by_chat.reset_mock()
+        hwnd2, pid2 = kk.claim_room_window(kk.dm, "善木木", claim_timeout=5)
+        self.assertEqual((hwnd2, pid2), (500, 456))
+        kk.find_room_windows.assert_not_called()
+        kk._identify_room_owner_by_chat.assert_not_called()
+        kk.release_room_claim()
+
+    def test_claim_room_reclaims_after_window_dead(self):
+        """认领窗口销毁（PID 查询为 0）后应释放窗口锁并重新认领。"""
+        kk = self._make_kk()
+        kk.find_room_windows = MagicMock(return_value=[500, 700])
+        # 第一次认领 500=善木木；重新认领时旧窗口识别为其他玩家，跳过换 700
+        kk._identify_room_owner_by_chat = MagicMock(side_effect=["善木木", "其他玩家", "善木木"])
+        # 第一次认领 pid=456；复用校验旧 hwnd 已死（pid=0）；新窗口 700 pid=789
+        kk.dm.get_window_process_id.side_effect = [456, 0, 789]
+
+        hwnd, pid = kk.claim_room_window(kk.dm, "善木木", claim_timeout=5)
+        self.assertEqual((hwnd, pid), (500, 456))
+
+        hwnd2, pid2 = kk.claim_room_window(kk.dm, "善木木", claim_timeout=5)
+        self.assertEqual((hwnd2, pid2), (700, 789))
+        kk.release_room_claim()

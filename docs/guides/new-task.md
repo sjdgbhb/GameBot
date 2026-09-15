@@ -15,7 +15,6 @@
 
 基本结构：
 ```toml
-name = "war3.jiubing2.tasks.{类别}.{task_name}"
 extends = ["war3.jiubing2", "war3.jiubing2.heroes.{hero_name}"]   # 指定继承的英雄和基础配置
 
 [this]
@@ -25,7 +24,7 @@ name = "{中文名称}"
 ```
 
 注意事项：
-- `name` 必须与本文件的点分路径一致
+- **不要写顶层 `name`**——`[this]` 展开的命名空间由文件路径自动推导（文件名即配置名）
 - `extends` 必须声明，通常包含 `war3.jiubing2.heroes.{hero_name}` 来继承英雄配置和 `war3.jiubing2`
 - `[this]` 直接展开为 `war3.jiubing2.tasks.{类别}.{task_name}`，是当前任务的数据节点
 - 不带前缀的节点（如 `[chest]`、`[pickup]`）可继承自 jiubing2.toml，按需覆盖

@@ -105,7 +105,6 @@ class TestStartGame(unittest.TestCase):
         kk.dm.set_client_size.assert_called_once_with(123, 1328, 945)
         kk.dm.move_to.assert_called_once_with(1100, 900)
         kk.ocr_kk_lines.assert_called_once_with(
-            kk.dm,
             123,
             {"area_coords": [800, 850, 1200, 930]},
         )

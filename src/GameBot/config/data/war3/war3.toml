@@ -1,5 +1,4 @@
 # War3 窗口/界面交互配置 (随游戏版本可能调整)
-name = "war3"
 extends = ["base"]
 
 [this]

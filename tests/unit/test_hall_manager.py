@@ -59,8 +59,10 @@ def _make_kk():
     kk = HallManagerMixin.__new__(HallManagerMixin)
     kk.dm = MagicMock()
 
-    def _ocr_kk_lines(self, dm, hwnd, ocr_cfg, merge_lines=True):
-        raw = _base.get_inference_client().ocr_lines_from_file("/tmp/test_ocr.bmp", merge_lines=merge_lines)
+    def _ocr_kk_lines(self, hwnd, ocr_cfg, merge_lines=True):
+        raw = _base.get_inference_client().ocr_lines_from_array(
+            MagicMock(), merge_lines=merge_lines
+        )
         # 模拟 Base.ocr_lines 行为：OCR 坐标相对于截图区域，不额外偏移
         import copy
 
@@ -137,7 +139,7 @@ class TestDismissHallPopups(unittest.TestCase):
         kk.dm.get_client_rect.return_value = (0, 0, 300, 200)
         kk.dm.close_window_by_x.return_value = True
         # OCR 返回空，不命中保护关键词
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = []
+        mock_ocr_client.return_value.ocr_lines_from_array.return_value = []
 
         kk.dismiss_hall_popups(kk.dm)
 
@@ -158,7 +160,7 @@ class TestDismissHallPopups(unittest.TestCase):
             }
         ]
         kk.dm.get_client_rect.return_value = (0, 0, 584, 488)  # 创建房间弹窗尺寸
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = [
+        mock_ocr_client.return_value.ocr_lines_from_array.return_value = [
             {"text": "创建房间", "y_center": 10, "x_center": 10},
         ]
 
@@ -185,13 +187,13 @@ class TestDismissHallPopups(unittest.TestCase):
         kk = _make_kk()
         # CreateClass 查询结果为空，不会命中主窗口
         kk.dm.find_windows.return_value = []
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = []
+        mock_ocr_client.return_value.ocr_lines_from_array.return_value = []
 
         kk.dismiss_hall_popups(kk.dm)
 
         # 没有弹窗命中，不应 OCR 或关闭
         kk.dm.find_windows.assert_called_once_with("CreateClass", "KKTitle", 0)
-        mock_ocr_client.return_value.ocr_lines_from_file.assert_not_called()
+        mock_ocr_client.return_value.ocr_lines_from_array.assert_not_called()
         kk.dm.close_window_by_x.assert_not_called()
 
     # exclude_hwnds 参数生效
@@ -236,7 +238,7 @@ class TestDismissHallPopups(unittest.TestCase):
             }
         ]
         kk.dm.get_client_rect.return_value = (0, 0, 440, 260)  # 密码弹窗尺寸
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = [
+        mock_ocr_client.return_value.ocr_lines_from_array.return_value = [
             {"text": "输入房间密码", "y_center": 10, "x_center": 10},
         ]
 
@@ -519,7 +521,7 @@ class TestCreateRoom(unittest.TestCase):
     def test_create_room_map_not_found_saves_screenshot(self, mock_ocr_client):
         """搜索结果中未找到地图时应 save_screenshot(force=True)。"""
         kk = self._make_kk_for_create()
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = [
+        mock_ocr_client.return_value.ocr_lines_from_array.return_value = [
             {"text": "其他地图", "y_center": 100, "x_center": 500},
         ]
 
@@ -535,7 +537,7 @@ class TestCreateRoom(unittest.TestCase):
     def test_create_room_calls_send_string_for_map_name(self, mock_ocr_client):
         """应调用新版 send_string 输入中文地图名。"""
         kk = self._make_kk_for_create()
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = [
+        mock_ocr_client.return_value.ocr_lines_from_array.return_value = [
             {"text": "九种兵器2诸神战场", "y_center": 100, "x_center": 500},
         ]
 
@@ -550,7 +552,7 @@ class TestCreateRoom(unittest.TestCase):
         """搜索结果应按 (y_center, x_center) 排序后取第一个匹配项。"""
         kk = self._make_kk_for_create()
         # 故意给出乱序结果：第二个匹配项 y 更小（更靠上）
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = [
+        mock_ocr_client.return_value.ocr_lines_from_array.return_value = [
             {"text": "九种兵器2诸神战场", "y_center": 200, "x_center": 300},
             {"text": "九种兵器2诸神战场", "y_center": 100, "x_center": 500},
         ]
@@ -570,7 +572,7 @@ class TestCreateRoom(unittest.TestCase):
     def test_create_room_dismisses_popups_outside_bind(self, mock_ocr_client):
         """dismiss_hall_popups 应在 bind_window 外部调用。"""
         kk = self._make_kk_for_create()
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = [
+        mock_ocr_client.return_value.ocr_lines_from_array.return_value = [
             {"text": "九种兵器2诸神战场", "y_center": 100, "x_center": 500},
         ]
 
@@ -602,7 +604,7 @@ class TestCreateRoom(unittest.TestCase):
         """创建房间弹窗未出现时应 save_screenshot(force=True)。"""
         kk = self._make_kk_for_create()
         kk._find_create_room_dialog = MagicMock(return_value=0)
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = [
+        mock_ocr_client.return_value.ocr_lines_from_array.return_value = [
             {"text": "九种兵器2诸神战场", "y_center": 100, "x_center": 500},
         ]
 
@@ -616,7 +618,7 @@ class TestCreateRoom(unittest.TestCase):
     def test_create_room_success_returns_room_hwnd(self, mock_ocr_client):
         """创建房间成功后应返回房间窗口句柄。"""
         kk = self._make_kk_for_create()
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = [
+        mock_ocr_client.return_value.ocr_lines_from_array.return_value = [
             {"text": "九种兵器2诸神战场", "y_center": 100, "x_center": 500},
         ]
 
@@ -634,7 +636,7 @@ class TestCreateRoom(unittest.TestCase):
         """非空密码时应调用 send_string(password, hwnd=dialog_hwnd)。"""
         kk = self._make_kk_for_create()
         kk.kk_cfg["create_room"]["password"] = "abc123"
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = [
+        mock_ocr_client.return_value.ocr_lines_from_array.return_value = [
             {"text": "九种兵器2诸神战场", "y_center": 100, "x_center": 500},
         ]
 
@@ -678,7 +680,7 @@ class TestDismissHallPopupsMaxRounds(unittest.TestCase):
 
         # 不应抛出异常，应在 10 轮后停止
         with patch("GameBot.runner.business.base.get_inference_client") as mock_ocr:
-            mock_ocr.return_value.ocr_lines_from_file.return_value = []
+            mock_ocr.return_value.ocr_lines_from_array.return_value = []
             kk.dismiss_hall_popups(kk.dm)
 
         # close_window_by_x 最多被调用 10 次

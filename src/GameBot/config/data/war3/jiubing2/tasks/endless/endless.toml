@@ -4,7 +4,6 @@
 # endless_single.py  英雄在3点石笋位置即可运行
 # =============================================================================
 # extends 负责把依赖的 TOML 加载到 cfg 树中，代码负责从各命名空间分别取值
-name = "war3.jiubing2.tasks.endless.endless"
 extends = [
     "war3.jiubing2.tasks.endless.endless_single",
     "kk",
@@ -16,7 +15,9 @@ extends = [
 name = "多局无尽"
 games = 8
 wait_time = 180  # 重置 cd 等待时间（秒）
-target_player = ""  # 多开时目标玩家 ID，单开留空
+# 多开时目标玩家 ID 在变体配置（如 endless_善木木.toml）中设置 target_player，
+# 非空自动推导 bind_mode=background；单开无需配置。KK 房间按聊天 token、
+# war3 按加载页面玩家列表认领归属，认领失败任务停止
 
 # 圣痕
 [hero.stigmata]

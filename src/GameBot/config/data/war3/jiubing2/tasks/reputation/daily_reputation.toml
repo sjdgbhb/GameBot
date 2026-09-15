@@ -3,7 +3,6 @@
 # 流程：黑石城声望（城门骚扰 x N）→ 使用物品栏 tp 传送至远古森林外围入口 →
 #       走进远古森林（到达森之城）→ 森之城声望（迅猛野兽 x N）
 # =============================================================================
-name = "war3.jiubing2.tasks.reputation.daily_reputation"
 extends = [
     "war3.jiubing2.tasks.atomic.blackstone_gate_harassment",
     "war3.jiubing2.tasks.atomic.swift_beast",

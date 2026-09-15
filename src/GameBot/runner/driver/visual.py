@@ -10,10 +10,7 @@ PrintWindow。坐标均为**绑定窗口客户区坐标**（与大漠 FindPic �
   左上角的**客户区绝对坐标**（搜索区偏移 + 区内偏移）
 """
 
-import os
-import tempfile
 import time
-import uuid
 from typing import List, Tuple
 
 import numpy as np
@@ -173,17 +170,6 @@ class VisualMixin:
         img = self._wgc().grab_client((x1, y1, x2, y2))[:, :, [2, 1, 0]]
         Image.fromarray(img).save(filepath)
         return True
-
-    def capture_to_temp(self, x1, y1, x2, y2, prefix: str = "ocr") -> str:
-        """截取客户区区域到临时文件，返回文件路径（失败抛 CaptureError）。
-
-        需在窗口绑定上下文内调用。调用方负责在使用完毕后删除临时文件。
-        """
-        temp_dir = tempfile.gettempdir()
-        filename = f"gamebot_{prefix}_{os.getpid()}_{uuid.uuid4().hex}.png"
-        filepath = os.path.join(temp_dir, filename)
-        self.capture_region(x1, y1, x2, y2, filepath)
-        return filepath
 
     def wait_pic(self, pic_name, x1=0, y1=0, x2=1920, y2=1080, timeout=10, interval=0.5, **kwargs):
         """等待图片出现，默认全屏查找"""

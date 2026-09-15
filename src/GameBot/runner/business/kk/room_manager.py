@@ -127,17 +127,18 @@ class RoomManagerMixin:
 
         return self._find_room_window(dm, owner_pid=owner_pid)
 
-    def _find_room_window(self, dm: DmClient, owner_pid: int = 0) -> int:
-        """按 PID、类名和原生客户区尺寸查找房间窗口。"""
+    def find_room_windows(self, dm: DmClient, owner_pid: int = 0) -> list:
+        """按 PID、类名和原生客户区尺寸枚举所有房间候选窗口。"""
         room_cfg = self.kk_cfg.get("room", {})
         room_size = tuple(room_cfg.get("window_size", [1224, 904]))
         size_tolerance = room_cfg.get("size_tolerance", 30)
         window_class = self.kk_cfg.get("window_class", "")
         min_width, min_height = self.kk_cfg.get("min_business_window_size", [200, 200])
         if not window_class:
-            return 0
+            return []
 
         window_title = self.kk_cfg.get("window_title", "")
+        result = []
         for w in dm.find_windows(window_class, window_title, owner_pid):
             hwnd = w["hwnd"]
             try:
@@ -147,10 +148,15 @@ class RoomManagerMixin:
                     continue
                 if abs(width - room_size[0]) <= size_tolerance and abs(height - room_size[1]) <= size_tolerance:
                     logger.debug(f"识别到 KK 房间窗口: hwnd={hwnd}, size=({width}x{height})")
-                    return hwnd
+                    result.append(hwnd)
             except Exception as e:
                 logger.debug(f"识别 KK 房间候选窗口 {hwnd} 失败: {e}")
-        return 0
+        return result
+
+    def _find_room_window(self, dm: DmClient, owner_pid: int = 0) -> int:
+        """按 PID、类名和原生客户区尺寸查找房间窗口。"""
+        rooms = self.find_room_windows(dm, owner_pid=owner_pid)
+        return rooms[0] if rooms else 0
 
     def handle_disconnect_dialog(self, dm: DmClient, owner_pid: int = 0) -> bool:
         """检测并处理 KK 掉线重连弹窗。

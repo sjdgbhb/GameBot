@@ -1,5 +1,4 @@
 # KK 平台配置
-name = "kk"
 extends = ["base"]
 
 # ------------------------------ War3 物品栏格子快捷键（默认配置） ------------------------------
@@ -61,6 +60,19 @@ not_ready_keyword = "准备"                    # 未准备状态关键词（OCR
 ready_keyword = "取消准备"                    # 已准备状态关键词（OCR 匹配）
 wait_ready_keyword = "等待准备"                # 房主等待准备状态关键词（OCR 匹配）
 start_game_keyword = "开始游戏"              # 开始游戏按钮文本关键词（OCR 匹配）
+
+# ── 多开识别配置（房间聊天认领）─────────────────────────────
+# 多开认领：枚举 KK 房间窗口逐个尝试窗口锁，点击聊天输入框发随机 token，
+# OCR 聊天记录区"玩家名：token"提取归属名匹配 target_player。
+# token = 前缀+pid+随机hex，进程唯一不错领；输入框常驻无需打开聊天框。
+[this.multi_instance]
+room_chat_input_coords = [512, 790, 563, 800]    # 房间聊天输入框区域（客户区坐标，点击取中心）
+room_chat_log_area_coords = [305, 651, 863, 765] # 聊天记录 OCR 区域（客户区坐标）
+token_prefix = "gb"          # token 前缀（须 ASCII）
+send_retries = 3             # 每个窗口 token 验证重试次数
+verify_wait = 1.0            # 每次发送后等待上屏的秒数
+claim_timeout = 60           # 认领总超时（秒）
+claim_retry_interval = 0.5   # 每轮扫描间隔（秒）
 
 # 密码输入框所在弹窗
 [this.password_input]

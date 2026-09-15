@@ -1,5 +1,4 @@
 ############## 萨满 ##############
-name = "war3.jiubing2.heroes.shaman"
 extends = ["war3.jiubing2"]
 
 [hero]

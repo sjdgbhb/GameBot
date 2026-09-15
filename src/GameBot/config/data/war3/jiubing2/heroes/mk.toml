@@ -1,5 +1,4 @@
 ############## 山丘之王 ##############
-name = "war3.jiubing2.heroes.mk"
 extends = ["war3.jiubing2"]
 
 
