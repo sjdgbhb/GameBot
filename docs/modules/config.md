@@ -31,7 +31,8 @@
 | `loader.py` | `ConfigLoaderMixin` — TOML 文件加载缓存、配置名到文件路径映射、命名空间根集合发现（仅一级目录）、可继承/命名空间节点拆分 |
 | `resolver.py` | `ConfigResolverMixin` — DFS 后序依赖解析、循环依赖检测 |
 | `builder.py` | `ConfigBuilderMixin` — 按加载顺序合并配置、深度合并、英雄互斥处理 |
-| `user.py` | `ConfigUserMixin` — `user_configs.json` 加载与用户覆盖应用 |
+| `derive.py` | 派生值解析 — `get_task_view`（任务视图）、`resolve_item_names`（物品名→item_id）、`derive_bind_mode`/`select_bind_cfg`/`apply_bind_mode`（bind 选择），供 `load_task` 与组队等非标准路径共用 |
+| `user.py` | `ConfigUserMixin` — `user_configs.json` 加载与用户覆盖应用（`_USER_KEY_ROUTES` 路由表：用户键 → 目标路径，新增可调键加一行即可） |
 | `core.py` | `Config` 单例类，组合所有 mixin，提供 `load_task` / `get` / `get_section` / `__getitem__` 接口 |
 
 ## 关键机制：五条继承规则
@@ -170,21 +171,21 @@ war3.jiubing2.heroes.paladin 贡献: hero = { floor_key = "P" }
   },
   "kk": { ... },
 
-  # 有效任务视图：同组任务文件的 [this] 沿加载链深合并
-  # （如 load endless_善木木：endless_single → endless → endless_善木木）
-  "task": { ... }
+  # 各配置文件的 extends 依赖映射，供 get_task_view 沿链合并任务视图
+  "_extends": { ... }
 }
 ```
 
-**`cfg["task"]` — 有效任务视图**：
+**`get_task_view(cfg, task_name)` — 有效任务视图**：
 
-`[this]` 按文件路径展开为兄弟节点，彼此不会自动覆盖；引擎在 `load_task` 时把
-**同组**（`war3.jiubing2.tasks.<组>` 前缀相同）任务文件的 `[this]` 按加载顺序深合并到
-`result["task"]`，业务代码取任务参数一律读 `cfg["task"]`，不再手动合并变体段。
+`[this]` 按文件路径展开为兄弟节点，彼此不会自动覆盖。`load_task` 不再预合并
+`cfg["task"]`；业务代码调 `config.get_task_view(cfg, task_name)`，沿该任务的
+extends 链 DFS 后序深合并 `war3.jiubing2.tasks.*` 节点——变体不写的参数
+自动从基任务继承，要覆盖则用绝对寻址写全路径打到基任务节点。
 
-注意边界：`cfg["task"]` 只含本任务组的链（编排任务 extends 的其他组子任务不参与）；
-子任务参数仍在各自命名空间节点读取，编排任务调子任务参数用绝对寻址段。
-非任务入口（`load_task("kk")` 等）`cfg["task"]` 为空 dict。
+注意边界：只合并 `war3.jiubing2.tasks.*` 节点；编排任务的子任务参数仍在各自
+命名空间节点读取（编排任务调子任务参数用绝对寻址段），不在编排任务的任务视图中。
+非任务入口（`load_task("kk")` 等）返回空 dict。
 
 **合并语义总结**：
 
@@ -225,7 +226,7 @@ main() → load_task("tasks.xxx") → 得到配置dict → 注入到任务类 �
 class MyTask:
     def __init__(self, cfg: dict):
         self.task_cfg = cfg                    # 完整依赖闭包
-        self.cfg = cfg["task"]                 # 有效任务视图（本任务 [this] 沿加载链深合并）
+        self.cfg = get_task_view(cfg, task_name)  # 有效任务视图（本任务 extends 链深合并）
         # 从闭包中提取所需配置段，注入到业务对象
         war3_cfg = cfg.get("war3", {})
         hero_cfg = cfg.get("hero", {})
@@ -279,6 +280,8 @@ class SwiftBeastTask:
 - `name` 和 `extends` 是文件级控制键，不参与合并结果
 - extends 分层约束（告警阶段）：低层文件（base/平台/领域/英雄/场景）不得 extends `tasks.*`；
   task→task 任意引用允许（编排任务、变体继承是既有用法）
+- 派生逻辑统一走 `config/system/derive.py`；组队等非 `load_task` 路径调
+  `apply_bind_mode(cfg, force_mode="background")`，不要手写派生拷贝
 
 ## 禁忌
 

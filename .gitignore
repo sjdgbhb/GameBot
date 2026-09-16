@@ -61,9 +61,6 @@ exe/build/
 # 大漠插件 DLL（外部依赖，不纳入版本控制）
 external/dm/*.dll
 
-# Windsurf 本地配置
-.windsurf/settings.local.json
-
 # 前端构建产物
 src/GameBot/web/dist/
 *.tsbuildinfo
