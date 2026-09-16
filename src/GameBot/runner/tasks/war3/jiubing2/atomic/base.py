@@ -124,9 +124,9 @@ class AtomicTaskBase:
         self.dm.left_click()
         self._interruptible_wait(gt)
 
-        accept_text = self.combat.cfg.get("atomic_task", {}).get("accept_text", "")
+        accept_text = self.combat.cfg.get("war3", {}).get("jiubing2", {}).get("atomic_task", {}).get("accept_text", "")
         accept_timeout = self.cfg.get("accept_timeout", 8)
-        prompt_text = self.combat.cfg.get("prompt_text")
+        prompt_text = self.combat.cfg.get("war3", {}).get("jiubing2", {}).get("prompt_text")
         if self.monitor is not None:
             return self.monitor.wait_for(accept_text, timeout=accept_timeout)
         return self.war3.wait_for_text(
@@ -144,14 +144,14 @@ class AtomicTaskBase:
         中途检测到完成时，不再按路线依次走，立刻执行最后一个路线点（回 NPC 附近，
         不中断、走完整等待时间）以自动提交；路线正常走完则最后一点已执行，无需再走。
         """
-        complete_text = self.combat.cfg.get("atomic_task", {}).get("complete_text", "")
+        complete_text = self.combat.cfg.get("war3", {}).get("jiubing2", {}).get("atomic_task", {}).get("complete_text", "")
         if self.monitor is not None:
             complete_event = self.monitor.watch(complete_text)
         else:
             # 无持续监测器时回退到起停式后台监测线程
-            interval = self.combat.cfg.get("atomic_task", {}).get("monitor_interval", 0.2)
+            interval = self.combat.cfg.get("war3", {}).get("jiubing2", {}).get("atomic_task", {}).get("monitor_interval", 0.2)
             complete_event = self.war3.start_text_watcher(
-                self.combat.cfg.get("prompt_text"), complete_text, interval=interval
+                self.combat.cfg.get("war3", {}).get("jiubing2", {}).get("prompt_text"), complete_text, interval=interval
             )
         # 组合事件：complete_event 或用户 stop_event 任一触发即中断行走
         combined_event = _CombinedEvent(complete_event, self._stop_event)

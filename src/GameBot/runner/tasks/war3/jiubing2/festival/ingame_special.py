@@ -11,7 +11,7 @@ TOML 中用绝对寻址段（如 [war3.jiubing2.tasks.others.fishing]）直接�
 import copy
 import sys
 
-from GameBot.config import config
+from GameBot.config import config, get_task_view
 from GameBot.runner.tasks.war3.jiubing2.others.fishing import FishingTask
 from GameBot.runner.tasks.war3.jiubing2.reputation.daily_reputation import DailyReputationTask
 from GameBot.runner.ui import run_with_float_window
@@ -23,8 +23,8 @@ class IngameSpecialTask:
     """局内特殊任务 — 顺序编排：每日声望 → 步行至鱼点 → 钓鱼。"""
 
     def __init__(self, cfg: dict, task_name: str = "war3.jiubing2.tasks.festival.ingame_special"):
-        # 有效任务视图：tasks.festival 组内 [this] 沿加载链深合并（ingame_special → 变体）
-        self.cfg = cfg["task"]
+        # 任务视图：沿 extends 链深合并（ingame_special → 变体）
+        self.cfg = get_task_view(cfg, task_name)
         # 先透传 target_player 到子任务命名空间，再以生效配置构造子任务
         self.full_cfg = self._apply_overrides(cfg)
         self.daily = DailyReputationTask(self.full_cfg)
@@ -136,7 +136,7 @@ def main():
     cfg = config.load_task(task_name)
 
     # 显示名动态计算：变体配置带 target_player 时拼上玩家名
-    target_player = cfg.get("task", {}).get("target_player", "")
+    target_player = get_task_view(cfg, task_name).get("target_player", "")
     title = f"局内特殊-{target_player}" if target_player else "局内特殊任务"
 
     setup_log_file(title)
@@ -151,7 +151,7 @@ def main():
             progress_lines_callback=progress_lines_callback,
         )
 
-    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
+    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=cfg.get("base", {}).get("float_window", {}))
 
 
 if __name__ == "__main__":

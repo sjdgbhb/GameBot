@@ -77,7 +77,7 @@ def main():
         f"{LittleFlameSnakeTask.TASK_LABEL}任务",
         task_wrapper,
         countdown_seconds=5,
-        float_cfg=cfg.get("float_window", {}),
+        float_cfg=cfg.get("base", {}).get("float_window", {}),
     )
 
 

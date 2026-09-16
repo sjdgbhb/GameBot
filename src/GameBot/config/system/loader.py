@@ -80,9 +80,10 @@ class ConfigLoaderMixin:
         （如 config_name=war3.jiubing2.tasks.x.y 的文件写了 [war3.jiubing2.tasks.x.y]
         或更深路径）—— 请改用 [this] / [this.x]。
 
-        一级命名空间根下的**其他**路径放行，即"绝对寻址"写法：
-        直接对闭包内其他节点打补丁（含祖先路径，如编排任务写
-        [war3.jiubing2.tasks.others.fishing] 调子任务参数）。
+        **跨层覆盖放行**：一级命名空间根下的**其他**路径不拦截——
+        任何文件都可以写 [war3.xxx] / [kk.xxx] / [war3.jiubing2.tasks.others.fishing] 等
+        绝对路径，对闭包内其他节点打补丁（含祖先路径，如编排任务调子任务参数）。
+        只有"写自身命名空间根"（如 war3.toml 写 [war3]）才拦截，防旧格式回潮。
         """
         parts = config_name.split(".")
         node = raw
@@ -130,9 +131,10 @@ class ConfigLoaderMixin:
         只登记一级领域名（war3/kk/team/base/web）；war3 内部的 tasks/heroes/scenes
         等子目录不参与判定——新增任务/英雄/场景/变体文件无需登记。
         config_dir 下出现未登记的一级目录或顶层 .toml 时告警：其顶层键会被当作
-        可继承共享键提升（多半不是预期），新增一级命名空间请登记 NAMESPACE_ROOTS。
-        TOML 顶层键命中命名空间根 → 不可继承（保留在路径下）；
-        未命中 → 可继承（提升到结果顶层）。
+        命名空间节点保留在路径下（多半不是预期），新增一级命名空间请登记 NAMESPACE_ROOTS。
+        TOML 顶层键命中命名空间根 → 保留在路径下（命名空间节点）；
+        hero → 顶层键（局内唯一英雄，任务横向覆盖英雄层的通道）；
+        其余裸键 → 报错（旧"共享区"已废弃，请用 [this.xxx] 归入命名空间）。
         """
         if self._ns_roots is None:
             if self.config_dir.is_dir():
@@ -154,10 +156,16 @@ class ConfigLoaderMixin:
         return self._ns_roots
 
     def _split_sections(self, raw: dict) -> Tuple[dict, dict]:
-        """按命名空间约定拆分文件顶层节点（规则 2）。
+        """按命名空间约定拆分文件顶层节点。
 
-        :param raw: 单个配置文件解析后的原始字典
-        :return: (可继承节点, 命名空间节点)，控制键（name/extends 等）被剔除
+        :param raw: 单个配置文件解析后的原始字典（[this] 已展开为完整路径）
+        :return: (顶层键, 命名空间节点)，控制键（name/extends 等）被剔除
+
+        规则：
+        - hero → 顶层键（局内唯一英雄，任务层横向覆盖英雄层的通道）
+        - 命名空间根键（war3/kk/base/team/web）→ 命名空间节点，保留在路径下
+        - 其余裸键 → 报错：请用 [this.xxx] 归入自身命名空间
+          （旧设计把这些键提升到顶层"共享区"，已废弃——所有配置必须归属命名空间）
         """
         inheritable, namespaced = {}, {}
         roots = self.namespace_roots
@@ -165,10 +173,16 @@ class ConfigLoaderMixin:
             # 控制键（dependencies/inherit）不参与合并，直接跳过
             if key in self._CONTROL_KEYS:
                 continue
-            if key in roots:
+            if key == "hero":
+                # hero 是唯一保留的顶层键：局内唯一英雄，任务层横向覆盖英雄层
+                inheritable[key] = value
+            elif key in roots:
                 # 键名命中命名空间根 → 不可继承，保留在命名空间路径下
                 namespaced[key] = value
             else:
-                # 键名不在命名空间根 → 可继承，提升到顶层
-                inheritable[key] = value
+                # 旧设计的"共享区"已废弃：裸键不再提升到顶层
+                raise ConfigurationError(
+                    f"顶层裸键 [{key}] 不再支持：请用 [this.{key}] 归入自身命名空间，"
+                    f"或用 [hero] 写英雄配置（hero 是唯一保留的顶层键）"
+                )
         return inheritable, namespaced

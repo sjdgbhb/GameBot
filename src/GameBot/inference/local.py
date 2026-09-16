@@ -35,21 +35,21 @@ class LocalInferenceClient:
 
     def _build_config(self) -> dict:
         """从项目配置中提取推理参数。"""
-        inf_cfg = config.get("inference", {})
+        inf_cfg = config.get("base.inference", {})
         models_dir = inf_cfg.get("models_dir", "src/GameBot/resources/models")
         models_abs = os.path.join(config.project_root, models_dir)
 
         return {
-            "ocr_device": str(config.get("inference.device", "cpu") or "cpu"),
-            "ai_device": str(config.get("inference.device", "cpu") or "cpu"),
+            "ocr_device": str(config.get("base.inference.device", "cpu") or "cpu"),
+            "ai_device": str(config.get("base.inference.device", "cpu") or "cpu"),
             "chest_model_path": os.path.join(models_abs, "chest_detector.onnx"),
             "combat_model_path": os.path.join(models_abs, "combat_status.onnx"),
-            "chest_input_size": int(config.get("chest.ai_input_size", 1280)),
-            "chest_conf": float(config.get("chest.ai_conf", 0.5)),
-            "chest_iou": float(config.get("chest.ai_iou", 0.5)),
-            "combat_img_w": int(config.get("combat_status.ai_img_w", 87)),
-            "combat_img_h": int(config.get("combat_status.ai_img_h", 61)),
-            "combat_threshold": float(config.get("combat_status.ai_threshold", 0.5)),
+            "chest_input_size": int(config.get("war3.jiubing2.chest.ai_input_size", 1280)),
+            "chest_conf": float(config.get("war3.jiubing2.chest.ai_conf", 0.5)),
+            "chest_iou": float(config.get("war3.jiubing2.chest.ai_iou", 0.5)),
+            "combat_img_w": int(config.get("war3.jiubing2.combat_status.ai_img_w", 87)),
+            "combat_img_h": int(config.get("war3.jiubing2.combat_status.ai_img_h", 61)),
+            "combat_threshold": float(config.get("war3.jiubing2.combat_status.ai_threshold", 0.5)),
         }
 
     def start(self):

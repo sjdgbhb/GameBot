@@ -15,6 +15,7 @@ from .system import (
     apply_bind_mode,
     config,
     get_config,
+    get_task_view,
     resolve_item_names,
 )
 
@@ -24,5 +25,6 @@ __all__ = [
     "apply_bind_mode",
     "config",
     "get_config",
+    "get_task_view",
     "resolve_item_names",
 ]

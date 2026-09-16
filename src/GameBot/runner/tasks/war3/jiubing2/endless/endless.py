@@ -15,7 +15,7 @@
 import sys
 import time
 
-from GameBot.config import config
+from GameBot.config import config, get_task_view
 from GameBot.inference import get_inference_client
 from GameBot.runner import create_dm_client
 from GameBot.runner.business.kk import KKBusiness
@@ -38,8 +38,8 @@ class EndlessTask:
     def __init__(self, cfg: dict, task_name: str = "war3.jiubing2.tasks.endless.endless"):
         self.task_cfg = cfg
         self.dm = create_dm_client()
-        # 有效任务视图：tasks.endless 组内 [this] 沿加载链深合并（endless_single → endless → 变体）
-        endless_cfg = cfg["task"]
+        # 任务视图：沿 extends 链深合并（endless_single → endless → 变体）
+        endless_cfg = get_task_view(cfg, task_name)
 
         war3_cfg = self.task_cfg.get("war3", {})
         hero_cfg = self.task_cfg.get("hero", {})
@@ -104,7 +104,7 @@ class EndlessTask:
         # 未找到房间，清理主界面弹窗后创建
         logger.info("未找到 KK 房间，开始自动创建房间")
         self.kk.dismiss_hall_popups(self.dm)
-        map_name = self.task_cfg.get("game", {}).get("map_name", "九种兵器2诸神战场")
+        map_name = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("game", {}).get("map_name", "九种兵器2诸神战场")
         room_hwnd = self.kk.create_room(self.dm, map_name=map_name)
         if not room_hwnd:
             logger.error(
@@ -209,7 +209,7 @@ def main():
     cfg = config.load_task(task_name)
 
     # 显示名动态计算：变体配置带 target_player 时拼上玩家名
-    target_player = cfg.get("task", {}).get("target_player", "")
+    target_player = get_task_view(cfg, task_name).get("target_player", "")
     title = f"多局无尽-{target_player}" if target_player else "多局无尽"
 
     setup_log_file(title)
@@ -223,7 +223,7 @@ def main():
     def task_wrapper(stop_event, progress_callback=None):
         EndlessTask(cfg, task_name=task_name).run(stop_event=stop_event, progress_callback=progress_callback)
 
-    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
+    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=cfg.get("base", {}).get("float_window", {}))
 
 
 if __name__ == "__main__":

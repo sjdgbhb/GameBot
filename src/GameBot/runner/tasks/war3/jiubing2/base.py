@@ -74,7 +74,7 @@ class AtomicLoopTask:
         self.nearby_cleaner = (
             NearbyCleaner(
                 self.war3,
-                cfg.get("command", {}),
+                cfg.get("war3", {}).get("jiubing2", {}).get("command", {}),
                 probability=clear_nearby_probability,
             )
             if clear_nearby_probability > 0
@@ -150,11 +150,11 @@ class AtomicLoopTask:
 
     def _make_monitor(self, hwnd: int):
         """创建持续文字监测器；子类可覆写返回 None 以禁用。"""
-        atomic_task_cfg = self.full_cfg.get("atomic_task", {})
+        atomic_task_cfg = self.full_cfg.get("war3", {}).get("jiubing2", {}).get("atomic_task", {})
         interval = atomic_task_cfg.get("monitor_interval", 0.2)
         # 监测线程截图出错 → set stop_event 让主线程尽快中断，异常由 monitor.stop() 抛出
         monitor = TextMonitor(
-            self.war3, self.full_cfg.get("prompt_text"), interval=interval, on_error=self._on_monitor_error
+            self.war3, self.full_cfg.get("war3", {}).get("jiubing2", {}).get("prompt_text"), interval=interval, on_error=self._on_monitor_error
         )
         monitor.start(hwnd)
         return monitor
@@ -568,7 +568,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
                     continue
             points.append(pt)
 
-        complete_text = self.full_cfg.get("atomic_task", {}).get("complete_text", "")
+        complete_text = self.full_cfg.get("war3", {}).get("jiubing2", {}).get("atomic_task", {}).get("complete_text", "")
         if not complete_text:
             logger.error("未配置 atomic_task.complete_text")
             return
@@ -698,8 +698,8 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         已提交的任务不会显示在弹窗中，因此剩余行数 = 未提交任务数。
         OCR 后顺便点击"关闭"按钮关闭弹窗。
         """
-        popup_cfg = self.full_cfg.get("task_popup", {})
-        command_cfg = self.full_cfg.get("command", {})
+        popup_cfg = self.full_cfg.get("war3", {}).get("jiubing2", {}).get("task_popup", {})
+        command_cfg = self.full_cfg.get("war3", {}).get("jiubing2", {}).get("command", {})
 
         # 发送 -rw 打开弹窗
         self.war3.send_msg(command_cfg.get("task_query", "-rw"))
@@ -746,7 +746,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         :param close_coords: "关闭"按钮的屏幕坐标 (x, y)，为 None 时按 Escape
         """
         gt = self.war3_cfg.get("general_time", 0.3)
-        popup_cfg = self.full_cfg.get("task_popup", {})
+        popup_cfg = self.full_cfg.get("war3", {}).get("jiubing2", {}).get("task_popup", {})
 
         if popup_cfg.get("close_by_x"):
             area_coords = popup_cfg.get("area_coords", [600, 200, 1300, 600])

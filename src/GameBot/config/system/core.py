@@ -7,15 +7,18 @@
    文件内使用 [this] 简写代替完整命名空间前缀。
 2. 命名空间约定：config 目录下的一级文件夹名和顶层 .toml 文件名构成命名空间根
    （如 war3、team、base、kk、web）。TOML 顶层键命中命名空间根的（如 [war3]）
-   不可被继承，保留在路径下；未命中的（如 [command]、[hero]）可被继承，提升到顶层。
+   保留在路径下；hero 是唯一保留在顶层的键（局内唯一英雄，任务层横向覆盖英雄层）。
+   其余裸键不再提升到顶层（旧"共享区"已废弃）——请用 [this.xxx] 归入自身命名空间。
    不递归扫描子目录——新建子目录不会改变现有 TOML 的合并语义。
 3. 英雄互斥：一场游戏只能玩一个英雄。heroes.* 配置互斥生效——加载顺序中最后一个
-   英雄配置整体替换之前英雄贡献的可继承节点。
-4. [hero] 浅合并：[hero] 是可继承节点但做浅合并处理——合并顶层子键（skills/
+   英雄配置整体替换之前英雄贡献的顶层节点。
+4. [hero] 浅合并：[hero] 是顶层键但做浅合并处理——合并顶层子键（skills/
    inventory/stigma/cards 等），每个子键完全覆盖（不递归）。任务配置只写
    inventory 不会丢失英雄的 skills 等属性。
-5. 结果结构：类 JSON 字典。可继承节点深度合并到顶层，
-   不可继承节点保留在各自命名空间路径下（如 result["tasks"]["atomic"]["xxx"]）。
+5. 结果结构：类 JSON 字典。hero 在顶层，其余配置保留在各自命名空间路径下
+   （如 result["war3"]["jiubing2"]["tasks"]["atomic"]["xxx"]）。
+   result["_extends"] 记录各配置文件的 extends 依赖映射，供 get_task_view 沿链
+   合并任务视图（变体不写的参数自动从基任务继承）。
 - 不硬编码任何配置文件名，用户配置了哪些依赖就导入哪些
 
 模块结构：
@@ -36,7 +39,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .base import CONTROL_KEYS, EXCLUSIVE_NAMESPACES
 from .builder import ConfigBuilderMixin
-from .derive import derive_bind_mode, resolve_item_names, select_bind_cfg
+from .derive import derive_bind_mode, get_task_view, resolve_item_names, select_bind_cfg
 from .loader import ConfigLoaderMixin
 from .resolver import ConfigResolverMixin
 from .user import ConfigUserMixin
@@ -167,9 +170,6 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
         if user_cfg:
             self._apply_user_overrides(result, user_cfg, task_name, prov=prov)
 
-        # 任务链合并：同组任务文件的 [this] 沿加载链深合并为有效任务视图 result["task"]
-        result["task"] = self._merge_task_chain(result, order, task_name, prov)
-
         # 将 kk.inventory_slots 注入 hero_cfg，供 get_inventory_hotkey(s) 查找快捷键
         self._inject_inventory_slots(result, prov)
         # 将 inventory 中的 item 物品名解析为 item_id
@@ -189,7 +189,6 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
         rebuilt = self._build(self._load_order, global_prov)
         if user_cfg:
             self._apply_user_overrides(rebuilt, user_cfg, task_name, prov=global_prov)
-        rebuilt["task"] = self._merge_task_chain(rebuilt, self._load_order, task_name, global_prov)
         self._inject_inventory_slots(rebuilt, global_prov)
         self._resolve_inventory_item_names(rebuilt, global_prov)
         self._apply_bind_mode(rebuilt, task_name, global_prov)
@@ -204,7 +203,10 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
         kk.toml 中定义了默认的格子→快捷键映射，hero_cfg 通过 inventory_slots
         字段访问该映射。组队配置中成员可用 inventory_slots 覆盖默认值。
         """
-        kk_slots = config.get("kk", {}).get("inventory_slots")
+        kk_cfg = config.get("kk", {})
+        if not isinstance(kk_cfg, dict):
+            return
+        kk_slots = kk_cfg.get("inventory_slots")
         if kk_slots:
             hero = config.setdefault("hero", {})
             if "inventory_slots" not in hero:
@@ -215,11 +217,14 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
         """将 hero.inventory 中的 item（物品名）解析为 item_id（原地修改）。
 
         支持用物品名替代数字 ID，提升配置可读性。已有 item_id 的条目不受影响。
-        物品名→ID 映射来自配置中的 items 列表（如 jiubing2.toml 的 items）。
+        物品名→ID 映射来自配置中的 items 列表（war3.jiubing2.items）。
         实际解析逻辑在 derive.resolve_item_names（组队路径复用）。
         """
         hero = config.get("hero", {})
-        if resolve_item_names(hero.get("inventory", []), config.get("items", [])):
+        j2_cfg = config.get("war3", {}).get("jiubing2", {})
+        if not isinstance(j2_cfg, dict):
+            return
+        if resolve_item_names(hero.get("inventory", []), j2_cfg.get("items", [])):
             self._prov_mark(prov, "hero.inventory", "<派生:物品名→item_id>")
 
     def _apply_bind_mode(self, config: dict, task_name: str = None, prov=None):
@@ -229,16 +234,9 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
         实际推导/写入逻辑在 derive 模块（derive_bind_mode / select_bind_cfg），
         组队多成员强转后台由 team/base.py 调 derive.apply_bind_mode 完成。
         """
-        # 任务级覆盖：优先取有效任务视图 result["task"]（含变体合并）；
-        # 非任务入口（kk/team.* 等）task 为空，回退按 task_name 路径取节点
-        task_node = config.get("task")
-        if not task_node and task_name:
-            node = config
-            for part in task_name.split("."):
-                node = node.get(part) if isinstance(node, dict) else None
-                if node is None:
-                    break
-            task_node = node if isinstance(node, dict) else None
+        # 任务级覆盖：沿 extends 链合并任务视图（含变体继承）；
+        # 非任务入口（kk/team.* 等）get_task_view 返回空字典
+        task_node = get_task_view(config, task_name) if task_name else None
 
         for ns in ("war3", "kk"):
             ns_cfg = config.get(ns)

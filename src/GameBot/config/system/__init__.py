@@ -18,7 +18,7 @@
 
 from .base import ConfigurationError
 from .core import Config, config, get_config
-from .derive import apply_bind_mode, derive_bind_mode, resolve_item_names, select_bind_cfg
+from .derive import apply_bind_mode, derive_bind_mode, get_task_view, resolve_item_names, select_bind_cfg
 
 __all__ = [
     "Config",
@@ -27,6 +27,7 @@ __all__ = [
     "config",
     "derive_bind_mode",
     "get_config",
+    "get_task_view",
     "resolve_item_names",
     "select_bind_cfg",
 ]

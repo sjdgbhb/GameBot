@@ -6,7 +6,7 @@ extends = []
 # ---------------------------------------------------------------------------
 # 路径配置
 # ---------------------------------------------------------------------------
-[paths]
+[this.paths]
 log_path = "logs"                                # 日志输出目录
 resources_path = "src/GameBot/resources"     # 资源根目录
 screenshot_path = "logs/screenshots"             # 非预想流程截图输出目录
@@ -17,7 +17,7 @@ screenshot_path = "logs/screenshots"             # 非预想流程截图输出�
 # dm_bridge 自动使用 .venv-dm/Scripts/python.exe，如路径非标准可取消注释下方配置项。
 # 创建方式：uv venv .venv-dm --python 3.8（需 32 位 Python 3.8）
 # ---------------------------------------------------------------------------
-[dm]
+[this.dm]
 version = "3.1233"          # 期望的大漠插件版本
 dll_path = "external/dm"    # 大漠 DLL 所在目录
 # python_path = ".venv-dm/Scripts/python.exe"  # 可选：dm_bridge 子进程 Python 路径（默认自动检测）
@@ -26,7 +26,7 @@ dll_path = "external/dm"    # 大漠 DLL 所在目录
 # 推理配置（主环境 3.12 进程内直接调用，不再需要子进程）
 # OCR、宝箱检测、战斗检测均在主进程内加载模型（见 inference/local.py）
 # ---------------------------------------------------------------------------
-[inference]
+[this.inference]
 # 推理设备："cpu" 或 "gpu"。实测本场景（小区域单张图）CPU 已足够快，建议 cpu
 device = "gpu"
 # 模型目录（相对于项目根目录）
@@ -35,7 +35,7 @@ models_dir = "src/GameBot/resources/models"
 # ---------------------------------------------------------------------------
 # 浮窗默认配置（可被任务配置中的 [float_window] 覆盖）
 # ---------------------------------------------------------------------------
-[float_window]
+[this.float_window]
 # x 不配置则默认屏幕右侧（screen_w - width - 20）；需要左侧时显式写 x
 y = 380      # 浮窗默认 y 坐标（屏幕坐标）
 width = 300  # 浮窗宽度（像素）

@@ -27,7 +27,7 @@ def resolve_bridge_python() -> str:
 
     优先 [dm].python_path 配置，未配置则自动检测 .venv-dm/Scripts/python.exe。
     """
-    dm_cfg = config.get("dm", {})
+    dm_cfg = config.get("base.dm", {})
     raw = dm_cfg.get("python_path", "")
     if raw:
         p = Path(raw)
@@ -51,7 +51,7 @@ class DmBridgeClient(DmClientBase):
     """经 dm_bridge 子进程的大漠驱动（每实例独占一个桥接进程，多开互不干扰）。"""
 
     def __init__(self):
-        dm_cfg = config.get("dm", {})
+        dm_cfg = config.get("base.dm", {})
         self.expected_version = dm_cfg.get("version", "3.1233")
         dll_path = dm_cfg.get("dll_path")
         if not dll_path:

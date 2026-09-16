@@ -59,6 +59,6 @@ time = 5
 "lower" = "下位"
 
 # 浮窗位置（别遮挡任务文本、圣痕词条）
-[float_window]
+[base.float_window]
 x = 20       # 浮窗默认 x 坐标（屏幕坐标）
 y = 400      # 浮窗默认 y 坐标（屏幕坐标）

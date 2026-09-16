@@ -4,7 +4,7 @@
 
 import time
 
-from GameBot.config import config
+from GameBot.config import config, get_task_view
 from GameBot.inference import get_inference_client
 from GameBot.runner import create_dm_client
 from GameBot.runner.business.war3 import War3Business
@@ -25,8 +25,8 @@ class EndlessSingleTask:
     def __init__(self, cfg: dict):
         self.task_cfg = cfg
         self.dm = create_dm_client()
-        # 有效任务视图：本任务无变体，即 endless_single 段自身
-        endless_cfg = cfg.get("task", {})
+        # 任务视图：本任务无变体，即 endless_single 段自身
+        endless_cfg = get_task_view(cfg, "war3.jiubing2.tasks.endless.endless_single")
 
         war3_cfg = self.task_cfg.get("war3", {})
         hero_cfg = self.task_cfg.get("hero", {})
@@ -78,7 +78,7 @@ def main():
     def task_wrapper(stop_event, progress_callback=None):
         EndlessSingleTask(cfg).run(stop_event=stop_event, progress_callback=progress_callback)
 
-    run_with_float_window("无尽刷怪", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
+    run_with_float_window("无尽刷怪", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("base", {}).get("float_window", {}))
 
 
 if __name__ == "__main__":

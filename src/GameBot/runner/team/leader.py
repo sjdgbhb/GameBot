@@ -45,7 +45,7 @@ class TeamLeader(TeamMemberBase):
         # 房间信息
         self.room_id = ""
         self.password = ""
-        self.map_name = cfg.get("game", {}).get("map_name", "")
+        self.map_name = cfg.get("war3", {}).get("jiubing2", {}).get("game", {}).get("map_name", "")
 
     def get_role(self) -> str:
         return "leader"

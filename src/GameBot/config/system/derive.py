@@ -14,6 +14,61 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def get_task_view(cfg: dict, task_name: str) -> dict:
+    """沿 extends 链深合并任务视图（base first, leaf last）。
+
+    变体不写的参数自动从基任务继承；要覆盖则写全路径打到基任务节点。
+    只合并 war3.jiubing2.tasks.* 下的任务节点，非任务依赖（war3.jiubing2、kk、
+    heroes 等）不参与——它们的配置已在各自命名空间节点中。
+
+    :param cfg: load_task 返回的配置字典（含 _extends 映射）
+    :param task_name: 任务全名（如 war3.jiubing2.tasks.endless.endless_善木木）
+    :return: 深合并后的任务视图字典；无 extends 信息时返回空字典
+    """
+    extends_map = cfg.get("_extends", {})
+    if not extends_map:
+        return {}
+    chain = []
+    _collect_extends_chain(task_name, extends_map, chain, set())
+    # 只合并任务节点（war3.jiubing2.tasks.* 下）
+    task_chain = [n for n in chain if n.startswith("war3.jiubing2.tasks.")]
+    view: dict = {}
+    for name in task_chain:
+        node = _get_nested(cfg, name.split("."))
+        if isinstance(node, dict):
+            _deep_merge(view, node)
+    return view
+
+
+def _collect_extends_chain(name: str, extends_map: dict, chain: list, visited: set):
+    """DFS 后序收集 extends 链（依赖在前、自身在后）。"""
+    if name in visited:
+        return
+    visited.add(name)
+    for dep in extends_map.get(name, []):
+        _collect_extends_chain(dep, extends_map, chain, visited)
+    chain.append(name)
+
+
+def _get_nested(cfg: dict, parts: list):
+    """按点路径段列表读取嵌套节点。"""
+    node = cfg
+    for p in parts:
+        node = node.get(p) if isinstance(node, dict) else None
+        if node is None:
+            return None
+    return node
+
+
+def _deep_merge(base: dict, override: dict):
+    """深度合并 override 到 base（原地修改 base）。"""
+    for key, value in override.items():
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+            _deep_merge(base[key], value)
+        else:
+            base[key] = copy.deepcopy(value) if isinstance(value, (dict, list)) else value
+
+
 def resolve_item_names(inventory: list, items: list) -> int:
     """将 inventory 条目中的 item（物品名）解析为 item_id（原地修改）。
 

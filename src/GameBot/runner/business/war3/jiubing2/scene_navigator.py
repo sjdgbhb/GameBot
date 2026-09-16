@@ -38,7 +38,7 @@ class SceneNavigator:
         self.dm = dm
         self.war3_cfg = war3_cfg
         self.hero_cfg = hero_cfg
-        self.game_cfg = cfg.get("game", {})
+        self.game_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("game", {})
         scenes = cfg.get("war3", {}).get("jiubing2", {}).get("scenes", {})
         self.menethil_cfg = scenes.get("menethil", {})
         self.palace_cfg = scenes.get("palace", {})

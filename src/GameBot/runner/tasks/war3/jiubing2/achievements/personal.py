@@ -31,7 +31,7 @@ def main():
     def task_wrapper(stop_event, progress_callback=None):
         PersonalAchievementTask(cfg).run(stop_event=stop_event, progress_callback=progress_callback)
 
-    run_with_float_window("个人任务成就", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
+    run_with_float_window("个人任务成就", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("base", {}).get("float_window", {}))
 
 
 if __name__ == "__main__":

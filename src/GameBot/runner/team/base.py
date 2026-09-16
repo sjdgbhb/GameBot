@@ -130,7 +130,7 @@ class TeamMemberBase(abc.ABC):
                 cfg["hero"] = {}
             cfg["hero"]["inventory"] = member_inventory
             # 解析物品名为 item_id（支持用 item = "物品名" 替代 item_id = 数字）
-            resolve_item_names(member_inventory, cfg.get("items", []))
+            resolve_item_names(member_inventory, cfg.get("war3", {}).get("jiubing2", {}).get("items", []))
 
         # 组队模式格子快捷键覆盖：member_cfg 中的 inventory_slots 覆盖 kk 默认配置
         member_slots = member_cfg.get("inventory_slots")

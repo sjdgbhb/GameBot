@@ -70,57 +70,13 @@ class ConfigBuilderMixin:
                         self._prov_mark(prov, key, name)
             # 命名空间节点：深度合并到各自路径下（不同子路径可共存，同路径后加载覆盖先加载）
             self._deep_merge(result, namespaced, _prov=prov, _source=name)
+        # 收集 extends 映射，供 get_task_view 沿 extends 链合并任务视图
+        extends_map = {}
+        for name in order:
+            raw = self._load_file(name)
+            extends_map[name] = raw.get("extends", [])
+        result["_extends"] = extends_map
         return result
-
-    # 任务层根路径：war3.jiubing2.tasks 下的配置名才参与任务链合并
-    _TASK_ROOT_PARTS = ("war3", "jiubing2", "tasks")
-
-    def _merge_task_chain(self, result: dict, order: List[str], task_name: str, prov=None) -> dict:
-        """同组任务文件的 [this] 段沿加载链深度合并，产出"有效任务视图"（result["task"]）。
-
-        [this] 按文件路径展开为兄弟节点（endless_single / endless / endless_善木木），
-        彼此不会自动覆盖；任务链合并在加载顺序上把同组节点深合并成一个视图，
-        叶子（被加载任务自身）最后生效——等价于"任务层继承"。
-
-        同组定义：配置名与 task_name 共享 war3.jiubing2.tasks.<组> 前缀。
-        编排任务 extends 的子任务在其他组，不参与本任务视图
-        （如 ingame_special 的 daily_reputation / fishing 留在各自节点，由绝对寻址打补丁）。
-        非任务入口（kk、war3、team.* 等）返回空 dict。
-
-        合并视图同时**回写到叶子节点**（result 中 task_name 对应的命名空间段），
-        使按路径读该任务段的旧代码自动拿到有效视图——兼容组队模式把多个任务闭包
-        深合并成一个 cfg 的场景（每个任务节点仍保留自己的视图）。
-        """
-        parts = task_name.split(".")
-        if parts[:3] != list(self._TASK_ROOT_PARTS):
-            return {}
-        if len(parts) <= 4:
-            # 无组的直接任务（tasks.<leaf>）：链只有自身
-            chain = [n for n in order if n == task_name]
-        else:
-            group_prefix = ".".join(parts[:4])  # war3.jiubing2.tasks.<组>
-            chain = [n for n in order if n == group_prefix or n.startswith(group_prefix + ".")]
-        task_view: dict = {}
-        for name in chain:
-            node = result
-            for p in name.split("."):
-                node = node.get(p) if isinstance(node, dict) else None
-                if node is None:
-                    break
-            if isinstance(node, dict):
-                self._deep_merge(task_view, node, _path="task", _prov=prov, _source=name)
-        # 回写叶子节点：result 中该任务的命名空间段直接指向合并视图（同一对象），
-        # 使按路径读该任务段的旧代码自动拿到有效视图——兼容组队模式把多个任务闭包
-        # 深合并成一个 cfg 的场景（每个任务节点仍保留自己的视图）
-        parent = result
-        for p in parts[:-1]:
-            parent = parent.get(p) if isinstance(parent, dict) else None
-            if parent is None:
-                break
-        if task_view and isinstance(parent, dict) and isinstance(parent.get(parts[-1]), dict):
-            parent[parts[-1]] = task_view
-            self._prov_mark(prov, task_name, "<派生:任务链合并视图>")
-        return task_view
 
     def _deep_merge(self, base: dict, override: dict, _path: str = "", _prov=None, _source=None):
         """深度合并：override 覆盖 base，base 被原地修改。

@@ -308,7 +308,7 @@ def main():
             progress_lines_callback=kwargs.get("progress_lines_callback"),
         ).run()
 
-    run_with_float_window("圣骑士风龙", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
+    run_with_float_window("圣骑士风龙", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("base", {}).get("float_window", {}))
 
 
 if __name__ == "__main__":

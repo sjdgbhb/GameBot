@@ -132,7 +132,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
         walk_to_stigmata = points[0] if len(points) > 0 else {}
         walk_to_guard = points[1] if len(points) > 1 else {}
 
-        stigmata_cfg = self.full_cfg.get("stigmata", {})
+        stigmata_cfg = self.full_cfg.get("war3", {}).get("jiubing2", {}).get("stigmata", {})
         term_limit = stigmata_cfg.get("term_limit", {})
         if not term_limit:
             logger.error("未配置 stigmata.term_limit，无法判断升级目标")
@@ -327,7 +327,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
                  term_name 对应 term_limit 的 key，value 为当前数值；
                  列表顺序与技能格列号一致（idx 0=第1列）。
         """
-        stigmata_cfg = self.full_cfg.get("stigmata", {})
+        stigmata_cfg = self.full_cfg.get("war3", {}).get("jiubing2", {}).get("stigmata", {})
         num_coords = stigmata_cfg.get("num_coords")
         hotkey = stigmata_cfg.get("switch_hotkey", "F2")
         if not num_coords:
@@ -415,7 +415,7 @@ def main():
         "升级圣痕",
         task_wrapper,
         countdown_seconds=5,
-        float_cfg=task_cfg.get("float_window", {}),
+        float_cfg=task_cfg.get("base", {}).get("float_window", {}),
     )
 
 

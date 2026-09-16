@@ -38,9 +38,9 @@ class EndlessRunner:
         self._combat = combat
         self.war3_cfg = war3_cfg
         self.hero_cfg = hero_cfg
-        self.game_cfg = cfg.get("game", {})
-        self.command_cfg = cfg.get("command", {})
-        self._prompt_text_cfg = cfg.get("prompt_text", {})
+        self.game_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("game", {})
+        self.command_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("command", {})
+        self._prompt_text_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("prompt_text", {})
 
     # ── 游戏进入 & 准备 ───────────────────────────────────
 

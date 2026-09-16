@@ -94,10 +94,10 @@ class CombatHelper:
         self.war3_cfg = war3_cfg
         self.hero_cfg = hero_cfg
         self.cfg = cfg
-        self.game_cfg = cfg.get("game", {})
+        self.game_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("game", {})
         self._war3 = war3
         # 物品 id → name 映射，用于日志可读性
-        self._item_names = {it.get("id"): it.get("name", "") for it in cfg.get("items", []) if it.get("id") is not None}
+        self._item_names = {it.get("id"): it.get("name", "") for it in cfg.get("war3", {}).get("jiubing2", {}).get("items", []) if it.get("id") is not None}
 
     def resolve_point_skills(self, point_skills) -> list:
         """将路线点的技能配置与英雄技能池合并，返回完整技能列表。
@@ -169,7 +169,7 @@ class CombatHelper:
         :param stop_event: 停止事件，设置时中断等待
         """
         passed_time = round(time.time() - task.pet_feed_time)
-        feeding_interval = self.cfg.get("pet", {}).get("feeding_interval", 10) * 60
+        feeding_interval = self.cfg.get("war3", {}).get("jiubing2", {}).get("pet", {}).get("feeding_interval", 10) * 60
         if passed_time >= feeding_interval:
             logger.info(f"喂食宠物（距上次喂食已过 {passed_time}s，间隔 {feeding_interval}s）")
             hotkeys = get_inventory_hotkeys(self.hero_cfg, 9)

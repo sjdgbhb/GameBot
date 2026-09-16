@@ -155,11 +155,12 @@ KK 平台 Qt 5.15.2 窗口是 `WS_EX_LAYERED`，后台输入/点击后画面不�
   = 直接给目标节点打补丁，合并阶段生效；编排任务调子任务参数用此写法，
   不再在业务代码里手动搬运（ingame_special 的 _apply_overrides 只剩 target_player 透传）。
   **禁止用完整路径写自身命名空间**（loader 拦截，提示改用 [this]）
-- **有效任务视图 `cfg["task"]`**：`load_task` 把同组任务文件的 `[this]` 沿加载链深合并
-  （如 endless_single → endless → endless_善木木），并**回写到叶子命名空间节点**——
-  按路径读该任务段也拿到合并视图（兼容组队模式多任务闭包合并的场景）。
-  任务代码取自身参数用 `cfg["task"]`。注意只含本组链——编排任务的子任务参数
-  仍在各自命名空间节点（用绝对寻址打补丁）
+- **任务视图 `get_task_view(cfg, task_name)`**：`load_task` 不再预合并 `cfg["task"]`，
+  而是在结果中存储 `result["_extends"]` 映射。业务代码调 `get_task_view(cfg, task_name)`
+  按需沿 extends 链 DFS 后序深合并 `war3.jiubing2.tasks.*` 节点——变体不写的参数
+  自动从基任务继承，要覆盖则写全路径打到基任务节点。任务代码取自身参数用
+  `get_task_view(cfg, task_name)`。编排任务的子任务参数仍在各自命名空间节点
+  （用绝对寻址打补丁），不在编排任务的任务视图中
 - **派生逻辑共享**：`config/system/derive.py` 收敛派生推导——`resolve_item_names`
   （物品名→item_id）、`derive_bind_mode`/`select_bind_cfg`/`apply_bind_mode`（bind 选择）；
   组队等非 load_task 路径调 `apply_bind_mode(cfg, force_mode="background")`，

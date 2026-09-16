@@ -262,9 +262,13 @@ def load_task_defaults(task_id: str) -> dict:
         if isinstance(hero_cfg, dict) and "inventory" in hero_cfg:
             defaults["inventory"] = hero_cfg["inventory"]
 
-    # 顶层可继承的 chest 覆盖
+    # 顶层可继承的 chest 覆盖（现归入 war3.jiubing2.chest）
     if "chest" in data:
         defaults["chest"] = data["chest"]
+    # 任务 TOML 里的 [this.chest] 覆盖（跨层绝对寻址写法）
+    this_cfg = data.get("this", {})
+    if isinstance(this_cfg, dict) and "chest" in this_cfg:
+        defaults["chest"] = this_cfg["chest"]
 
     # 解析 inventory 中的物品名为 item_id（统一返回 item_id 格式给前端）
     if "inventory" in defaults:
@@ -339,7 +343,7 @@ def load_items() -> list:
     data = load_toml(jiubing2_path)
     if not data:
         return []
-    items = data.get("items", [])
+    items = data.get("this", {}).get("items", [])
     return [{"id": it["id"], "name": it["name"]} for it in items]
 
 
@@ -368,7 +372,7 @@ def load_commands() -> list:
     data = load_toml(jiubing2_path)
     if not data:
         return []
-    commands = data.get("command", {})
+    commands = data.get("this", {}).get("command", {})
     return [{"key": k, "cmd": v} for k, v in commands.items()]
 
 
@@ -572,11 +576,11 @@ def start_task(task_id: str) -> dict:
     # 优先从配置读取 python_path，未配置则用当前 Python（即主环境 3.12）
     main_py = _WEB_CONFIG.get("dm_python_path", "")
     if not main_py:
-        _base_toml = _CONFIG_DIR / "war3" / "jiubing2" / "jiubing2.toml"
+        _base_toml = _CONFIG_DIR / "base.toml"
         if _base_toml.exists():
             _base_data = load_toml(_base_toml)
             if _base_data:
-                main_py = _base_data.get("dm", {}).get("python_path", "")
+                main_py = _base_data.get("this", {}).get("dm", {}).get("python_path", "")
     if main_py:
         _main_py_path = Path(main_py)
         if not _main_py_path.is_absolute():

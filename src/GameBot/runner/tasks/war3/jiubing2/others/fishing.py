@@ -6,7 +6,7 @@ import sys
 import time
 from typing import TYPE_CHECKING, Optional
 
-from GameBot.config import config as config
+from GameBot.config import config, get_task_view
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import NearbyCleaner, get_inventory_hotkey
 from GameBot.runner.driver import create_dm_client
@@ -34,14 +34,12 @@ class FishingTask:
         self._progress_callback = progress_callback or (lambda text: None)
         self.war3_cfg = cfg.get("war3", {})
         self.war3 = War3Business(self.dm, self.war3_cfg)
-        # 任务配置段按实际加载的任务名取（变体配置是自己的命名空间）；
-        # load_task 已把同组 [this] 沿链深合并回写到叶节点，该段即有效任务视图。
+        # 任务视图：沿 extends 链深合并（fishing → 变体），变体不写的参数自动从基任务继承
         # target_player 在变体 [this] 里配置，注入 war3 做多开窗口认领
-        leaf = task_name.split(".")[-1]
-        self.fishing_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("tasks", {}).get("others", {}).get(leaf, {})
+        self.fishing_cfg = get_task_view(cfg, task_name)
         self.war3.target_player = self.fishing_cfg.get("target_player", "")
         self.check_cfg = self.fishing_cfg.get("check", {})
-        self.prompt_cfg = cfg.get("prompt_text", {})
+        self.prompt_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("prompt_text", {})
         self.hero_cfg = cfg.get("hero", {})
         self.fishing_hotkey = get_inventory_hotkey(self.hero_cfg, 7)
         self._last_success_text = ""
@@ -53,7 +51,7 @@ class FishingTask:
         self.nearby_cleaner = (
             NearbyCleaner(
                 self.war3,
-                cfg.get("command", {}),
+                cfg.get("war3", {}).get("jiubing2", {}).get("command", {}),
                 probability=clear_nearby_probability,
             )
             if clear_nearby_probability > 0
@@ -277,7 +275,7 @@ def main():
     cfg = config.load_task(task_name)
 
     # 显示名动态计算：变体配置带 target_player 时拼上玩家名，如"钓鱼-玩家A"
-    target_player = cfg.get("task", {}).get("target_player", "")
+    target_player = get_task_view(cfg, task_name).get("target_player", "")
     title = f"钓鱼-{target_player}" if target_player else "钓鱼"
 
     setup_log_file(title)
@@ -288,7 +286,7 @@ def main():
     def task_wrapper(stop_event, progress_callback):
         FishingTask(cfg, task_name=task_name, stop_event=stop_event, progress_callback=progress_callback).run()
 
-    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=(cfg.get("float_window", {})))
+    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=(cfg.get("base", {}).get("float_window", {})))
 
 
 if __name__ == "__main__":

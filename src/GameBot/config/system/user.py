@@ -157,12 +157,13 @@ class ConfigUserMixin:
             if "inventory" in hc:
                 user_set("hero.inventory", hc["inventory"], hc_source)
 
-        # chest → 深度合并到顶层 [chest]（可继承节点）
+        # chest → 深度合并到 war3.jiubing2.chest（命名空间节点）
         if "chest" in user_cfg:
+            j2_cfg = config.setdefault("war3", {}).setdefault("jiubing2", {})
             self._deep_merge(
-                config.setdefault("chest", {}),
+                j2_cfg.setdefault("chest", {}),
                 user_cfg["chest"],
-                _path="chest",
+                _path="war3.jiubing2.chest",
                 _prov=prov,
                 _source=self._USER_SRC,
             )

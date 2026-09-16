@@ -54,7 +54,7 @@ def main():
             task = SnakeEggTask(dm, war3, ui, combat, task_cfg)
             task.run(stop_event=stop_event)
 
-    run_with_float_window("蛇蛋任务", task_wrapper, countdown_seconds=5, float_cfg=(cfg.get("float_window", {})))
+    run_with_float_window("蛇蛋任务", task_wrapper, countdown_seconds=5, float_cfg=(cfg.get("base", {}).get("float_window", {})))
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ class GameUI:
         self.war3_cfg = war3_cfg
         self.hero_cfg = hero_cfg
         self.cfg = cfg
-        self.game_cfg = cfg.get("game", {})
+        self.game_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("game", {})
         self._war3 = war3
 
     def get_skill_coords(self, index_x: "int", index_y: "int") -> "tuple":
@@ -38,7 +38,7 @@ class GameUI:
         :param index_y: 技能面板列号（1-based）
         :return: (screen_x, screen_y)
         """
-        panel = self.cfg.get("skill_panel", {})
+        panel = self.cfg.get("war3", {}).get("jiubing2", {}).get("skill_panel", {})
         first = panel.get("first_coords", [0, 0])
         return (first[0] + (index_y - 1) * panel.get("gap_x", 0), first[1] + (index_x - 1) * panel.get("gap_y", 0))
 
@@ -49,7 +49,7 @@ class GameUI:
         技能列表由 hero_cfg['learn_skills'] 配置。
         """
         logger.info("学习技能")
-        panel = self.cfg.get("skill_panel", {})
+        panel = self.cfg.get("war3", {}).get("jiubing2", {}).get("skill_panel", {})
         learn_coords = (self.get_skill_coords)(*panel["learn_skill_grid"])
         gt = self.war3_cfg["general_time"]
         for item in self.hero_cfg["learn_skills"]:
@@ -72,7 +72,7 @@ class GameUI:
 
         :param task_cfg: 任务配置（含 difficulty 字段，fallback 到 game.default_difficulty）
         """
-        diff_cfg = self.cfg.get("difficulty", {})
+        diff_cfg = self.cfg.get("war3", {}).get("jiubing2", {}).get("difficulty", {})
         target = (task_cfg or {}).get("difficulty") or self.game_cfg.get("default_difficulty")
 
         if not target or not diff_cfg:
@@ -155,7 +155,7 @@ class GameUI:
 
         :return: [(x1, y1), (x2, y2), ...]
         """
-        card_cfg = self.cfg.get("card", {})
+        card_cfg = self.cfg.get("war3", {}).get("jiubing2", {}).get("card", {})
         coords = []
         for row, col in self.hero_cfg["card"]["use_index"]:
             x = card_cfg["first_coords"][0] + (col - 1) * card_cfg["gap_x"]
@@ -173,7 +173,7 @@ class GameUI:
         logger.info("装备卡牌")
         if not self.hero_cfg.get("card", {}).get("is_open", False):
             return
-        card_cfg = self.cfg.get("card", {})
+        card_cfg = self.cfg.get("war3", {}).get("jiubing2", {}).get("card", {})
         hotkey = card_cfg["switch_hotkey"]
         while True:
             self.dm.key_press_char(hotkey)
@@ -210,7 +210,7 @@ class GameUI:
         :param index: 神碎行号（1-based）
         :return: (x, y)
         """
-        shard_cfg = self.cfg.get("shard", {})
+        shard_cfg = self.cfg.get("war3", {}).get("jiubing2", {}).get("shard", {})
         return (shard_cfg["first_coords"][0], shard_cfg["first_coords"][1] + (index - 1) * shard_cfg["gap"])
 
     def _flip_to_page(self, cur_page: "int", target_page: "int") -> "int":
@@ -226,7 +226,7 @@ class GameUI:
         clicks = (target_page - cur_page) % max_pages
         if clicks == 0:
             return cur_page
-        next_coords = self.cfg.get("shard", {}).get("next_page_coords")
+        next_coords = self.cfg.get("war3", {}).get("jiubing2", {}).get("shard", {}).get("next_page_coords")
         (self.dm.move_to)(*next_coords)
         time.sleep(self.war3_cfg["general_time"])
         for _ in range(clicks):
@@ -246,7 +246,7 @@ class GameUI:
         hero_shard = self.hero_cfg.get("shard", {})
         if not hero_shard.get("is_open", False):
             return
-        shard_cfg = self.cfg.get("shard", {})
+        shard_cfg = self.cfg.get("war3", {}).get("jiubing2", {}).get("shard", {})
         hotkey = shard_cfg["switch_hotkey"]
         self.dm.key_press_char(hotkey)
         time.sleep(self.war3_cfg["small_window_response_time"])
@@ -300,7 +300,7 @@ class GameUI:
         use_index = hero_stigmata["use_index"]
         if use_index < 1 or use_index > 3:
             raise ValueError("圣痕索引必须为 1~3！")
-        stigmata_cfg = self.cfg.get("stigmata", {})
+        stigmata_cfg = self.cfg.get("war3", {}).get("jiubing2", {}).get("stigmata", {})
         gt = self.war3_cfg["general_time"]
         if use_index != 1:
             hotkey = stigmata_cfg["switch_hotkey"]
@@ -322,7 +322,7 @@ class GameUI:
         :param is_fold: True=折叠面板, False=展开面板
         :return: 1=执行了点击, 0=无需操作
         """
-        panel_cfg = self.cfg.get("attribute_panel", {})
+        panel_cfg = self.cfg.get("war3", {}).get("jiubing2", {}).get("attribute_panel", {})
         img = panel_cfg["fold_icon"] if is_fold else panel_cfg["unfold_icon"]
         (index, x, y) = (self.dm.find_pic)(
             *panel_cfg["switch_area_coords"], *(img, panel_cfg["switch_sim"], panel_cfg["switch_delta_color"])

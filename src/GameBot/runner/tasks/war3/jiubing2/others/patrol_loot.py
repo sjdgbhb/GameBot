@@ -39,11 +39,11 @@ class PatrolLootTask:
         self.war3_cfg = war3_cfg
         self.hero_cfg = hero_cfg
 
-        self.chest_cfg = self.task_cfg.get("chest", {})
-        self.item_text_cfg = self.task_cfg.get("item_text", {})
-        self.pickup_cfg = self.task_cfg.get("pickup", {})
+        self.chest_cfg = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("chest", {})
+        self.item_text_cfg = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("item_text", {})
+        self.pickup_cfg = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("pickup", {})
         self.patrol_cfg = self.cfg.get("patrol", {})
-        self.combat_cfg = self.task_cfg.get("combat_status", {})
+        self.combat_cfg = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("combat_status", {})
 
         # 路线点解析：优先使用用户自定义 points，否则从 route_presets 按 route_scheme 选取
         self.route_scheme = self.cfg.get("route_scheme", "")
@@ -74,7 +74,7 @@ class PatrolLootTask:
         self.hover_wait_time = self.chest_cfg.get("hover_wait_time", 1.5)
         self.mouse_avoid_pos = self.cfg.get("mouse_avoid_pos", [200, 200])
         self.feed_only_interval = self.cfg.get("feed_only_interval", 10)
-        self.combat_timeout = self.task_cfg.get("game", {}).get("combat_timeout", 120)
+        self.combat_timeout = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("game", {}).get("combat_timeout", 120)
 
         # 预启动战斗检测线程（与移动等待并行）
         self._combat_check_thread = None
@@ -177,11 +177,11 @@ class PatrolLootTask:
         logger.info("刷装备任务结束")
 
     def _make_monitor(self, hwnd: int):
-        atomic_task_cfg = self.task_cfg.get("atomic_task", {})
+        atomic_task_cfg = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("atomic_task", {})
         interval = atomic_task_cfg.get("monitor_interval", 0.2)
         # 监测线程截图出错 → set stop_event 让主线程尽快中断，异常由 monitor.stop() 抛出
         monitor = TextMonitor(
-            self.war3, self.task_cfg.get("prompt_text"), interval=interval, on_error=self._on_monitor_error
+            self.war3, self.task_cfg.get("war3", {}).get("jiubing2", {}).get("prompt_text"), interval=interval, on_error=self._on_monitor_error
         )
         monitor.start(hwnd)
         return monitor
@@ -366,7 +366,7 @@ class PatrolLootTask:
                 break
 
         if not self.storage_full:
-            self.war3.send_msg(self.task_cfg["command"]["clear_nearby"])
+            self.war3.send_msg(self.task_cfg.get("war3", {}).get("jiubing2", {}).get("command", {}).get("clear_nearby", ""))
             logger.info("已清理地面物品")
 
     def _try_pickup_chest(self, idx, cx, cy, conf, monitor: TextMonitor) -> Optional[bool]:
@@ -608,7 +608,7 @@ def main():
         task = PatrolLootTask(cfg, stop_event=stop_event, progress_lines_callback=kwargs.get("progress_lines_callback"))
         task.run()
 
-    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
+    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=cfg.get("base", {}).get("float_window", {}))
 
 
 if __name__ == "__main__":

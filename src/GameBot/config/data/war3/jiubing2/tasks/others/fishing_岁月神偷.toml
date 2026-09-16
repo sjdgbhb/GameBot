@@ -6,7 +6,7 @@
 extends = ["war3.jiubing2.tasks.others.fishing"]
 
 # 浮窗位置错开：另一脚本用默认 y，本变体偏移避免遮挡
-[float_window]
+[base.float_window]
 y = 500
 
 [this]

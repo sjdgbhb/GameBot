@@ -111,6 +111,6 @@ steps = [
     "others.patrol_loot.pre_exit"  # 退出前保存（刷装备任务需要保存）
 ]
 
-# ── 浮窗配置 ──
-[float_window]
+# ── 浮窗配置（覆盖 base.float_window 默认值） ──
+[base.float_window]
 title = "组队任务"
