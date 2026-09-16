@@ -36,6 +36,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .base import CONTROL_KEYS, EXCLUSIVE_NAMESPACES
 from .builder import ConfigBuilderMixin
+from .derive import derive_bind_mode, resolve_item_names, select_bind_cfg
 from .loader import ConfigLoaderMixin
 from .resolver import ConfigResolverMixin
 from .user import ConfigUserMixin
@@ -60,7 +61,7 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
     _instance_lock = threading.Lock()  # 单例创建锁，保证多线程下只创建一个实例
     _config: dict  # 全局合并后的配置字典
     _loaded_files: Dict[str, dict]  # 配置名 -> 原始 TOML 解析结果（缓存）
-    _task_configs: Dict[str, Tuple[dict, float]]  # 任务名 -> (合并后配置, user_configs.json 的 mtime)
+    _task_configs: Dict[str, Tuple[dict, float, Dict[str, List[str]]]]  # 任务名 -> (合并后配置, user_configs.json 的 mtime, provenance)
     _load_order: List[str]  # 全局加载顺序（跨多次 load_task 累积）
     _initialized: bool
 
@@ -75,6 +76,7 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
                     cls._instance._loaded_files = {}
                     cls._instance._task_configs = {}
                     cls._instance._load_order = []
+                    cls._instance._provenance = {}
                     cls._instance._ns_roots = None
                     cls._instance._initialized = False
                     cls._instance._resource_manager = None
@@ -133,7 +135,7 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
             if p.exists():
                 current_mtime = max(current_mtime, os.path.getmtime(p))
         if task_name in self._task_configs:
-            cached_result, cached_mtime = self._task_configs[task_name]
+            cached_result, cached_mtime, _cached_prov = self._task_configs[task_name]
             if cached_mtime == current_mtime:
                 return cached_result
             # user_configs.json 已修改，清除该任务的缓存
@@ -157,39 +159,46 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
                 if hero_config_name not in self._loaded_files:
                     self._load_file(hero_config_name)
 
-        # 第三步：按加载顺序合并配置
-        result = self._build(order)
+        # 第三步：按加载顺序合并配置（同时记录 provenance：dot_path -> 来源链）
+        prov: Dict[str, List[str]] = {}
+        result = self._build(order, prov)
 
         # 第四步：应用 user_configs.json 中的其他覆盖（inventory/desired_items 等）
         if user_cfg:
-            self._apply_user_overrides(result, user_cfg, task_name)
+            self._apply_user_overrides(result, user_cfg, task_name, prov=prov)
+
+        # 任务链合并：同组任务文件的 [this] 沿加载链深合并为有效任务视图 result["task"]
+        result["task"] = self._merge_task_chain(result, order, task_name, prov)
 
         # 将 kk.inventory_slots 注入 hero_cfg，供 get_inventory_hotkey(s) 查找快捷键
-        self._inject_inventory_slots(result)
+        self._inject_inventory_slots(result, prov)
         # 将 inventory 中的 item 物品名解析为 item_id
-        self._resolve_inventory_item_names(result)
+        self._resolve_inventory_item_names(result, prov)
         # 根据 bind_mode 切换前台/后台绑定配置（任务级 this.bind_mode 可覆盖）
-        self._apply_bind_mode(result, task_name)
+        self._apply_bind_mode(result, task_name, prov)
 
-        # 缓存任务结果（含 user_configs.json 的 mtime，用于缓存失效检测）
-        self._task_configs[task_name] = (result, current_mtime)
+        # 缓存任务结果（含 user_configs.json 的 mtime 与 provenance，用于缓存失效检测与 explain）
+        self._task_configs[task_name] = (result, current_mtime, prov)
 
         # 第五步：同步全局 _config
         # 将本次加载的文件追加到全局加载顺序（去重），重建全局配置
         for name in order:
             if name not in self._load_order:
                 self._load_order.append(name)
-        rebuilt = self._build(self._load_order)
+        global_prov: Dict[str, List[str]] = {}
+        rebuilt = self._build(self._load_order, global_prov)
         if user_cfg:
-            self._apply_user_overrides(rebuilt, user_cfg, task_name)
-        self._inject_inventory_slots(rebuilt)
-        self._resolve_inventory_item_names(rebuilt)
-        self._apply_bind_mode(rebuilt, task_name)
+            self._apply_user_overrides(rebuilt, user_cfg, task_name, prov=global_prov)
+        rebuilt["task"] = self._merge_task_chain(rebuilt, self._load_order, task_name, global_prov)
+        self._inject_inventory_slots(rebuilt, global_prov)
+        self._resolve_inventory_item_names(rebuilt, global_prov)
+        self._apply_bind_mode(rebuilt, task_name, global_prov)
         self._config.clear()
         self._config.update(rebuilt)
+        self._provenance = global_prov
         return result
 
-    def _inject_inventory_slots(self, config: dict):
+    def _inject_inventory_slots(self, config: dict, prov=None):
         """将 kk.inventory_slots 注入 hero.inventory_slots，供快捷键查找使用。
 
         kk.toml 中定义了默认的格子→快捷键映射，hero_cfg 通过 inventory_slots
@@ -200,65 +209,45 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
             hero = config.setdefault("hero", {})
             if "inventory_slots" not in hero:
                 hero["inventory_slots"] = copy.deepcopy(kk_slots)
+                self._prov_mark(prov, "hero.inventory_slots", "<派生:kk.inventory_slots>")
 
-    def _resolve_inventory_item_names(self, config: dict):
+    def _resolve_inventory_item_names(self, config: dict, prov=None):
         """将 hero.inventory 中的 item（物品名）解析为 item_id（原地修改）。
 
         支持用物品名替代数字 ID，提升配置可读性。已有 item_id 的条目不受影响。
         物品名→ID 映射来自配置中的 items 列表（如 jiubing2.toml 的 items）。
+        实际解析逻辑在 derive.resolve_item_names（组队路径复用）。
         """
-        items = config.get("items", [])
-        if not items:
-            return
-        name_to_id = {it.get("name", ""): it.get("id") for it in items if it.get("name")}
         hero = config.get("hero", {})
-        inventory = hero.get("inventory", [])
-        if not inventory:
-            return
-        for entry in inventory:
-            if "item_id" not in entry and "item" in entry:
-                name = entry["item"]
-                item_id = name_to_id.get(name)
-                if item_id is not None:
-                    entry["item_id"] = item_id
-                    del entry["item"]
-                else:
-                    logging.getLogger(__name__).warning(f"物品名 '{name}' 未在物品定义表中找到，请检查 items 配置")
+        if resolve_item_names(hero.get("inventory", []), config.get("items", [])):
+            self._prov_mark(prov, "hero.inventory", "<派生:物品名→item_id>")
 
-    def _apply_bind_mode(self, config: dict, task_name: str = None):
+    def _apply_bind_mode(self, config: dict, task_name: str = None, prov=None):
         """按 bind_mode 解析前台/后台绑定参数，结果写入 config[ns]["bind"]。
 
-        优先级：顶层任务的 [this].bind_mode > [this].target_player 推导 > 平台级
-        war3.bind_mode / kk.bind_mode。
-        bind_mode 取值：
-        - "foreground"：用 bind_foreground 参数（默认）
-        - "background"：用 bind_background 参数
-        多成员组队由组队框架（team/base.py）按成员数强制后台，此处不处理。
+        优先级：任务段 bind_mode > target_player 推导 > 平台级 bind_mode。
+        实际推导/写入逻辑在 derive 模块（derive_bind_mode / select_bind_cfg），
+        组队多成员强转后台由 team/base.py 调 derive.apply_bind_mode 完成。
         """
-        # 任务级覆盖：当前加载任务的自身 bind_mode 优先
-        task_mode = None
-        if task_name:
+        # 任务级覆盖：优先取有效任务视图 result["task"]（含变体合并）；
+        # 非任务入口（kk/team.* 等）task 为空，回退按 task_name 路径取节点
+        task_node = config.get("task")
+        if not task_node and task_name:
             node = config
             for part in task_name.split("."):
-                if not isinstance(node, dict):
-                    node = None
+                node = node.get(part) if isinstance(node, dict) else None
+                if node is None:
                     break
-                node = node.get(part)
-            if isinstance(node, dict):
-                task_mode = node.get("bind_mode")
-                if not task_mode and node.get("target_player"):
-                    # 多开认领（target_player 非空）必须后台绑定，自动推导无需显式配置
-                    task_mode = "background"
+            task_node = node if isinstance(node, dict) else None
 
         for ns in ("war3", "kk"):
-            ns_cfg = config.get(ns, {})
-            mode = task_mode or ns_cfg.get("bind_mode", "foreground")
-            src_key = "bind_background" if mode == "background" else "bind_foreground"
-            src_cfg = ns_cfg.get(src_key)
-            if src_cfg is not None:
-                ns_cfg["bind"] = copy.deepcopy(src_cfg)
-                # 解析结果记录当前生效模式，供业务层判断（如后台时跳过活动窗口检测）
-                ns_cfg["bind"]["bind_mode"] = mode
+            ns_cfg = config.get(ns)
+            if not isinstance(ns_cfg, dict):
+                continue
+            mode = derive_bind_mode(task_node, ns_cfg)
+            src_key = select_bind_cfg(ns_cfg, mode)
+            if src_key:
+                self._prov_mark(prov, f"{ns}.bind", f"<派生:{src_key}>")
 
     def get_section(self, section: str, task_name: str = None) -> dict:
         """获取配置段（已含任务级覆盖），返回字典。
@@ -308,6 +297,20 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
     def config(self) -> dict:
         """全局合并后的配置字典（只读视图）。"""
         return self._config
+
+    def get_provenance(self, task_name: str = None) -> Dict[str, List[str]]:
+        """返回 provenance 映射：dot_path -> [写入来源链]（按写入顺序，末位为生效来源）。
+
+        来源为配置名（如 "war3.jiubing2.tasks.endless.endless_善木木"）、
+        "user_configs.json" 或 "<派生:xxx>"（bind/inventory_slots/物品名解析等派生步骤）。
+
+        :param task_name: 指定任务返回其依赖闭包的 provenance（须先 load_task）；
+            None 返回全局 _config 的 provenance
+        """
+        if task_name is None:
+            return self._provenance
+        entry = self._task_configs.get(task_name)
+        return entry[2] if entry else {}
 
     @staticmethod
     def reset():

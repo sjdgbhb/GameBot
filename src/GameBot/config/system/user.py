@@ -70,16 +70,42 @@ class ConfigUserMixin:
 
         return {}
 
-    def _apply_user_overrides(self, config: dict, user_cfg: dict, task_name: str = None):
+    # user_configs.json 写入时记录到 provenance 的来源名
+    _USER_SRC = "user_configs.json"
+
+    # 用户覆盖键 → [(目标路径, 是否自动创建中间节点)]
+    # "{task}" 占位当前任务命名空间（war3.jiubing2.tasks.<路径>）；
+    # create=False 表示目标父路径不存在则跳过（条件性同步子节点，不凭空造节点）。
+    _USER_KEY_ROUTES = {
+        "inventory": [("hero.inventory", True)],
+        "points": [("{task}.points", True)],
+        "desired_items": [("{task}.desired_items", True)],
+        "patrol_rounds": [("{task}.patrol.rounds", True)],
+        "route_scheme": [("{task}.route_scheme", True)],
+        "combat_mode": [
+            ("{task}.combat_mode", True),
+            # daily_reputation 的子任务各自读自己的 cfg，需同步写入（仅在闭包内存在时）
+            ("war3.jiubing2.tasks.reputation.daily_reputation.blackstone.combat_mode", False),
+            ("war3.jiubing2.tasks.reputation.daily_reputation.forest.combat_mode", False),
+        ],
+        "blackstone_points": [("war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points", True)],
+        "forest_points": [("war3.jiubing2.tasks.atomic.swift_beast.points", True)],
+    }
+
+    # 特殊键：不走通用路由
+    # - hero: 由 load_task 做英雄替换（互斥组重排序）
+    # - hero_configs: 施法模式下按英雄隔离的 points/inventory
+    # - chest: 深度合并到顶层 [chest]（可继承节点）
+    _USER_SPECIAL_KEYS = frozenset({"hero", "hero_configs", "chest"})
+
+    def _apply_user_overrides(self, config: dict, user_cfg: dict, task_name: str = None, prov=None):
         """将 user_configs.json 中的用户覆盖应用到配置字典（原地修改）。
 
-        映射关系：
-        - hero → 已在 load_task 中处理英雄替换，此处跳过
-        - hero_configs → 施法模式下按英雄隔离的 points/inventory，优先应用
-        - inventory → config["hero"]["inventory"]（无 hero_configs 时回退）
-        - desired_items / patrol_rounds / points → 任务自身命名空间
-        - chest → 顶层 [chest]（可继承节点）
-        - 其他字段 → 任务自身命名空间（深度合并）
+        路由由 _USER_KEY_ROUTES 声明式表驱动：键 → [(目标路径, 是否创建中间节点)]，
+        "{task}" 展开为当前任务命名空间；未列出的键兜底写入任务命名空间。
+        特殊键单独处理（见 _USER_SPECIAL_KEYS）。
+
+        :param prov: 可选 provenance 输出字典，记录各写入路径的来源为 user_configs.json
         """
         # 计算任务在 war3.jiubing2.tasks 下的命名空间路径
         # 例：war3.jiubing2.tasks.others.patrol_loot -> ["others", "patrol_loot"]
@@ -92,138 +118,65 @@ class ConfigUserMixin:
                     name = name[len(prefix) :]
                     break
             task_path = [p for p in name.split(".") if p]
+        task_ns = "war3.jiubing2.tasks" + ("." + ".".join(task_path) if task_path else "")
 
-        def ensure_task_cfg():
-            """确保 config["war3"]["jiubing2"]["tasks"][...task_path] 路径存在并返回最内层 dict。"""
-            cfg = config.setdefault("war3", {}).setdefault("jiubing2", {}).setdefault("tasks", {})
-            for part in task_path:
-                cfg = cfg.setdefault(part, {})
-            return cfg
+        def user_set(dot_path: str, value, source: str, create: bool = True):
+            """按 dot 路径写入用户覆盖值；create=False 时中间路径不存在则跳过。"""
+            node = config
+            parts = dot_path.split(".")
+            for p in parts[:-1]:
+                node = node.setdefault(p, {}) if create else node.get(p)
+                if not isinstance(node, dict):
+                    return
+            node[parts[-1]] = copy.deepcopy(value) if isinstance(value, (dict, list)) else value
+            self._prov_mark(prov, dot_path, source)
 
-        # hero_configs → 施法模式下按英雄隔离的 points/inventory
+        # hero_configs → 施法模式下按英雄隔离的 points/inventory（优先于顶层 inventory/points）
         hero_cfgs = user_cfg.get("hero_configs")
         current_hero = user_cfg.get("hero")
-        has_hero_config = hero_cfgs and current_hero and current_hero in hero_cfgs
-
-        if has_hero_config:
-            hc = hero_cfgs[current_hero]
-            # points 可能是数组（普通任务）或对象（每日声望的多路线点）
-            if "points" in hc:
-                hc_points = hc["points"]
-                if isinstance(hc_points, dict):
-                    # 每日声望：{blackstone_points: [...], forest_points: [...]}
-                    if "blackstone_points" in hc_points:
-                        cfg = (
-                            config.setdefault("war3", {})
-                            .setdefault("jiubing2", {})
-                            .setdefault("tasks", {})
-                            .setdefault("atomic", {})
-                            .setdefault("blackstone_gate_harassment", {})
-                        )
-                        cfg["points"] = copy.deepcopy(hc_points["blackstone_points"])
-                    if "forest_points" in hc_points:
-                        cfg = (
-                            config.setdefault("war3", {})
-                            .setdefault("jiubing2", {})
-                            .setdefault("tasks", {})
-                            .setdefault("atomic", {})
-                            .setdefault("swift_beast", {})
-                        )
-                        cfg["points"] = copy.deepcopy(hc_points["forest_points"])
-                else:
-                    ensure_task_cfg()["points"] = copy.deepcopy(hc_points)
-            if "inventory" in hc:
-                config.setdefault("hero", {})["inventory"] = copy.deepcopy(hc["inventory"])
-        elif (
+        has_hero_config = bool(hero_cfgs and current_hero and current_hero in hero_cfgs)
+        # 已存在其他英雄配置但当前英雄没有：用户手动切了英雄未保存，
+        # 不回退顶层旧英雄数据，保持配置构建的默认值（路线方案预设点 + 英雄默认物品栏）
+        stale_hero = (
             user_cfg.get("combat_mode") == "cast_skills"
-            and hero_cfgs
-            and current_hero
+            and isinstance(hero_cfgs, dict)
+            and bool(current_hero)
             and current_hero not in hero_cfgs
-        ):
-            # 已存在其他英雄的 hero_configs 但当前英雄没有配置：
-            # 说明用户手动切换了英雄但未保存，不能回退到顶层的旧英雄数据。
-            # 保持配置构建产生的默认值（路线方案预设点 + 英雄默认物品栏）。
-            pass
-        else:
-            # 向后兼容：无 hero_configs 时回退到顶层 inventory / points
-            if "inventory" in user_cfg:
-                config.setdefault("hero", {})["inventory"] = copy.deepcopy(user_cfg["inventory"])
-
-            if "points" in user_cfg:
-                ensure_task_cfg()["points"] = copy.deepcopy(user_cfg["points"])
-
-        # desired_items → 写入任务命名空间
-        if "desired_items" in user_cfg:
-            ensure_task_cfg()["desired_items"] = copy.deepcopy(user_cfg["desired_items"])
-
-        # patrol_rounds → 写入任务命名空间下的 patrol.rounds
-        if "patrol_rounds" in user_cfg:
-            task_cfg = ensure_task_cfg()
-            patrol_cfg = task_cfg.setdefault("patrol", {})
-            patrol_cfg["rounds"] = user_cfg["patrol_rounds"]
+        )
+        if has_hero_config:
+            hc_source = f"{self._USER_SRC}:hero_configs.{current_hero}"
+            hc = hero_cfgs[current_hero]
+            hc_points = hc.get("points")
+            if isinstance(hc_points, dict):
+                # 每日声望多路线：{blackstone_points: [...], forest_points: [...]} 复用路由表
+                for key, value in hc_points.items():
+                    for tpl, create in self._USER_KEY_ROUTES.get(key, ()):
+                        user_set(tpl.format(task=task_ns), value, hc_source, create)
+            elif hc_points is not None:
+                user_set(f"{task_ns}.points", hc_points, hc_source)
+            if "inventory" in hc:
+                user_set("hero.inventory", hc["inventory"], hc_source)
 
         # chest → 深度合并到顶层 [chest]（可继承节点）
         if "chest" in user_cfg:
-            chest_cfg = config.setdefault("chest", {})
-            self._deep_merge(chest_cfg, user_cfg["chest"])
-
-        # combat_mode → 写入任务命名空间
-        if "combat_mode" in user_cfg:
-            ensure_task_cfg()["combat_mode"] = user_cfg["combat_mode"]
-            # daily_reputation 的子任务各自读自己的 cfg，需同步写入
-            daily_cfg = (
-                config.setdefault("war3", {})
-                .setdefault("jiubing2", {})
-                .setdefault("tasks", {})
-                .setdefault("reputation", {})
-                .setdefault("daily_reputation", {})
+            self._deep_merge(
+                config.setdefault("chest", {}),
+                user_cfg["chest"],
+                _path="chest",
+                _prov=prov,
+                _source=self._USER_SRC,
             )
-            for _sub in ("blackstone", "forest"):
-                if _sub in daily_cfg:
-                    daily_cfg[_sub]["combat_mode"] = user_cfg["combat_mode"]
 
-        # route_scheme → 写入任务命名空间
-        if "route_scheme" in user_cfg:
-            ensure_task_cfg()["route_scheme"] = user_cfg["route_scheme"]
-
-        # blackstone_points → 写入 war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points
-        if "blackstone_points" in user_cfg:
-            cfg = (
-                config.setdefault("war3", {})
-                .setdefault("jiubing2", {})
-                .setdefault("tasks", {})
-                .setdefault("atomic", {})
-                .setdefault("blackstone_gate_harassment", {})
-            )
-            cfg["points"] = copy.deepcopy(user_cfg["blackstone_points"])
-
-        # forest_points → 写入 war3.jiubing2.tasks.atomic.swift_beast.points
-        if "forest_points" in user_cfg:
-            cfg = (
-                config.setdefault("war3", {})
-                .setdefault("jiubing2", {})
-                .setdefault("tasks", {})
-                .setdefault("atomic", {})
-                .setdefault("swift_beast", {})
-            )
-            cfg["points"] = copy.deepcopy(user_cfg["forest_points"])
-
-        # 其余字段 → 合并到任务命名空间（跳过已处理的特殊键）
-        if task_path:
-            task_cfg = ensure_task_cfg()
-            for key, value in user_cfg.items():
-                if key in {
-                    "hero",
-                    "hero_configs",
-                    "inventory",
-                    "desired_items",
-                    "patrol_rounds",
-                    "chest",
-                    "points",
-                    "combat_mode",
-                    "route_scheme",
-                    "blackstone_points",
-                    "forest_points",
-                }:
+        # 通用路由：表中键按声明路径写入；未列出键兜底到任务命名空间（需有任务路径）
+        for key, value in user_cfg.items():
+            if key in self._USER_SPECIAL_KEYS:
+                continue
+            if key in ("inventory", "points") and (has_hero_config or stale_hero):
+                continue
+            routes = self._USER_KEY_ROUTES.get(key)
+            if routes is None:
+                if not task_path:
                     continue
-                task_cfg[key] = copy.deepcopy(value) if isinstance(value, (dict, list)) else value
+                routes = [(f"{{task}}.{key}", True)]
+            for tpl, create in routes:
+                user_set(tpl.format(task=task_ns), value, self._USER_SRC, create)

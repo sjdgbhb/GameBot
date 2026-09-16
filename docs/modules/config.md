@@ -81,7 +81,17 @@ base → war3 → war3.jiubing2 → war3.jiubing2.scenes.blackstone_city → war
 
 ### 2. 命名空间约定
 
-`config/data/` 目录下的**一级文件夹名**和**顶层 `.toml` 文件名**（去后缀）构成命名空间根集合。**不递归扫描子目录**——子目录名（如 `tasks`、`atomic`、`heroes`、`scenes`）不参与判定，新建子目录不会改变现有 TOML 的合并语义。
+命名空间根由**显式注册表**管理（`config/system/base.py` 的 `NAMESPACE_ROOTS`）：
+
+```python
+NAMESPACE_ROOTS = frozenset({"base", "kk", "team", "war3", "web"})
+```
+
+- 新增任务/英雄/场景/变体文件**不需要登记**（都在 `war3` 根内扩展）
+- 只有新增一级命名空间（如 `data/yy/`）才需要向注册表加一行——这本该是显式决策
+- `config/data/` 下出现未登记的一级目录或顶层 `.toml` 会告警：其顶层键会被当作
+  可继承共享键提升（多半不是预期）
+- 旧实现是扫描 `data/` 一级目录，新建目录会静默改变同名裸键的合并语义，已废弃
 
 判定方式：TOML 顶层键是否命中命名空间根。
 
@@ -95,8 +105,17 @@ base → war3 → war3.jiubing2 → war3.jiubing2.scenes.blackstone_city → war
 | `[this.patrol]` | 否（简写，展开为 `文件路径名 + ".patrol"`） | ❌ 不可继承，保留在命名空间路径下 |
 
 > **注意**：新格式使用 `[this]` 与 `[this.*]` 简写代替长命名空间前缀。
-> 例如 `war3/jiubing2/tasks/others/fishing.toml` 中，`[this]` 等价于旧 `[war3.jiubing2.tasks.others.fishing]`。
-> 旧 `dependencies`、顶层 `name` 与完整的命名空间段已不再支持。
+> 例如 `war3/jiubing2/tasks/others/fishing.toml` 中，`[this]` 等价于 `[war3.jiubing2.tasks.others.fishing]`。
+> 旧 `dependencies` 与顶层 `name` 已不再支持。
+>
+> **绝对寻址**：完整命名空间段允许用于**给其他节点打补丁**（不能写自身路径——
+> 自身路径命中即报错，提示改用 `[this]`）。典型场景是编排任务调子任务参数：
+> ```toml
+> # 在 ingame_special.toml 中直接覆盖 fishing 任务节点的参数
+> [war3.jiubing2.tasks.others.fishing]
+> max_times = 40
+> ```
+> 合并时该段深合并到目标命名空间，替代旧的在业务代码里手动搬运的模式。
 
 ### 3. 英雄互斥
 
@@ -149,9 +168,23 @@ war3.jiubing2.heroes.paladin 贡献: hero = { floor_key = "P" }
       }
     }
   },
-  "kk": { ... }
+  "kk": { ... },
+
+  # 有效任务视图：同组任务文件的 [this] 沿加载链深合并
+  # （如 load endless_善木木：endless_single → endless → endless_善木木）
+  "task": { ... }
 }
 ```
+
+**`cfg["task"]` — 有效任务视图**：
+
+`[this]` 按文件路径展开为兄弟节点，彼此不会自动覆盖；引擎在 `load_task` 时把
+**同组**（`war3.jiubing2.tasks.<组>` 前缀相同）任务文件的 `[this]` 按加载顺序深合并到
+`result["task"]`，业务代码取任务参数一律读 `cfg["task"]`，不再手动合并变体段。
+
+注意边界：`cfg["task"]` 只含本任务组的链（编排任务 extends 的其他组子任务不参与）；
+子任务参数仍在各自命名空间节点读取，编排任务调子任务参数用绝对寻址段。
+非任务入口（`load_task("kk")` 等）`cfg["task"]` 为空 dict。
 
 **合并语义总结**：
 
@@ -192,7 +225,7 @@ main() → load_task("tasks.xxx") → 得到配置dict → 注入到任务类 �
 class MyTask:
     def __init__(self, cfg: dict):
         self.task_cfg = cfg                    # 完整依赖闭包
-        self.cfg = cfg["war3"]["jiubing2"]["tasks"]["others"]["my_task"]  # 本任务命名空间段
+        self.cfg = cfg["task"]                 # 有效任务视图（本任务 [this] 沿加载链深合并）
         # 从闭包中提取所需配置段，注入到业务对象
         war3_cfg = cfg.get("war3", {})
         hero_cfg = cfg.get("hero", {})
@@ -242,8 +275,10 @@ class SwiftBeastTask:
 - 配置合并是**深度合并**（未覆盖的字段从父配置继承，已覆盖的字段递归覆盖）
 - `[hero]` 是唯一的浅合并例外
 - `user_configs.json` 用于覆盖英雄背包、目标物品、巡逻轮数等用户可调参数
-- 配置加载引擎采用 mixin 架构（加载器/解析器/构建器/用户覆盖组合到核心类）
+- 配置加载引擎采用 mixin 架构（加载器/解析器/构建器/派生/用户覆盖组合到核心类）
 - `name` 和 `extends` 是文件级控制键，不参与合并结果
+- extends 分层约束（告警阶段）：低层文件（base/平台/领域/英雄/场景）不得 extends `tasks.*`；
+  task→task 任意引用允许（编排任务、变体继承是既有用法）
 
 ## 禁忌
 
@@ -252,7 +287,36 @@ class SwiftBeastTask:
 - ❌ 不要假设英雄配置会叠加（英雄互斥，最后加载的独占生效）
 - ❌ 不要创建不声明 `name` 和 `extends` 的配置文件
 - ❌ 不要使用已废弃的 `dependencies` 控制键
-- ❌ 不要混用 `[this]` 简写与完整的命名空间段（如 `[war3.jiubing2.tasks.others.fishing]`）
+- ❌ 不要用完整命名空间段写**自身**路径（会被拦截）；自身命名空间一律用 `[this]`，给其他节点打补丁才写完整路径（绝对寻址）
+
+## 排障工具（CLI）
+
+`load_task` 合并时同步记录 **provenance**（每个键的写入来源链），通过 CLI 查询：
+
+```bash
+# 依赖闭包的线性加载顺序（先 → 后，后者覆盖前者）
+python -m GameBot.config order war3.jiubing2.tasks.endless.endless_善木木
+
+# 查某个键的值与来源链（谁写的、被谁覆盖）
+python -m GameBot.config explain war3.jiubing2.tasks.endless.endless_善木木 hero.shard.use_index
+
+# 导出合并后的有效配置；--annotate 展平为 dot 路径并逐行标注来源
+python -m GameBot.config dump <任务名> --out merged_cfg.json
+python -m GameBot.config dump <任务名> --annotate
+
+# 结构校验全部 TOML（不执行任务）：extends 声明/循环依赖/旧格式写法/
+# 低层 extends tasks.*/未登记一级条目为错误；变体约定、绝对寻址段笔误为警告
+python -m GameBot.config lint
+
+# 生成新任务/变体模板（变体名带 _后缀且同目录有基任务时自动 extends 基任务）
+python -m GameBot.config new war3.jiubing2.tasks.others.my_task
+python -m GameBot.config new war3.jiubing2.tasks.endless.endless_玩家名
+```
+
+来源名含义：TOML 文件名（配置名取最后一段）、`user_configs.json`（用户覆盖）、
+`<派生:xxx>`（引擎派生步骤：bind 选择 / inventory_slots 注入 / 物品名→item_id 解析）。
+
+代码侧对应接口：`config.get_provenance(task_name=None)` → `{dot_path: [来源链]}`。
 
 ## 测试
 

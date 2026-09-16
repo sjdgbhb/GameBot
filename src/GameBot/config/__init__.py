@@ -6,13 +6,23 @@
 
 对外导出（通过 system 子包转发）：
 - Config, ConfigurationError, config, get_config
+- derive 派生助手：apply_bind_mode / resolve_item_names（组队等非标准加载路径复用）
 """
 
-from .system import Config, ConfigurationError, config, get_config
+from .system import (
+    Config,
+    ConfigurationError,
+    apply_bind_mode,
+    config,
+    get_config,
+    resolve_item_names,
+)
 
 __all__ = [
     "Config",
     "ConfigurationError",
+    "apply_bind_mode",
     "config",
     "get_config",
+    "resolve_item_names",
 ]

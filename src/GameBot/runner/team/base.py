@@ -46,29 +46,7 @@ def parse_step(step_spec: str) -> tuple[str, str]:
     return step_spec, "run_task"
 
 
-def _resolve_item_names(inventory: list, items: list) -> None:
-    """将 inventory 条目中的 item（物品名）解析为 item_id（原地修改）。
-
-    支持用物品名替代数字 ID，提升配置可读性。已有 item_id 的条目不受影响。
-
-    :param inventory: 成员的 inventory 列表（原地修改）
-    :param items: 物品定义表（含 id 和 name 字段，来自 jiubing2.toml）
-    """
-    if not inventory or not items:
-        return
-    name_to_id = {it.get("name", ""): it.get("id") for it in items if it.get("name")}
-    for entry in inventory:
-        if "item_id" not in entry and "item" in entry:
-            name = entry["item"]
-            item_id = name_to_id.get(name)
-            if item_id is not None:
-                entry["item_id"] = item_id
-                del entry["item"]
-            else:
-                logger.warning(f"物品名 '{name}' 未在物品定义表中找到，请检查 jiubing2.toml items 配置")
-
-
-from GameBot.config import ConfigurationError, config
+from GameBot.config import ConfigurationError, apply_bind_mode, config, resolve_item_names
 from GameBot.runner import create_dm_client
 from GameBot.runner.business.kk import KKBusiness
 from GameBot.runner.business.war3 import War3Business
@@ -152,7 +130,7 @@ class TeamMemberBase(abc.ABC):
                 cfg["hero"] = {}
             cfg["hero"]["inventory"] = member_inventory
             # 解析物品名为 item_id（支持用 item = "物品名" 替代 item_id = 数字）
-            _resolve_item_names(member_inventory, cfg.get("items", []))
+            resolve_item_names(member_inventory, cfg.get("items", []))
 
         # 组队模式格子快捷键覆盖：member_cfg 中的 inventory_slots 覆盖 kk 默认配置
         member_slots = member_cfg.get("inventory_slots")
@@ -171,14 +149,9 @@ class TeamMemberBase(abc.ABC):
         hero_cfg = cfg.get("hero", {})
         kk_cfg = cfg.get("kk", {})
 
-        # 多成员时切换到 bind_background（后台绑定参数）
+        # 多成员时强制后台绑定（与 load_task 共用同一套派生逻辑）
         if use_background:
-            if "bind_background" in kk_cfg:
-                kk_cfg["bind"] = dict(kk_cfg["bind_background"])
-                kk_cfg["bind"]["bind_mode"] = "background"
-            if "bind_background" in war3_cfg:
-                war3_cfg["bind"] = dict(war3_cfg["bind_background"])
-                war3_cfg["bind"]["bind_mode"] = "background"
+            apply_bind_mode(cfg, force_mode="background")
 
         self.war3 = self._create_war3(war3_cfg)
         self.kk = self._create_kk(kk_cfg)

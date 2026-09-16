@@ -4,8 +4,8 @@
 流程：每日声望（黑石城 + 森之城）→ 森之城内步行至鱼点 → 钓鱼 N 次抛竿。
 配置仅通过一次 config.load_task("war3.jiubing2.tasks.festival.ingame_special") 加载，
 依赖闭包含 tasks.reputation.daily_reputation 与 tasks.others.fishing（及其传递依赖）。
-[this.reputation] / [this.fishing] 段在构造子任务前深度合并到对应命名空间节点，
-实现仅对本任务生效的参数覆盖（声望开关、抛竿次数、抛竿坐标等）。
+TOML 中用绝对寻址段（如 [war3.jiubing2.tasks.others.fishing]）直接给子任务节点
+打补丁，合并阶段即生效，无需代码搬运。
 """
 
 import copy
@@ -23,14 +23,9 @@ class IngameSpecialTask:
     """局内特殊任务 — 顺序编排：每日声望 → 步行至鱼点 → 钓鱼。"""
 
     def __init__(self, cfg: dict, task_name: str = "war3.jiubing2.tasks.festival.ingame_special"):
-        # 变体支持：self.cfg = 基础 ingame_special 段 + 变体段深度合并
-        # 变体文件的 [this] 展开到自身命名空间（tasks.festival.<变体名>），合并回基础段
-        leaf = task_name.split(".")[-1]
-        festival_tasks = cfg["war3"]["jiubing2"]["tasks"]["festival"]
-        self.cfg = copy.deepcopy(festival_tasks.get("ingame_special", {}))
-        if leaf != "ingame_special":
-            config._deep_merge(self.cfg, festival_tasks.get(leaf, {}))
-        # 先应用本任务的子配置覆盖，再以生效配置构造子任务
+        # 有效任务视图：tasks.festival 组内 [this] 沿加载链深合并（ingame_special → 变体）
+        self.cfg = cfg["task"]
+        # 先透传 target_player 到子任务命名空间，再以生效配置构造子任务
         self.full_cfg = self._apply_overrides(cfg)
         self.daily = DailyReputationTask(self.full_cfg)
         # 复用黑石城声望的大漠客户端和业务对象，避免多占一个 dm_bridge 子进程
@@ -43,18 +38,14 @@ class IngameSpecialTask:
         return self.cfg.get("name", "局内特殊任务")
 
     def _apply_overrides(self, cfg: dict) -> dict:
-        """将 [this.reputation] / [this.fishing] 深度合并到对应任务命名空间，返回深拷贝配置。"""
+        """target_player 透传到子任务命名空间，返回深拷贝配置。
+
+        子任务参数覆盖已由 TOML 绝对寻址段在合并阶段完成；
+        target_player 是运行时身份（非配置语义），由编排层统一下发：
+        声望子任务经 _parent_cfg 兜底读取，钓鱼子任务经 fishing 段读取。
+        """
         effective = copy.deepcopy(cfg)
         tasks = effective["war3"]["jiubing2"]["tasks"]
-        for section, node in (
-            ("reputation", tasks["reputation"]["daily_reputation"]),
-            ("fishing", tasks["others"]["fishing"]),
-        ):
-            overrides = self.cfg.get(section)
-            if isinstance(overrides, dict):
-                config._deep_merge(node, overrides)
-        # 多开认领：target_player 透传到子任务命名空间，
-        # 声望子任务经 _parent_cfg 兜底读取，钓鱼子任务经 fishing 段读取
         target_player = self.cfg.get("target_player")
         if target_player:
             tasks["reputation"]["daily_reputation"]["target_player"] = target_player
@@ -145,9 +136,7 @@ def main():
     cfg = config.load_task(task_name)
 
     # 显示名动态计算：变体配置带 target_player 时拼上玩家名
-    leaf = task_name.split(".")[-1]
-    leaf_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("tasks", {}).get("festival", {}).get(leaf, {})
-    target_player = leaf_cfg.get("target_player", "")
+    target_player = cfg.get("task", {}).get("target_player", "")
     title = f"局内特殊-{target_player}" if target_player else "局内特殊任务"
 
     setup_log_file(title)

@@ -34,7 +34,8 @@ class FishingTask:
         self._progress_callback = progress_callback or (lambda text: None)
         self.war3_cfg = cfg.get("war3", {})
         self.war3 = War3Business(self.dm, self.war3_cfg)
-        # 任务配置段按实际加载的任务名取（变体配置是自己的命名空间），
+        # 任务配置段按实际加载的任务名取（变体配置是自己的命名空间）；
+        # load_task 已把同组 [this] 沿链深合并回写到叶节点，该段即有效任务视图。
         # target_player 在变体 [this] 里配置，注入 war3 做多开窗口认领
         leaf = task_name.split(".")[-1]
         self.fishing_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("tasks", {}).get("others", {}).get(leaf, {})
@@ -276,9 +277,7 @@ def main():
     cfg = config.load_task(task_name)
 
     # 显示名动态计算：变体配置带 target_player 时拼上玩家名，如"钓鱼-玩家A"
-    leaf = task_name.split(".")[-1]
-    leaf_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("tasks", {}).get("others", {}).get(leaf, {})
-    target_player = leaf_cfg.get("target_player", "")
+    target_player = cfg.get("task", {}).get("target_player", "")
     title = f"钓鱼-{target_player}" if target_player else "钓鱼"
 
     setup_log_file(title)

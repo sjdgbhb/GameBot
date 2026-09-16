@@ -21,6 +21,7 @@ import pytest
 
 from GameBot.config import Config, ConfigurationError
 from tests.common.config_helpers import ConfigTestBase as TestConfigBase
+from tests.common.config_helpers import write_toml as _write_toml
 
 pytestmark = [pytest.mark.unit, pytest.mark.config]
 
@@ -520,17 +521,27 @@ class TestFilePathMapping(TestConfigBase):
 
 
 class TestNamespaceRoots(TestConfigBase):
-    """测试命名空间根集合（只扫描一级目录和顶层 .toml 文件名）。"""
+    """测试命名空间根集合（显式注册表 NAMESPACE_ROOTS，不随目录扫描变化）。"""
 
     def test_roots_include_top_level_dirs_and_toml_files(self):
-        """namespace_roots 应包含 config 目录下的一级文件夹名和顶层 .toml 文件名，不递归子目录。"""
+        """namespace_roots 为注册表内容；war3 内部子目录名（heroes/tasks/scenes）不参与。"""
         roots = self.cfg.namespace_roots
-        self.assertIn("war3", roots)  # 一级文件夹
-        self.assertIn("base", roots)  # 顶层 .toml 文件
+        self.assertIn("war3", roots)  # 一级领域
+        self.assertIn("base", roots)  # 一级领域（顶层 .toml）
         # 子目录名不应出现在 roots 中
         self.assertNotIn("heroes", roots)
         self.assertNotIn("tasks", roots)
         self.assertNotIn("scenes", roots)
+
+    def test_unregistered_top_level_entry_warns(self):
+        """config 目录下未登记的一级条目应告警（不静默改变合并语义）。"""
+        _write_toml(self.config_dir, "unreg/unreg.toml", 'extends = []\n')
+        with self.assertLogs("GameBot.config.system.loader", level="WARNING") as cm:
+            self.cfg._ns_roots = None  # 清缓存触发重扫
+            self.cfg.namespace_roots
+        self.assertTrue(any("unreg" in m for m in cm.output))
+        # 未登记条目不在 roots 中
+        self.assertNotIn("unreg", self.cfg.namespace_roots)
 
 
 if __name__ == "__main__":

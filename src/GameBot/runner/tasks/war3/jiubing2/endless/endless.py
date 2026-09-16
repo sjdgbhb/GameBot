@@ -12,7 +12,6 @@
 启动要求：账号停留在 KK 房间内（创建好密码房即可运行）
 """
 
-import copy
 import sys
 import time
 
@@ -39,17 +38,8 @@ class EndlessTask:
     def __init__(self, cfg: dict, task_name: str = "war3.jiubing2.tasks.endless.endless"):
         self.task_cfg = cfg
         self.dm = create_dm_client()
-        endless_tasks = cfg["war3"]["jiubing2"]["tasks"]["endless"]
-        # 变体支持：变体 [this] 展开为 tasks.endless.<变体名> 节点，深度合并回 endless 段
-        leaf = task_name.split(".")[-1]
-        merged_endless = copy.deepcopy(endless_tasks.get("endless", {}))
-        if leaf != "endless":
-            config._deep_merge(merged_endless, endless_tasks.get(leaf, {}))
-        # 自动无尽继承局内无尽配置，再用 endless 段（含变体差异）字段覆盖
-        endless_cfg = {
-            **endless_tasks.get("endless_single", {}),
-            **merged_endless,
-        }
+        # 有效任务视图：tasks.endless 组内 [this] 沿加载链深合并（endless_single → endless → 变体）
+        endless_cfg = cfg["task"]
 
         war3_cfg = self.task_cfg.get("war3", {})
         hero_cfg = self.task_cfg.get("hero", {})
@@ -219,9 +209,7 @@ def main():
     cfg = config.load_task(task_name)
 
     # 显示名动态计算：变体配置带 target_player 时拼上玩家名
-    leaf = task_name.split(".")[-1]
-    leaf_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("tasks", {}).get("endless", {}).get(leaf, {})
-    target_player = leaf_cfg.get("target_player", "")
+    target_player = cfg.get("task", {}).get("target_player", "")
     title = f"多局无尽-{target_player}" if target_player else "多局无尽"
 
     setup_log_file(title)

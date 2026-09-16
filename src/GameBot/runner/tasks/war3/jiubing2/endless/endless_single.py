@@ -25,7 +25,8 @@ class EndlessSingleTask:
     def __init__(self, cfg: dict):
         self.task_cfg = cfg
         self.dm = create_dm_client()
-        endless_cfg = cfg["war3"]["jiubing2"]["tasks"]["endless"]["endless_single"]
+        # 有效任务视图：本任务无变体，即 endless_single 段自身
+        endless_cfg = cfg.get("task", {})
 
         war3_cfg = self.task_cfg.get("war3", {})
         hero_cfg = self.task_cfg.get("hero", {})

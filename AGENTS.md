@@ -145,3 +145,33 @@ KK 平台 Qt 5.15.2 窗口是 `WS_EX_LAYERED`，后台输入/点击后画面不�
   - **认领失败直接终止任务**——归属未确认时继续运行可能误操作另一账号窗口
 - 启动要求：账号停留在 **KK 房间**内（创建好密码房即可运行）
 - 注意：浮窗停止键 NumPad- 是全局热键，两个脚本同时按会一起停；单独停用各浮窗 ✕ 按钮
+
+## 配置系统增量能力（2026-09-15）
+
+- **provenance**：`load_task` 合并时记录每键来源链，`config.get_provenance(task)` 取用；
+  CLI：`python -m GameBot.config order|explain|dump [--annotate]`（explain 查某键来源，
+  dump --annotate 逐行标注来源，替代手写 merged_cfg 调试）
+- **绝对寻址**：TOML 里写完整命名空间段（如 `[war3.jiubing2.tasks.others.fishing]`）
+  = 直接给目标节点打补丁，合并阶段生效；编排任务调子任务参数用此写法，
+  不再在业务代码里手动搬运（ingame_special 的 _apply_overrides 只剩 target_player 透传）。
+  **禁止用完整路径写自身命名空间**（loader 拦截，提示改用 [this]）
+- **有效任务视图 `cfg["task"]`**：`load_task` 把同组任务文件的 `[this]` 沿加载链深合并
+  （如 endless_single → endless → endless_善木木），并**回写到叶子命名空间节点**——
+  按路径读该任务段也拿到合并视图（兼容组队模式多任务闭包合并的场景）。
+  任务代码取自身参数用 `cfg["task"]`。注意只含本组链——编排任务的子任务参数
+  仍在各自命名空间节点（用绝对寻址打补丁）
+- **派生逻辑共享**：`config/system/derive.py` 收敛派生推导——`resolve_item_names`
+  （物品名→item_id）、`derive_bind_mode`/`select_bind_cfg`/`apply_bind_mode`（bind 选择）；
+  组队等非 load_task 路径调 `apply_bind_mode(cfg, force_mode="background")`，
+  不再手写派生拷贝（team/base.py 旧的两份重复实现已删）
+- **命名空间根注册表**：`config/system/base.py` 的 `NAMESPACE_ROOTS`（base/kk/team/war3/web），
+  不再扫描目录；新增任务/英雄/场景/变体文件无需登记（都在 war3 根内），
+  仅新增一级命名空间（data/yy/）才加注册表一行；未登记的一级条目加载时告警。
+  extends 分层约束（warn 阶段）：低层文件不得 extends tasks.*，task→task 放行
+- **用户覆盖路由表**：`user.py` 的 `_USER_KEY_ROUTES` 声明式表——
+  user_configs.json 键 → [(目标路径, 是否创建中间节点)]，"{task}" 占位任务命名空间；
+  新增用户可调键只需加一行路由，不再写 setdefault 链
+- **lint/new 脚手架**：`python -m GameBot.config lint`（结构校验：extends 声明/循环依赖/
+  分层违例/未登记根条目为错误；变体约定、绝对寻址段存在性为警告）；
+  `python -m GameBot.config new <tasks.*.名>` 生成模板（含 `_玩家名` 后缀自动探测基任务）
+- 设计基准：`docs/review_reports/技术方案_配置系统重构.md`

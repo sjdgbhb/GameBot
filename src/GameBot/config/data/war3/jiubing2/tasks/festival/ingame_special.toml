@@ -23,15 +23,15 @@ description = "每日声望（黑石+森之城）→ 森之城鱼点钓鱼"
 enable_reputation = true   # 是否执行每日声望
 enable_fishing = true      # 是否执行钓鱼
 
-# 每日声望参数覆盖（深度合并到 tasks.reputation.daily_reputation 节点）
-[this.reputation]
+# 每日声望参数覆盖（绝对寻址：写目标节点完整路径，合并时直接打到 daily_reputation）
+[war3.jiubing2.tasks.reputation.daily_reputation]
 enable_blackstone = true   # 黑石城声望（城门骚扰）
 enable_forest = true       # 森之城声望（迅猛野兽）
 
-[this.reputation.blackstone]
+[war3.jiubing2.tasks.reputation.daily_reputation.blackstone]
 progress_label = "黑石城声望"   # 浮窗进度行标签
 
-[this.reputation.forest]
+[war3.jiubing2.tasks.reputation.daily_reputation.forest]
 progress_label = "森之城声望"   # 浮窗进度行标签
 
 # 鱼点步行点（森之城内）：小地图切视角 → 点击目标点移动
@@ -42,6 +42,6 @@ coords = [945,462]        # TODO: 切视角后鱼点旁目标点屏幕坐标（�
 walk_mode = 2          # 0右键移动 / 1A+左键 / 2M+左键
 time = 15              # TODO: 步行等待时间（秒）
 
-# 钓鱼参数覆盖（深度合并到 tasks.others.fishing 节点）
-[this.fishing]
+# 钓鱼参数覆盖（绝对寻址：直接打到 tasks.others.fishing 节点）
+[war3.jiubing2.tasks.others.fishing]
 max_times = 40            # 抛竿次数
