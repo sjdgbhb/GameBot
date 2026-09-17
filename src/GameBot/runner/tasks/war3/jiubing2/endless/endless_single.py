@@ -4,7 +4,7 @@
 
 import time
 
-from GameBot.config import config, get_task_view
+from GameBot.config import config, get_task_view, resolve_bind_cfg
 from GameBot.inference import get_inference_client
 from GameBot.runner import create_dm_client
 from GameBot.runner.business.war3 import War3Business
@@ -56,7 +56,7 @@ class EndlessSingleTask:
             return
         self.war3.set_client_size(hwnd)
         try:
-            with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+            with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
                 try:
                     self.runner.clear_endless_monster_loop(self, 1, self.endless_cfg)
                 except BossDeathTimeoutError:
@@ -108,7 +108,7 @@ class _EndlessSingleSteps(Jiubing2TaskSteps):
         )
 
         logger.info("组队无尽就位：进入皇宫 → 进入无尽")
-        ui.switch_attribute_panel(is_fold=True)
+        ui.switch_attribute_panel(is_fold=True, stop_event=stop_event)
         nav.enter_palace(stop_event)
         nav.enter_endless(member.task_ctx, endless_cfg, stop_event)
         logger.info("组队无尽就位完成")

@@ -150,7 +150,7 @@ class TestLoadItemsAndCommands:
 
     def test_load_items(self, services_config_dir):
         """应从 base.toml 读取物品定义表。"""
-        _write_base(services_config_dir, '[[items]]\nid = 1\nname = "铁剑"\n[[items]]\nid = 2\nname = "木盾"\n')
+        _write_base(services_config_dir, '[[this.items]]\nid = 1\nname = "铁剑"\n[[this.items]]\nid = 2\nname = "木盾"\n')
         result = services.load_items()
         assert len(result) == 2
         assert result[0] == {"id": 1, "name": "铁剑"}
@@ -162,7 +162,7 @@ class TestLoadItemsAndCommands:
 
     def test_load_commands(self, services_config_dir):
         """应从 base.toml [command] 段读取指令。"""
-        _write_base(services_config_dir, '[command]\nclear_nearby = "-delh"\nsuicide = "-kill"\n')
+        _write_base(services_config_dir, '[this.command]\nclear_nearby = "-delh"\nsuicide = "-kill"\n')
         result = services.load_commands()
         keys = {c["key"] for c in result}
         assert "clear_nearby" in keys

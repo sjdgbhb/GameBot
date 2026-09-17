@@ -7,7 +7,7 @@
 - _resolve_order 边界：自依赖、菱形依赖、空依赖
 - load_task 缓存失效：user_configs.json 修改后缓存失效
 - _apply_user_overrides 边界：combat_mode 写入、route_scheme 写入、blackstone/forest_points
-- get_path 方法：相对路径解析、绝对路径、空值回退
+- resolve_path 方法：相对路径解析、绝对路径
 """
 
 import json
@@ -34,7 +34,7 @@ def _make_edge_config_dir() -> Path:
         "base.toml",
         """
 extends = []
-[paths]
+[this.paths]
 log_path = "logs"
 """,
     )
@@ -56,7 +56,7 @@ window_class = "War3Class"
         """
 extends = ["war3"]
 
-[game]
+[this.game]
 load_war3_time = 33
 
 [hero]
@@ -305,9 +305,9 @@ class TestSplitSectionsEdge(TestEdgeBase):
         """混合节点应正确拆分。"""
         raw = self.cfg._load_file("war3.jiubing2")
         inheritable, namespaced = self.cfg._split_sections(raw)
-        # game 和 hero 是可继承的
-        self.assertIn("game", inheritable)
+        # hero 是可继承顶层键；[this.game] 归入 war3 命名空间
         self.assertIn("hero", inheritable)
+        self.assertIn("game", namespaced["war3"]["jiubing2"])
         # war3 是命名空间
         self.assertNotIn("war3", inheritable)
 
@@ -540,27 +540,19 @@ class TestApplyUserOverridesEdge(TestEdgeBase):
             shutil.rmtree(fake_root, ignore_errors=True)
 
 
-class TestGetPath(TestEdgeBase):
-    """get_path 方法测试。"""
+class TestResolvePath(TestEdgeBase):
+    """resolve_path 方法测试。"""
 
-    def test_get_path_relative(self):
+    def test_resolve_path_relative(self):
         """相对路径应以 project_root 为基准解析。"""
-        self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
-        path = self.cfg.get_path("paths.log_path")
+        path = self.cfg.resolve_path("logs")
         self.assertTrue(path.is_absolute())
-        self.assertEqual(path.name, "logs")
+        self.assertEqual(path, self.cfg.project_root / "logs")
 
-    def test_get_path_empty_returns_project_root(self):
-        """空值应返回 project_root。"""
-        self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
-        path = self.cfg.get_path("nonexistent.key", "")
-        self.assertEqual(path, self.cfg.project_root)
-
-    def test_get_path_absolute(self):
+    def test_resolve_path_absolute(self):
         """绝对路径应直接返回。"""
-        self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
         abs_path = "C:/some/absolute/path"
-        path = self.cfg.get_path("nonexistent.key", abs_path)
+        path = self.cfg.resolve_path(abs_path)
         self.assertEqual(str(path).replace("\\", "/"), abs_path)
 
 

@@ -9,7 +9,7 @@ import threading
 import time
 from typing import Optional
 
-from GameBot.config import config
+from GameBot.config import config, resolve_bind_cfg
 from GameBot.inference import get_inference_client
 from GameBot.runner import create_dm_client
 from GameBot.runner.business.war3 import TextMonitor, War3Business
@@ -120,7 +120,7 @@ class PatrolLootTask:
 
         # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
         self.war3.set_client_size(hwnd)
-        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+        with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
             self.run_core(hwnd)
 
     def run_core(self, hwnd, skip_feed_only=False):
@@ -660,7 +660,7 @@ class _PatrolLootSteps(Jiubing2TaskSteps):
             return
 
         logger.info(f"组队刷装备就位：路线方案「{route_scheme}」，路线点 {len(points)} 个")
-        ui.switch_attribute_panel(is_fold=True)
+        ui.switch_attribute_panel(is_fold=True, stop_event=stop_event)
         # TP至米奈希尔 → 点击复活石传送至巡逻区域
         nav.tp_to_patrol_area(route_scheme, stop_event)
         # 移动到路线最后一个点（靠近裂隙，方便后续巡逻循环从第一个点开始）

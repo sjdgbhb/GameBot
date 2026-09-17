@@ -53,9 +53,9 @@
 
 | 配置项 | 位置 | 语义 |
 |--------|------|------|
-| `paths.log_path` | base.toml | 日志输出目录 |
-| `paths.resources_path` | base.toml | 资源根目录（images/fonts/models） |
-| `paths.screenshot_path` | base.toml | 调试截图输出目录 |
+| `base.paths.log_path` | base.toml `[this.paths]` | 日志输出目录 |
+| `base.paths.resources_path` | base.toml `[this.paths]` | 资源根目录（images/fonts/models） |
+| `base.paths.screenshot_path` | base.toml `[this.paths]` | 调试截图输出目录 |
 
 ## 禁忌
 

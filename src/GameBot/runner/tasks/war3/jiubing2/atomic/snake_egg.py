@@ -5,6 +5,7 @@
 """
 
 from GameBot.config import config as config
+from GameBot.config import resolve_bind_cfg
 from GameBot.inference import get_inference_client
 from GameBot.runner import create_dm_client
 from GameBot.runner.business.war3 import War3Business
@@ -49,7 +50,7 @@ def main():
             return
         # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
         war3.set_client_size(hwnd)
-        with dm.bind_window(hwnd, bind_cfg=war3_cfg.get("bind", {})):
+        with dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(war3_cfg)):
             get_inference_client(load_chest=False, load_combat=False)
             task = SnakeEggTask(dm, war3, ui, combat, task_cfg)
             task.run(stop_event=stop_event)

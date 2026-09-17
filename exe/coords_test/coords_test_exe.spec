@@ -20,7 +20,7 @@ work_dir = str(project_root / 'exe' / 'build')
 config_data_dir = project_root / 'exe' / 'coords_test' / 'data'
 test_tomls = [
     config_data_dir / 'base.toml',
-    config_data_dir / 'war3.toml',
+    config_data_dir / 'war3' / 'war3.toml',
 ]
 datas = []
 for toml_file in test_tomls:

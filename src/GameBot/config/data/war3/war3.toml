@@ -38,7 +38,7 @@ check_interval_time = 2 # 检测间隔
 wgc_min_interval_ms = 100 # WGC 最小出帧间隔（毫秒），略小于 monitor_interval 即可；帧超过 max(2×间隔, 2s) 未更新视为帧流停止
 
 # 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
-#   - 顶层任务可在自身 [this] 中设置 bind_mode 覆盖此默认值
+#   - 任务/变体文件可写 [war3] bind_mode = "..." 覆盖此默认值（绝对寻址补丁）
 #   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
 bind_mode = "foreground"
 

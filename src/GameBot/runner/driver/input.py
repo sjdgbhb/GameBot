@@ -1,6 +1,9 @@
 """输入操作 Mixin — 键盘/鼠标/字符串输入（基于 _com_call 原语组合）。"""
 
 
+import time
+
+
 class InputMixin:
     """键鼠输入相关操作：按键、点击、移动、字符串发送。
 
@@ -27,8 +30,16 @@ class InputMixin:
     def left_click(self):
         self._com_call("LeftClick")
 
-    def left_double_click(self):
-        self._com_call("LeftDoubleClick")
+    def left_double_click(self, interval: float = 0.1):
+        """双击：两次 LeftClick 模拟。
+
+        dx.mouse.* 注入模式下大漠 LeftDoubleClick 只产生单次点击效果（war3 实测
+        选中但未双击确认），两次独立 LeftClick 在所有鼠标模式下都可靠；
+        interval 须小于系统双击判定时间（默认 500ms）。
+        """
+        self._com_call("LeftClick")
+        time.sleep(interval)
+        self._com_call("LeftClick")
 
     def left_down(self):
         return self._com_call("LeftDown")

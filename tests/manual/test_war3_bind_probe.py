@@ -46,7 +46,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from GameBot.config import config
+from GameBot.config import config, resolve_bind_cfg
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.driver import create_dm_client
 from GameBot.runner.driver.wgc_capture import WgcCapture
@@ -350,7 +350,7 @@ def main() -> int:
     setup_log_file("war3绑定矩阵探针")
     cfg = config.load_task("war3.jiubing2.tasks.atomic.blackstone_gate_harassment")
     war3_cfg = cfg.get("war3", {})
-    base_cfg = dict(war3_cfg.get("bind", {}))
+    base_cfg = resolve_bind_cfg(war3_cfg)
     # 并发截图线程复刻任务监测线程：同区域（prompt_text）、同间隔（monitor_interval）
     watch_ocr_cfg = cfg.get("prompt_text")
     watch_interval = cfg.get("atomic_task", {}).get("monitor_interval", 0.2)

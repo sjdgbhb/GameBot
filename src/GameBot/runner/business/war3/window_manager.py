@@ -11,6 +11,7 @@ import time
 from ctypes import wintypes
 from typing import Optional
 
+from GameBot.config import resolve_bind_cfg
 from GameBot.runner.driver.process_lock import NamedMutex
 from GameBot.utils import WindowLostError, logger
 
@@ -217,7 +218,7 @@ class WindowManagerMixin:
         retries = int(mi_cfg.get("send_retries", 3))
         verify_wait = float(mi_cfg.get("verify_wait", 1.0))
         for attempt in range(1, retries + 1):
-            with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+            with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
                 self.send_msg(token, stop_event=stop_event)
             self.interruptible_wait(verify_wait, stop_event)
             lines = self.ocr_lines(hwnd, {"area_coords": area})
@@ -241,7 +242,7 @@ class WindowManagerMixin:
         - 后台绑定（bind_background）：走多开认领协议（claim_war3_window），
           单开时同样生效（互斥锁即取即得），保证与其他脚本互不干扰。
         """
-        if self.war3_cfg.get("bind", {}).get("bind_mode") != "background":
+        if self.war3_cfg.get("bind_mode") != "background":
             return self.dm.get_active_window(
                 self.war3_cfg["window_class"], self.war3_cfg["window_title"], capture=capture
             )

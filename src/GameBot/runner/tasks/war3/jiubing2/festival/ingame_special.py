@@ -11,7 +11,7 @@ TOML 中用绝对寻址段（如 [war3.jiubing2.tasks.others.fishing]）直接�
 import copy
 import sys
 
-from GameBot.config import config, get_task_view
+from GameBot.config import config, get_task_view, resolve_bind_cfg
 from GameBot.runner.tasks.war3.jiubing2.others.fishing import FishingTask
 from GameBot.runner.tasks.war3.jiubing2.reputation.daily_reputation import DailyReputationTask
 from GameBot.runner.ui import run_with_float_window
@@ -115,7 +115,7 @@ class IngameSpecialTask:
             return
         # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
         self.war3.set_client_size(hwnd)
-        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+        with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
             self.war3.move_to_minimap_point(
                 spot.get("mini_coords"),
                 spot.get("coords"),

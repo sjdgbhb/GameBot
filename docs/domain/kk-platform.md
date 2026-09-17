@@ -24,18 +24,13 @@ Layered 窗口的绘制由系统合成管理，后台输入修改了窗口内容
 但 Qt 的渲染队列没有触发重绘，导致画面停留在操作前的状态。
 
 ### 解决方案
-`force_refresh_layered`：临时取消 `WS_EX_LAYERED` 扩展样式 → 调用 `RedrawWindow` 触发重绘 → 恢复 layered 样式。
+`force_refresh_layered`：1px 尺寸扰动（SetWindowPos w-1→w 触发 WM_SIZE，强制 Qt
+全量重绘并重推 UpdateLayeredWindow 帧），全程保持 layered 无黑边；
+非 layered 窗口走 RedrawWindow。
 
-### 重要约束
-- `force_refresh_layered` 会取消/恢复 `WS_EX_LAYERED`，**破坏大漠后台绑定状态**
-- **不能在 `bind_window` 上下文内调用**，否则后续输入/点击操作会落空
-- **正确做法**：拆成两段 bind，在中间调用刷新：
-  ```
-  第一段 bind：输入密码等操作
-  → 退出 bind
-  → force_refresh_layered 刷新
-  → 第二段 bind：点击确认等后续操作
-  ```
+### 说明
+- 纯尺寸扰动不破坏大漠后台绑定状态（旧实现取消/恢复 `WS_EX_LAYERED` 会破坏绑定，
+  需拆两段 bind 在中间刷新；该兜底路径已删除）
 - 已在创建房间（输入密码→刷新→点击创建）和加入房间（输入密码→刷新→点击确认）中应用
 
 ## 弹窗问题

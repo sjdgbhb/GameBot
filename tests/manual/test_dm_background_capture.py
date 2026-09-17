@@ -31,7 +31,7 @@ import sys
 import time
 from pathlib import Path
 
-from GameBot.config import config
+from GameBot.config import config, resolve_bind_cfg
 from GameBot.inference import get_inference_client
 from GameBot.runner.driver import create_dm_client
 from GameBot.utils import logger, setup_log_file
@@ -67,8 +67,8 @@ def load_bind_cfg(kk_cfg: dict) -> dict:
         cfg = dict(kk_cfg["bind_background"])
         logger.info(f"使用 bind_background 后台绑定: {cfg}")
         return cfg
-    bind_cfg = dict(kk_cfg.get("bind", {}))
-    logger.info(f"使用 bind 配置: {bind_cfg}")
+    bind_cfg = resolve_bind_cfg(kk_cfg)
+    logger.info(f"按 bind_mode 解析的绑定配置: {bind_cfg}")
     return bind_cfg
 
 

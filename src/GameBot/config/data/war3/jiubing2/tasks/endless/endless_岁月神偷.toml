@@ -12,8 +12,14 @@ y = 500
 
 [this]
 # 多开认领目标玩家名：KK 房间聊天 token / war3 加载页玩家列表判归属。
-# target_player 非空自动推导 bind_mode=background；显示名/日志名由任务动态拼接。
+# 显示名/日志名由任务动态拼接。
 target_player = "岁月神偷"
+
+# 多开认领必须后台绑定：直接覆盖命名空间级默认值
+[war3]
+bind_mode = "background"
+[kk]
+bind_mode = "background"
 
 # 神碎配置 —— 小号
 # [hero] 为浅合并，shard 子键整表覆盖继承值，须写全字段

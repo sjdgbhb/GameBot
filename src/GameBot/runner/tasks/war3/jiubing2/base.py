@@ -12,6 +12,7 @@ from __future__ import annotations
 import math
 import time
 
+from GameBot.config import resolve_bind_cfg
 from GameBot.inference import get_inference_client
 from GameBot.runner import create_dm_client
 from GameBot.runner.business.war3 import TextMonitor, War3Business
@@ -126,7 +127,7 @@ class AtomicLoopTask:
 
         # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
         self.war3.set_client_size(hwnd)
-        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+        with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
             # 预热 OCR 子进程（启动 + 加载 OCR 模型，约数秒），
             # 避免首次 wait_for_text 时占用超时
             get_inference_client(load_chest=False, load_combat=False)
@@ -324,7 +325,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
 
         # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
         self.war3.set_client_size(hwnd)
-        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+        with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
             get_inference_client(load_chest=False, load_combat=False)
             monitor = self._make_monitor(hwnd)
             try:

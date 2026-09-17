@@ -28,12 +28,12 @@ class _UserEdgeConfigTestBase(unittest.TestCase):
         self.config_dir = self.tmp_root / "a" / "b" / "c" / "config"
         self.config_dir.mkdir(parents=True)
         _write_toml(
-            self.config_dir, "base.toml", '\nname = "base"\nextends = []\n[paths]\nresources_path = "resources"\n'
+            self.config_dir, "base.toml", '\nextends = []\n[this.paths]\nresources_path = "resources"\n'
         )
         _write_toml(
             self.config_dir,
             "war3/war3.toml",
-            '\nname = "war3.war3"\nextends = ["base"]\n[war3]\nwindow_title = "Warcraft III"\n',
+            '\nextends = ["base"]\n[this]\nwindow_title = "Warcraft III"\n',
         )
         _write_toml(
             self.config_dir,

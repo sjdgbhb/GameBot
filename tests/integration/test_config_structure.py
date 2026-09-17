@@ -103,7 +103,7 @@ class TestTomlValidity:
         assert root_base.exists(), "config/data/base.toml 应存在"
         with open(root_base, "rb") as f:
             data = tomllib.load(f)
-        assert "dm" in data, "base.toml 应含 [dm] 段"
+        assert "dm" in data.get("this", {}), "base.toml 应含 [this.dm] 段"
 
 
 # ── 任务 TOML 结构验证 ──
@@ -263,30 +263,33 @@ class TestBaseTomlStructure:
     """jiubing2/jiubing2.toml 应含必需的配置段。"""
 
     def test_base_has_command_section(self):
-        """jiubing2.toml 应含 [command] 段。"""
+        """jiubing2.toml 应含 [this.command] 段。"""
         with open(_JIUBING2_DIR / "jiubing2.toml", "rb") as f:
             data = tomllib.load(f)
-        assert "command" in data, "jiubing2.toml 应含 [command] 段"
-        cmd = data["command"]
+        this = data.get("this", {})
+        assert "command" in this, "jiubing2.toml 应含 [this.command] 段"
+        cmd = this["command"]
         assert isinstance(cmd, dict)
         assert "clear_nearby" in cmd, "command 应含 clear_nearby"
 
     def test_base_has_items_section(self):
-        """jiubing2.toml 应含 [items] 段（物品定义表）。"""
+        """jiubing2.toml 应含 items 物品定义表（[this] 下）。"""
         with open(_JIUBING2_DIR / "jiubing2.toml", "rb") as f:
             data = tomllib.load(f)
-        assert "items" in data, "jiubing2.toml 应含 [items] 段"
-        items = data["items"]
+        this = data.get("this", {})
+        assert "items" in this, "jiubing2.toml 的 [this] 应含 items 段"
+        items = this["items"]
         assert isinstance(items, list) and len(items) > 0, "items 应为非空列表"
         for item in items:
             assert "id" in item and "name" in item, f"物品定义缺少 id/name: {item}"
 
     def test_base_has_game_section(self):
-        """jiubing2.toml 应含 [game] 段。"""
+        """jiubing2.toml 应含 [this.game] 段。"""
         with open(_JIUBING2_DIR / "jiubing2.toml", "rb") as f:
             data = tomllib.load(f)
-        assert "game" in data, "jiubing2.toml 应含 [game] 段"
-        game = data["game"]
+        this = data.get("this", {})
+        assert "game" in this, "jiubing2.toml 应含 [this.game] 段"
+        game = this["game"]
         assert isinstance(game, dict)
         assert "load_war3_time" in game, "game 应含 load_war3_time"
 

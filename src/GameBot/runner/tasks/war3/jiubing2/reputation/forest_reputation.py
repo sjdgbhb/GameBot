@@ -7,7 +7,7 @@
 依赖 tasks.atomic.swift_beast + scenes.menethil/scenes.palace + heroes.paladin。
 """
 
-from GameBot.config import config
+from GameBot.config import config, resolve_bind_cfg
 from GameBot.runner.business.war3.jiubing2 import GameUI, SceneNavigator
 from GameBot.runner.tasks.war3.jiubing2.atomic.swift_beast import SwiftBeastTask
 from GameBot.runner.tasks.war3.jiubing2.base import ReputationTask
@@ -46,7 +46,7 @@ class ForestReputationTask(ReputationTask):
         if not hwnd:
             logger.error("未找到 war3 窗口，转场失败")
             return
-        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+        with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
             self.nav.tp_enter_forest_city(self._stop_event)
 
 

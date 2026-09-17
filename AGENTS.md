@@ -58,19 +58,16 @@ GameBot — 魔兽争霸3 RPG地图"九种兵器2"的 Python 自动化脚本系�
   OCR RapidOCR 吃 WGC 帧 ndarray；AI 推理 ONNXRuntime
 - 会话：`acquire()/release()` 引用计数（监测线程）、`for_hwnd(hwnd)` 常驻（一次性调用）；
   监测线程出错记 monitor.error/event.error，watch/wait_for/stop 时抛出
+- 帧停滞分两级：窗口销毁/最小化/锁屏（OpenInputDesktop 不可达）抛 CaptureError；
+  窗口健康但应用忙（war3 加载地图单线程不产帧）沿用最后一帧继续轮询，不误杀任务
 
 ## KK 平台窗口（Layered 刷新）
 
 - KK Qt 窗口是 `WS_EX_LAYERED`，后台输入/点击后须 `force_refresh_layered(hwnd)` 刷新
-- **禁止在 `bind_window` 上下文内调用**（破坏绑定状态）；拆两段 bind，中间刷新：
-  ```python
-  with dm.bind_window(hwnd, bind_cfg=bind_cfg):
-      # 输入密码等操作
-  dm.force_refresh_layered(hwnd)  # 在 bind 之外刷新
-  with dm.bind_window(hwnd, bind_cfg=bind_cfg):
-      # 点击确认等后续操作
-  ```
+- 刷新机制：1px 尺寸扰动（WM_SIZE 强制 Qt 重绘重推，全程保持 layered 无黑边）；
+  非 layered 窗口走 RedrawWindow。纯扰动不破坏大漠绑定状态
 - 已应用：hall_manager/join_room/room_manager、create_room、join_room
+- 业务层无 `dm.sleep`：DmClientBase 未暴露大漠 Sleep，延时统一 `time.sleep`
 
 ## 文本输入（SendString）
 
@@ -83,7 +80,8 @@ GameBot — 魔兽争霸3 RPG地图"九种兵器2"的 Python 自动化脚本系�
 同一台机器两个玩家各自跑同一任务、互不干扰，用"变体配置"模式（参考 ingame_special/fishing 变体）：
 
 - 变体文件：`tasks/<组>/<任务>_<玩家名>.toml`，`extends` 基础任务，`[this]` 只写
-  `target_player`（非空自动推导 bind_mode=background）；可加 `[float_window] y`
+  `target_player`，并用 `[war3]`/`[kk]` 段写 `bind_mode="background"` 覆盖命名空间默认
+  （多开必须后台绑定；任务 `[this]` 不支持 bind_mode）；可加 `[base.float_window] y`
   错开浮窗、`[hero.xxx]` 覆盖账号差异配置（hero 浅合并，子键整表覆盖须写全字段）
 - 启动：`.venv\Scripts\python -m GameBot.runner.tasks.war3.jiubing2.<组>.<任务> <任务>_<玩家名>`
   （如 `...endless.endless endless_善木木`）

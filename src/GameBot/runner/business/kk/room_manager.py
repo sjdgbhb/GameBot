@@ -10,19 +10,21 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from GameBot.runner.driver.base import DmClientBase as DmClient
-from GameBot.utils import logger
+from GameBot.config import resolve_bind_cfg
+from GameBot.utils import StopTaskError, logger
 
 
 class RoomManagerMixin:
     """KK 房间操作 mixin。依赖 self.dm（DmClient）和 self.kk_cfg（dict）。"""
 
-    def start_game(self, dm: DmClient, room_hwnd: int = 0) -> bool:
+    def start_game(self, dm: DmClient, room_hwnd: int = 0, stop_event=None) -> bool:
         """在KK房间中点击开始游戏按钮。
 
         先关闭挡在前面的 KK 弹窗（弹窗会导致开始按钮无法点击），
         找到房间窗口后 OCR 验证按钮文本为"开始游戏"再点击。
 
         :param room_hwnd: 已知的房间句柄，传入时跳过 dismiss_room_popups 检测
+        :param stop_event: 停止事件，点击开始后的等待期间设置时抛 StopTaskError
         :return: True=成功点击开始游戏, False=按钮文本不是"开始游戏"
         """
         room_cfg = self.kk_cfg.get("room", {})
@@ -45,7 +47,7 @@ class RoomManagerMixin:
         ocr_area = room_cfg.get("start_button_ocr_area_coords", [0, 0, 0, 0])
         start_coords = room_cfg.get("start_button_coords", [0, 0])
 
-        bind_cfg = self.kk_cfg.get("bind", {})
+        bind_cfg = resolve_bind_cfg(self.kk_cfg)
         with dm.bind_window(room_hwnd, bind_cfg=bind_cfg):
             # OCR 验证按钮文本是否为"开始游戏"
             if ocr_area != [0, 0, 0, 0]:
@@ -68,7 +70,11 @@ class RoomManagerMixin:
             time.sleep(0.2)
             dm.left_click()
         logger.debug("已点击开始游戏，等待进入war3")
-        time.sleep(room_cfg["start_wait_time"])
+        if stop_event is not None:
+            if stop_event.wait(room_cfg["start_wait_time"]):
+                raise StopTaskError("用户请求停止任务")
+        else:
+            time.sleep(room_cfg["start_wait_time"])
         return True
 
     def dismiss_room_popups(self, dm: DmClient, room_size: tuple = None, owner_pid: int = 0) -> int:

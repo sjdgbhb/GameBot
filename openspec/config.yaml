@@ -1,0 +1,39 @@
+schema: spec-driven
+
+# 项目上下文 —— 注入到每次生成 spec/proposal/tasks 的 AI 上下文
+# 项目规则单一信源在 AGENTS.md（常驻加载），这里只放 OpenSpec 工作流须知的元信息，
+# 避免与 AGENTS.md 重复造成规则漂移。生成产物时请同时遵守 AGENTS.md。
+context: |
+  项目：GameBot —— 魔兽争霸3 RPG地图"九种兵器2"的 Python 自动化脚本系统（含 Web 配置端）。
+  平台：仅 Windows；包管理 uv（pyproject.toml，uv_build 后端）。
+
+  完整项目规则见仓库根 AGENTS.md（双环境隔离、配置规范、war3 绑定定稿、KK Layered 刷新、
+  WGC 截图、多开认领、语言规则等）——生成任何 OpenSpec 产物时都必须遵守 AGENTS.md。
+  本文件只补充 OpenSpec 产物格式相关的约束，不重复 AGENTS.md 内容。
+
+# 各产物的自定义规则（AGENTS.md 之外的、OpenSpec 产物格式专属约束）
+rules:
+  proposal:
+    - 明确指出变更影响哪个环境（主环境 .venv / 大漠桥接 .venv-dm / 两者）
+    - 涉及输入注入或截图时，说明是否触碰 AGENTS.md 中的"双环境隔离"或"禁止 dx 截图"约束
+    - 包含简要回滚思路（配置回退 / 旧分支保留等）
+  specs:
+    - 行为需求用"系统 SHALL ..."句式
+    - 涉及多开/认领的场景，注明 PID 过滤与命名互斥锁前提
+  design:
+    - 涉及窗口输入/截图的流程，须说明 bind_window 上下文边界与 force_refresh_layered 时机
+    - 跨环境调用须画出主环境 ↔ dm_bridge 子进程的边界
+  tasks:
+    - 每个任务块控制在可独立验证的粒度
+    - 配置类改动走 TOML 文件，禁止硬编码；任务参数用 get_task_view 取值
+    - 涉及实机测试的任务标注"需游戏窗口"或"需 KK 房间"
+
+# 操作级指引（apply / archive 阶段的附加建议）
+operations:
+  apply:
+    guidance:
+      - 实现前先确认相关 TOML 配置文件与业务层代码已阅读
+      - 改动输入/截图相关代码后，复查 AGENTS.md 中 WGC/绑定/Layered 刷新约束是否仍满足
+  archive:
+    guidance:
+      - 归档前确认 specs/ 与 AGENTS.md 的一致性，避免规则漂移

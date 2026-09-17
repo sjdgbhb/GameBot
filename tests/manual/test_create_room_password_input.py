@@ -26,7 +26,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from GameBot.config import config
+from GameBot.config import config, resolve_bind_cfg
 from GameBot.runner.driver import create_dm_client
 from GameBot.utils import logger, setup_log_file
 
@@ -199,7 +199,7 @@ def main():
     kk_cfg = config.load_task("kk").get("kk", {})
     bind_cfg = copy.deepcopy(kk_cfg.get("bind_background", {}))
     if not bind_cfg:
-        bind_cfg = copy.deepcopy(kk_cfg.get("bind", {}))
+        bind_cfg = resolve_bind_cfg(kk_cfg)
     if args.display is not None:
         bind_cfg["display"] = args.display
     if args.mouse is not None:

@@ -28,7 +28,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageStat
 
-from GameBot.config import config
+from GameBot.config import config, resolve_bind_cfg
 from GameBot.runner.driver import create_dm_client
 from GameBot.utils import logger, setup_log_file
 
@@ -453,15 +453,11 @@ def main():
     cfg = config.load_task("kk")
     kk_cfg = cfg.get("kk", {})
 
-    # 绑定配置选择逻辑与生产代码（team/base.py）一致：
-    # foreground 用 bind（前台），background 或 --bind-multi 用 bind_background（后台）
+    # 绑定配置选择逻辑与生产代码一致：按 kk.bind_mode 选 bind_foreground/bind_background
     bind_mode = args.bind_mode
     if bind_mode == "background" or args.bind_background:
-        bind_cfg = copy.deepcopy(kk_cfg.get("bind_background", {}))
-        if not bind_cfg:
-            bind_cfg = copy.deepcopy(kk_cfg.get("bind", {}))
-    else:
-        bind_cfg = copy.deepcopy(kk_cfg.get("bind", {}))
+        kk_cfg = {**kk_cfg, "bind_mode": "background"}
+    bind_cfg = resolve_bind_cfg(kk_cfg)
     logger.info(f"bind_mode={bind_mode}, 使用绑定配置: {bind_cfg}")
 
     main_cfg = kk_cfg.get("main", {})

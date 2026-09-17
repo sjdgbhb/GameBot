@@ -63,9 +63,10 @@ def main():
         sys.exit(1)
 
     # 设置全局配置（大漠驱动需要读取 dm.dll 路径和 dm_bridge 子进程路径）
-    cfg_singleton._config.setdefault("dm", {})["dll_path"] = "dm"
-    cfg_singleton._config["dm"]["python_path"] = "dm_bridge/dm_bridge.exe"
-    cfg_singleton._config.setdefault("paths", {})["resources_path"] = "resources"
+    base_cfg = cfg_singleton._config.setdefault("base", {})
+    base_cfg.setdefault("dm", {})["dll_path"] = "dm"
+    base_cfg["dm"]["python_path"] = "dm_bridge/dm_bridge.exe"
+    base_cfg.setdefault("paths", {})["resources_path"] = "resources"
 
     def task_func(stop_event, progress_callback):
         dm = create_dm_client()

@@ -46,7 +46,7 @@ def parse_step(step_spec: str) -> tuple[str, str]:
     return step_spec, "run_task"
 
 
-from GameBot.config import ConfigurationError, apply_bind_mode, config, resolve_item_names
+from GameBot.config import ConfigurationError, config, force_bind_mode, resolve_bind_cfg, resolve_item_names
 from GameBot.runner import create_dm_client
 from GameBot.runner.business.kk import KKBusiness
 from GameBot.runner.business.war3 import War3Business
@@ -149,9 +149,9 @@ class TeamMemberBase(abc.ABC):
         hero_cfg = cfg.get("hero", {})
         kk_cfg = cfg.get("kk", {})
 
-        # 多成员时强制后台绑定（与 load_task 共用同一套派生逻辑）
+        # 多成员时强制后台绑定（覆写命名空间 bind_mode，调用点 resolve_bind_cfg 实时选表）
         if use_background:
-            apply_bind_mode(cfg, force_mode="background")
+            force_bind_mode(cfg, "background")
 
         self.war3 = self._create_war3(war3_cfg)
         self.kk = self._create_kk(kk_cfg)
@@ -381,7 +381,7 @@ class TeamMemberBase(abc.ABC):
                 self.dm.save_screenshot(label="war3_window_lost_before_bind", force=True)
                 self._handle_kk_disconnect()
                 return True
-            with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+            with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
                 # 等待进入游戏
                 self._wait_enter_game()
                 # 上报已进入游戏
@@ -756,7 +756,7 @@ class TeamMemberBase(abc.ABC):
             self._current_war3_hwnd = 0
             return
         try:
-            with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+            with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
                 self.war3.quit_game()
         except (DmError, OSError) as e:
             logger.warning(f"退出游戏时异常: {e}")

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PIL import ImageGrab
 
-from GameBot.config import config
+from GameBot.config import config, resolve_bind_cfg
 from GameBot.inference import get_inference_client
 from GameBot.runner.driver import create_dm_client
 from GameBot.runner.driver.window import WindowMixin
@@ -215,7 +215,7 @@ def main():
 
                         # 5c. 也用前台绑定试试
                         try:
-                            with dm.bind_window(nhwnd, bind_cfg=kk_cfg.get("bind", {})):
+                            with dm.bind_window(nhwnd, bind_cfg=resolve_bind_cfg(kk_cfg)):
                                 gdi_dd_fg = out_dir / f"{nlabel}_5_gdi_foreground.bmp"
                                 if dm.capture_region(0, 0, nw, nh, str(gdi_dd_fg)):
                                     logger.info(f"  下拉框前台绑定截图: {gdi_dd_fg}")

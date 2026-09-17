@@ -17,7 +17,7 @@
 provenance 来源名说明：
 - 配置名（如 war3.jiubing2.tasks.endless.endless）：对应 config/data/ 下的 TOML 文件
 - user_configs.json：用户覆盖层写入
-- <派生:xxx>：引擎派生步骤写入（bind 选择、inventory_slots 注入、物品名→item_id 解析）
+- <派生:xxx>：引擎派生步骤写入（inventory_slots 注入、物品名→item_id 解析）
 """
 
 import argparse
@@ -298,11 +298,16 @@ def _cmd_new(config_name: str) -> int:
 extends = ["{base}"]
 
 [this]
-target_player = ""      # 多开认领：非空自动推导 bind_mode=background
-# bind_mode = "background"  # 需要显式控制时取消注释
+target_player = ""      # 多开认领目标玩家名
+
+# 多开认领必须后台绑定（取消注释即覆盖命名空间级默认值）：
+# [war3]
+# bind_mode = "background"
+# [kk]
+# bind_mode = "background"
 
 # 常用差异字段（按需添加）：
-# [float_window]
+# [base.float_window]
 # y = 500               # 错开浮窗位置
 '''
     else:
@@ -310,7 +315,8 @@ target_player = ""      # 多开认领：非空自动推导 bind_mode=background
 
 [this]
 name = ""               # 任务显示名（浮窗/日志）
-bind_mode = "foreground"  # foreground / background；变体用 target_player 自动切后台
+
+# 绑定模式：默认 foreground；需后台/多开时写 [war3] 与 [kk] 的 bind_mode = "background"
 
 # 物品栏（按需）：
 # [hero]

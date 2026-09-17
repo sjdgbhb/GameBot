@@ -64,15 +64,15 @@ class EndlessRunner:
         :param skip_select_difficulty: 是否跳过选难度（组队时由队长单独选）
         """
         if not skip_select_difficulty:
-            self._ui.select_difficulty(task_cfg)
+            self._ui.select_difficulty(task_cfg, stop_event=stop_event)
         logger.info(f"初始化...（等待 {self.game_cfg['init_game_time']}s）")
         self._war3.interruptible_wait(self.game_cfg["init_game_time"], stop_event)
-        self._ui.select_hero()
-        self._ui.load_save()
-        self._ui.load_stigmata()
-        self._ui.equip_cards()
-        self._ui.equip_shards()
-        self._ui.learn_skill()
+        self._ui.select_hero(stop_event=stop_event)
+        self._ui.load_save(stop_event=stop_event)
+        self._ui.load_stigmata(stop_event=stop_event)
+        self._ui.equip_cards(stop_event=stop_event)
+        self._ui.equip_shards(stop_event=stop_event)
+        self._ui.learn_skill(stop_event=stop_event)
 
     # ── 无尽入口 ──────────────────────────────────────────
 

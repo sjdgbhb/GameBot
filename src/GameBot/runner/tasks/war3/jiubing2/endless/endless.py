@@ -3,8 +3,8 @@
 
 多开用法（本机两个玩家各跑各的多局无尽，互不干扰）：
     .venv/Scripts/python -m GameBot.runner.tasks.war3.jiubing2.endless.endless endless_善木木
-变体配置 tasks/endless/endless_<玩家名>.toml 只需写 target_player 等差异字段
-（配置了 target_player 自动切后台绑定，无需显式 bind_mode）：
+变体配置 tasks/endless/endless_<玩家名>.toml 需写 target_player、
+[war3]/[kk] bind_mode="background"（多开必须后台绑定）等差异字段：
 - KK 侧：认领本账号房间窗口——聊天输入框发随机 token，OCR 聊天记录区"玩家名：token"
   提取归属；认领后拿到 owner_pid，弹窗/掉线处理全按 PID 过滤
 - War3 侧：每局在加载页面 OCR 玩家列表认领本账号窗口（命名互斥锁互斥）
@@ -15,7 +15,7 @@
 import sys
 import time
 
-from GameBot.config import config, get_task_view
+from GameBot.config import config, get_task_view, resolve_bind_cfg
 from GameBot.inference import get_inference_client
 from GameBot.runner import create_dm_client
 from GameBot.runner.business.kk import KKBusiness
@@ -95,12 +95,12 @@ class EndlessTask:
             # 多开：认领本账号房间（失败抛错终止），弹窗按 PID 过滤后在认领窗口点开始
             self._claim_kk_room()
             self.kk.dismiss_room_popups(self.dm, owner_pid=self.owner_pid)
-            return self.kk.start_game(self.dm, room_hwnd=self.room_hwnd)
+            return self.kk.start_game(self.dm, room_hwnd=self.room_hwnd, stop_event=self._stop_event)
         # 先尝试找到已有房间
         room_hwnd = self.kk.dismiss_room_popups(self.dm)
         if room_hwnd:
             # 找到房间，直接开始游戏（传入 room_hwnd 避免重复检测）
-            return self.kk.start_game(self.dm, room_hwnd=room_hwnd)
+            return self.kk.start_game(self.dm, room_hwnd=room_hwnd, stop_event=self._stop_event)
         # 未找到房间，清理主界面弹窗后创建
         logger.info("未找到 KK 房间，开始自动创建房间")
         self.kk.dismiss_hall_popups(self.dm)
@@ -111,7 +111,7 @@ class EndlessTask:
                 "创建房间失败，跳过本局。建议检查：1) KK 主界面是否正常显示 2) 搜索结果是否包含目标地图 3) 创建房间弹窗是否出现 4) 网络是否正常"
             )
             return False
-        return self.kk.start_game(self.dm, room_hwnd=room_hwnd)
+        return self.kk.start_game(self.dm, room_hwnd=room_hwnd, stop_event=self._stop_event)
 
     def _interruptible_wait(self, seconds: float):
         """可被停止信号中断的等待，检测到停止时抛出 StopTaskError。"""
@@ -151,11 +151,11 @@ class EndlessTask:
                 return False
         self.war3.set_client_size(hwnd)
         try:
-            with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+            with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
                 try:
                     self.runner.wait_enter_game(self, self._stop_event)
                     self.runner.do_preparation_phase(self.endless_cfg, self._stop_event)
-                    self.ui.switch_attribute_panel(is_fold=True)
+                    self.ui.switch_attribute_panel(is_fold=True, stop_event=self._stop_event)
                     self.nav.enter_palace(self._stop_event)
                     self.nav.enter_endless(self, self.endless_cfg, self._stop_event)
                     self.runner.start_endless(self, game_idx, self.endless_cfg)

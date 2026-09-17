@@ -54,10 +54,10 @@
 | **后台**（background） | `gdi2`/`dx2` + `windows3` + `windows`，不抢占前台，支持多窗口 | `[xx.bind_background]` | 多开、需要后台操作 |
 
 ### 模式选择规则
-- **非组队 / 单成员组队**：由配置 `bind_mode` 决定（`foreground` 或 `background`）
+- **非组队 / 单成员组队**：由命名空间级 `bind_mode` 决定（`foreground` 或 `background`）
 - **多成员组队（成员数 > 1）**：强制 `background`，忽略 `bind_mode` 配置
-- 配置优先级：顶层任务的 `[this].bind_mode` > `war3.bind_mode` / `kk.bind_mode`（命名空间级开关）
-- 解析结果写入 `war3.bind` / `kk.bind`，业务代码始终读 `bind` 段即可
+- 切换方式：任务/变体文件写 `[war3]`/`[kk]` 段的 `bind_mode` 覆盖 `war3.toml`/`kk.toml` 默认值（绝对寻址补丁）；任务 `[this]` 不支持 bind_mode
+- 调用点用 `resolve_bind_cfg(ns_cfg)`（GameBot.config）按 `bind_mode` 实时选表，配置字典不生成 `bind` 派生字段
 
 ### 后台模式注意事项
 - **需要管理员权限**
@@ -72,11 +72,11 @@
 - **不要在多线程中直接调用大漠 COM**
 
 ### 绑定状态易被破坏
-大漠绑定后，以下操作会**悄悄破坏绑定状态**，导致后续 `move_to`/`left_click`/
-`Capture` 等调用**不报错但实际落空**：
-- `force_refresh_layered`：取消/恢复 `WS_EX_LAYERED` 样式会破坏后台绑定，
-  不能在 `bind_window` 上下文内调用，需拆成两段 bind（详见 [AGENTS.md](../../AGENTS.md)）
-- 绑定丢失后大漠 COM 不抛异常，调用方若不检查返回值会误以为操作成功
+大漠绑定丢失后 COM 不抛异常，`move_to`/`left_click` 等调用**不报错但实际落空**，
+调用方若不检查返回值会误以为操作成功。
+
+> 注：`force_refresh_layered` 旧实现取消/恢复 `WS_EX_LAYERED` 会破坏后台绑定，
+> 已改为纯尺寸扰动刷新，不再有此约束（详见 [KK平台特性](kk-platform.md)）。
 
 > 截图已迁移至 WGC，不再依赖大漠绑定状态，PrintWindow 降级路径已移除。
 

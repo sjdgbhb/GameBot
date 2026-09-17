@@ -11,7 +11,7 @@ import copy
 import re
 import time
 
-from GameBot.config import config
+from GameBot.config import config, resolve_bind_cfg
 from GameBot.inference import get_inference_client
 from GameBot.runner.driver.wgc_capture import WgcCapture
 from GameBot.runner.tasks.war3.jiubing2.atomic.blackstone_gate_harassment import GateHarassmentTask
@@ -70,7 +70,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
     @property
     def _ocr_cfg(self) -> dict:
         # 复用游戏底层的提示检测区域（升级成功/失败提示同区域、出现很快）
-        return self.full_cfg.get("prompt_text")
+        return self.full_cfg.get("war3", {}).get("jiubing2", {}).get("prompt_text")
 
     def _interruptible_wait(self, seconds: float):
         """可被停止信号中断的等待，检测到停止时抛出 StopTaskError。"""
@@ -147,7 +147,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
 
         # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
         self.war3.set_client_size(hwnd)
-        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+        with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
             get_inference_client(load_chest=False, load_combat=False)  # 预热 OCR 子进程（仅需 OCR，不加载 AI 模型）
             # 启动持续文字监测线程（整段脚本运行期间常驻，城门骚扰完成与升级结果共用）
             monitor = self._make_monitor(hwnd)

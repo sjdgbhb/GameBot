@@ -3,13 +3,13 @@
 被 Config.load_task 与组队路径（team/base.py）等非标准加载路径共用，
 避免同一段推导逻辑在多处手写复制。
 
-派生结果写入配置字典（war3.bind / kk.bind / hero.inventory 的 item_id 等），
+bind 参数表不预写入配置字典，由调用点用 resolve_bind_cfg 按 bind_mode
+实时选择；其余派生结果（hero.inventory 的 item_id 等）仍写入配置字典，
 provenance 中以 "<派生:xxx>" 标记来源。
 """
 
 import copy
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -95,48 +95,39 @@ def resolve_item_names(inventory: list, items: list) -> int:
     return resolved
 
 
-def derive_bind_mode(task_node: Optional[dict], ns_cfg: dict) -> str:
-    """推导窗口绑定模式。
+def derive_bind_mode(ns_cfg: dict) -> str:
+    """返回命名空间级 bind_mode（war3.bind_mode / kk.bind_mode），默认 "foreground"。
 
-    优先级：任务段 bind_mode > 任务段 target_player 非空（多开认领必须后台）>
-    命名空间级 bind_mode（war3.bind_mode / kk.bind_mode）> "foreground" 默认。
+    任务/变体要切换绑定模式，用绝对寻址段直接覆盖命名空间默认
+    （文件里写 [war3] / [kk] 下的 bind_mode），任务 [this] 不设 bind_mode。
     """
-    if isinstance(task_node, dict):
-        if task_node.get("bind_mode"):
-            return task_node["bind_mode"]
-        if task_node.get("target_player"):
-            # 多开认领（target_player 非空）必须后台绑定，自动推导无需显式配置
-            return "background"
     return ns_cfg.get("bind_mode", "foreground")
 
 
-def select_bind_cfg(ns_cfg: dict, mode: str) -> str:
-    """按 mode 把 ns_cfg["bind"] 解析为 bind_foreground/bind_background（原地写）。
+def resolve_bind_cfg(ns_cfg: dict) -> dict:
+    """按命名空间级 bind_mode 选择前台/后台绑定参数表（调用时解析）。
 
-    解析结果记录 bind_mode 字段，供业务层判断（如后台时跳过活动窗口检测）。
+    结果附带 bind_mode 供业务层判断（如后台时跳过活动窗口检测）；
+    bind_window 只读 display/mouse/keypad/mode/public/bind_delay，忽略该键。
 
-    :return: 来源键名（"bind_foreground" / "bind_background"）；无源配置返回 ""
+    :param ns_cfg: war3/kk 命名空间配置字典
+    :return: 绑定参数表副本；无对应源表时只含 bind_mode
     """
+    mode = derive_bind_mode(ns_cfg)
     src_key = "bind_background" if mode == "background" else "bind_foreground"
-    src_cfg = ns_cfg.get(src_key)
-    if src_cfg is None:
-        return ""
-    ns_cfg["bind"] = copy.deepcopy(src_cfg)
-    ns_cfg["bind"]["bind_mode"] = mode
-    return src_key
+    bind_cfg = copy.deepcopy(ns_cfg.get(src_key) or {})
+    bind_cfg["bind_mode"] = mode
+    return bind_cfg
 
 
-def apply_bind_mode(config: dict, task_node: Optional[dict] = None, force_mode: str = None):
-    """对 config 的 war3/kk 命名空间执行 bind 解析（原地写 ns.bind）。
+def force_bind_mode(config: dict, mode: str):
+    """强制 war3/kk 命名空间的绑定模式（原地写 ns.bind_mode）。
 
     :param config: 合并后的配置字典（含 war3/kk 命名空间节点）
-    :param task_node: 任务自身节点（[this] 段；提供 bind_mode/target_player 任务级覆盖）
-    :param force_mode: 强制模式（"foreground"/"background"），
+    :param mode: 强制模式（"foreground"/"background"），
         组队多成员强转后台等场景使用
     """
     for ns in ("war3", "kk"):
         ns_cfg = config.get(ns)
-        if not isinstance(ns_cfg, dict):
-            continue
-        mode = force_mode or derive_bind_mode(task_node, ns_cfg)
-        select_bind_cfg(ns_cfg, mode)
+        if isinstance(ns_cfg, dict):
+            ns_cfg["bind_mode"] = mode

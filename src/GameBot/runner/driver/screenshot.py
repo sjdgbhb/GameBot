@@ -28,9 +28,8 @@ class ScreenshotMixin:
 
     def _screenshot_dir(self) -> Path:
         """调试截图输出目录，从配置读取，默认 logs/screenshots。"""
-        path = config.get_path("paths.screenshot_path", "logs/screenshots")
-        if not path or path == config.project_root:
-            path = config.project_root / "logs" / "screenshots"
+        base_cfg = config.load_task("base").get("base", {})
+        path = config.resolve_path(base_cfg.get("paths", {}).get("screenshot_path") or "logs/screenshots")
         path.mkdir(parents=True, exist_ok=True)
         return path
 

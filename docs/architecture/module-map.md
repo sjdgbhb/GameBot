@@ -22,7 +22,7 @@ Web配置端 ─────────────┐
 ## 模块清单与依赖
 
 ### 配置系统（config/）
-- **被依赖**：几乎所有模块（通过 `config.load_task` 或 `config.get`）
+- **被依赖**：几乎所有模块（入口 `config.load_task` 拿闭包 dict，业务层靠注入）
 - **依赖**：共享工具（文件IO、日志）
 - **边界**：只负责加载和合并配置，不包含任何业务逻辑
 
@@ -84,9 +84,10 @@ Web配置端 ─────────────┐
 ## 接口边界
 
 ### 配置系统 → 所有模块
-- **接口**：`config.load_task(task_name) → dict`（返回完整配置闭包）
-- **接口**：`config.get(path) / config.get_section(name)`（仅入口和工具模块使用）
-- **约定**：业务代码不直接调用 `config.load_task`，只接收注入的配置dict
+- **接口**：`config.load_task(name) → dict`（返回依赖闭包合并结果，是唯一真相，无全局"当前配置"）
+- **接口**：`config.resolve_path(value)`（配置相对路径 → project_root 绝对路径）
+- **约定**：业务代码不直接调用 `config.load_task`，只接收注入的配置 dict；
+  拿不到注入的工具模块/子进程自行 `load_task` 所需命名空间闭包
 
 ### 驱动层 → 业务逻辑层
 - **接口**：大漠客户端对象（提供截图/输入/窗口/找图找色能力）

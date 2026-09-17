@@ -565,10 +565,14 @@ class TestAtomicLoopTaskClosePopup(unittest.TestCase):
         """task_popup.close_by_x=true 时点击 area_coords 右上角偏移。"""
         task = self._make_task(
             {
-                "task_popup": {
-                    "close_by_x": True,
-                    "area_coords": [600, 200, 1300, 600],
-                    "close_offset": [15, 15],
+                "war3": {
+                    "jiubing2": {
+                        "task_popup": {
+                            "close_by_x": True,
+                            "area_coords": [600, 200, 1300, 600],
+                            "close_offset": [15, 15],
+                        },
+                    },
                 },
             }
         )
@@ -634,7 +638,7 @@ class TestEndlessTaskDoKK(unittest.TestCase):
         task.kk.dismiss_room_popups.return_value = 123
         self.assertTrue(task.do_kk())
         task.kk.dismiss_room_popups.assert_called_once_with(task.dm)
-        task.kk.start_game.assert_called_once_with(task.dm, room_hwnd=123)
+        task.kk.start_game.assert_called_once_with(task.dm, room_hwnd=123, stop_event=None)
         task.kk.dismiss_hall_popups.assert_not_called()
         task.kk.create_room.assert_not_called()
 
@@ -646,7 +650,7 @@ class TestEndlessTaskDoKK(unittest.TestCase):
         self.assertTrue(task.do_kk())
         task.kk.dismiss_hall_popups.assert_called_once_with(task.dm)
         task.kk.create_room.assert_called_once_with(task.dm, map_name="九种兵器2诸神战场")
-        task.kk.start_game.assert_called_once_with(task.dm, room_hwnd=456)
+        task.kk.start_game.assert_called_once_with(task.dm, room_hwnd=456, stop_event=None)
 
     def test_do_kk_create_room_fails_skips(self):
         """do_kk 创建房间失败时跳过本局，不调用 start_game。"""
@@ -668,7 +672,7 @@ class TestEndlessTaskDoKK(unittest.TestCase):
         self.assertTrue(task.do_kk())
         task._claim_kk_room.assert_called_once()
         task.kk.dismiss_room_popups.assert_called_once_with(task.dm, owner_pid=456)
-        task.kk.start_game.assert_called_once_with(task.dm, room_hwnd=100)
+        task.kk.start_game.assert_called_once_with(task.dm, room_hwnd=100, stop_event=None)
 
     def test_do_kk_multi_instance_claim_fail_raises(self):
         """多开模式：认领房间失败时抛错终止，不做无 PID 过滤的 KK 操作。"""

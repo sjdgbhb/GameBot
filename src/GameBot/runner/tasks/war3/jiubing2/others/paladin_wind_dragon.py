@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import time
 
-from GameBot.config import config
+from GameBot.config import config, resolve_bind_cfg
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import GameUI
 from GameBot.runner.driver import create_dm_client
@@ -264,8 +264,8 @@ class PaladinWindDragonTask:
                 self._interruptible_wait(self.poll_interval)
 
     def _bind_cfg(self) -> dict:
-        """绑定参数（load_task 已按 bind_mode 解析好写入 war3.bind）。"""
-        bind_cfg = self.war3_cfg.get("bind", {})
+        """绑定参数（按 war3.bind_mode 选择前台/后台参数表）。"""
+        bind_cfg = resolve_bind_cfg(self.war3_cfg)
         if bind_cfg.get("bind_mode") == "background":
             logger.info(f"使用后台绑定: {bind_cfg}")
         return bind_cfg

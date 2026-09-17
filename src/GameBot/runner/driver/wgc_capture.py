@@ -6,8 +6,10 @@
 
 设计原则（见 docs/change_logs/war3后台开发记录.md）：
 - 项目截图只有 WGC 一种实现，不做多后端抽象
-- 任何失败（会话未启动 / 窗口关闭 / 帧流停止 / 裁剪越界）直接抛 CaptureError 终止任务，
+- 任何失败（会话未启动 / 窗口关闭 / 裁剪越界）直接抛 CaptureError 终止任务，
   不返回 None、不静默重试、不回退其他截图方式
+- 帧流停滞需区分：窗口销毁/最小化/锁屏抛 CaptureError；窗口健康但应用忙
+  （war3 加载地图不产帧）沿用最后一帧，让上层轮询继续
 - 同一 hwnd 多处使用共用一个会话（引用计数），用 acquire()/release() 管理
 - bbox 统一为客户区坐标，与 OCR 配置 area_coords 一致
 
@@ -46,6 +48,21 @@ _user32.IsWindow.argtypes = [wintypes.HWND]
 _user32.IsWindow.restype = wintypes.BOOL
 _user32.IsIconic.argtypes = [wintypes.HWND]
 _user32.IsIconic.restype = wintypes.BOOL
+_user32.OpenInputDesktop.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+_user32.OpenInputDesktop.restype = wintypes.HANDLE
+_user32.CloseDesktop.argtypes = [wintypes.HANDLE]
+_user32.CloseDesktop.restype = wintypes.BOOL
+_user32.GetUserObjectInformationW.argtypes = [
+    wintypes.HANDLE,
+    ctypes.c_int,
+    ctypes.c_void_p,
+    wintypes.DWORD,
+    ctypes.POINTER(wintypes.DWORD),
+]
+_user32.GetUserObjectInformationW.restype = wintypes.BOOL
+
+DESKTOP_READOBJECTS = 0x0001
+UOI_NAME = 2
 _dwmapi.DwmGetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
 _dwmapi.DwmGetWindowAttribute.restype = ctypes.c_long
 
@@ -77,6 +94,25 @@ def _client_size(hwnd: int) -> Tuple[int, int]:
     if not _user32.GetClientRect(hwnd, ctypes.byref(rc)):
         raise CaptureError(f"GetClientRect 失败: hwnd={hwnd}")
     return rc.right, rc.bottom
+
+
+def _input_desktop_accessible() -> bool:
+    """当前会话输入桌面是否可访问。
+
+    锁屏/安全桌面/RDP 断开时 OpenInputDesktop 失败，或输入桌面切到 Winlogon；
+    用于区分"WGC 停帧是应用忙"与"会话级故障"。
+    """
+    hdesk = _user32.OpenInputDesktop(0, False, DESKTOP_READOBJECTS)
+    if not hdesk:
+        return False
+    try:
+        buf = ctypes.create_unicode_buffer(64)
+        needed = wintypes.DWORD(0)
+        if _user32.GetUserObjectInformationW(hdesk, UOI_NAME, buf, ctypes.sizeof(buf), ctypes.byref(needed)):
+            return buf.value.lower() != "winlogon"
+        return True
+    finally:
+        _user32.CloseDesktop(hdesk)
 
 
 class WgcCapture:
@@ -168,6 +204,7 @@ class WgcCapture:
         self._capture = None
         self._control = None
         self._callback_error: Optional[BaseException] = None
+        self._stale_warned = False  # 帧停滞告警只打一次，恢复后重置
         # 客户区在帧内的偏移与尺寸缓存，按帧尺寸失效
         self._offset_cache: Optional[Tuple[Tuple[int, int], Tuple[int, int], Tuple[int, int]]] = None
 
@@ -242,6 +279,7 @@ class WgcCapture:
             with self._lock:
                 self._latest = data
                 self._latest_ts = time.monotonic()
+                self._stale_warned = False
             self._first_frame.set()
         except Exception as e:
             # 回调线程异常带回调用方线程（latest_frame 抛出），并停止收帧
@@ -276,10 +314,23 @@ class WgcCapture:
             raise CaptureError(f"WGC 尚无帧: hwnd={self._hwnd}")
         age = time.monotonic() - ts
         if age > self._stale_timeout:
-            raise CaptureError(
-                f"WGC 帧流已停止 {age:.1f}s（阈值 {self._stale_timeout:.1f}s）: hwnd={self._hwnd}"
-                f"，窗口可能已最小化 / 会话锁屏 / RDP 断开"
-            )
+            # 区分"应用忙"与真异常：war3 加载地图单线程不产帧，WGC 停帧属正常，
+            # 沿用最后一帧让上层继续轮询；窗口销毁/最小化/锁屏才判失败
+            if not _user32.IsWindow(self._hwnd):
+                raise CaptureError(f"WGC 目标窗口已销毁: hwnd={self._hwnd}")
+            if _user32.IsIconic(self._hwnd):
+                raise CaptureError(f"WGC 帧流停止 {age:.1f}s 且窗口已最小化: hwnd={self._hwnd}")
+            if not _input_desktop_accessible():
+                raise CaptureError(
+                    f"WGC 帧流停止 {age:.1f}s 且输入桌面不可达（锁屏/RDP 断开）: hwnd={self._hwnd}"
+                )
+            if not self._stale_warned:
+                self._stale_warned = True
+                logger.warning(
+                    f"WGC 帧停滞 {age:.1f}s（阈值 {self._stale_timeout:.1f}s），窗口状态正常，"
+                    f"按应用忙处理沿用最后一帧: hwnd={self._hwnd}"
+                )
+            return frame
         return frame
 
     def grab_window(self) -> np.ndarray:

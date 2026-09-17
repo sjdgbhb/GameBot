@@ -6,7 +6,7 @@ import sys
 import time
 from typing import TYPE_CHECKING, Optional
 
-from GameBot.config import config, get_task_view
+from GameBot.config import config, get_task_view, resolve_bind_cfg
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import NearbyCleaner, get_inventory_hotkey
 from GameBot.runner.driver import create_dm_client
@@ -260,7 +260,7 @@ class FishingTask:
 
         # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
         self.war3.set_client_size(hwnd)
-        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+        with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
             self.run_fishing_loop()
 
 

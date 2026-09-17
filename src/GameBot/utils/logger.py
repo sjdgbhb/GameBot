@@ -26,10 +26,9 @@ if sys.stdout is not None:
         colorize=None,
     )
 
-# 日志目录
-log_dir = config.get_path("paths.log_path")
-if not log_dir or log_dir == config.project_root:
-    log_dir = config.project_root / "logs"
+# 日志目录（显式加载 base 闭包读取 paths.log_path）
+_base_cfg = config.load_task("base").get("base", {})
+log_dir = config.resolve_path(_base_cfg.get("paths", {}).get("log_path") or "logs")
 log_dir.mkdir(parents=True, exist_ok=True)
 
 # 默认日志文件 sink 的 ID，setup_log_file 调用时会移除

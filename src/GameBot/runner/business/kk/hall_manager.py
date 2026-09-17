@@ -8,6 +8,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Optional, Set
 
+from GameBot.config import resolve_bind_cfg
 from GameBot.utils import StopTaskError, logger
 
 if TYPE_CHECKING:
@@ -427,7 +428,7 @@ class HallManagerMixin:
             logger.warning("大厅实际尺寸与目标差异过大，坐标可能偏移")
 
         # 2. 点击搜索输入框，清空并输入地图名
-        with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+        with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
             dm.move_to(*main_cfg["search_input_coords"])
             time.sleep(0.3)
             dm.left_click()
@@ -447,7 +448,7 @@ class HallManagerMixin:
         self.dismiss_hall_popups(dm, exclude_hwnds={hall_hwnd}, owner_pid=owner_pid)
 
         # 3. 点击搜索图标
-        with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+        with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
             dm.move_to(*main_cfg["search_map_coords"])
             time.sleep(0.3)
             dm.left_click()
@@ -491,7 +492,7 @@ class HallManagerMixin:
         if not target_line:
             logger.error(f"搜索结果中未找到地图：{map_name}")
             # 保存搜索结果区域的 GDI2 后台截图用于诊断
-            with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+            with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
                 dm.save_screenshot(tuple(ocr_area), label="create_room_search_gdi", force=True)
             dm.save_screenshot(label="create_room_map_not_found", force=True)
             return 0
@@ -500,7 +501,7 @@ class HallManagerMixin:
         click_x = int(target_line["x_center"]) + ocr_area[0]
         click_y = int(target_line["y_center"]) + ocr_area[1]
         logger.info(f"点击搜索结果: {target_line['text']} 坐标=({click_x},{click_y})")
-        with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+        with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
             dm.move_to(click_x, click_y)
             time.sleep(0.3)
             dm.left_click()
@@ -513,7 +514,7 @@ class HallManagerMixin:
         self.dismiss_hall_popups(dm, exclude_hwnds={hall_hwnd}, owner_pid=owner_pid)
 
         # 7. 点击创建房间按钮
-        with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+        with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
             dm.move_to(*main_cfg["create_button_coords"])
             time.sleep(0.3)
             dm.left_click()
@@ -546,7 +547,7 @@ class HallManagerMixin:
         logger.info(f"创建房间弹窗: hwnd={dialog_hwnd}, 尺寸=({actual_w},{actual_h})")
 
         # 9. 在创建房间弹窗中输入密码并创建
-        bind_cfg = self.kk_cfg.get("bind", {})
+        bind_cfg = resolve_bind_cfg(self.kk_cfg)
         password = create_cfg.get("password", "")
         # 第一段 bind：点击密码框 → 输入密码
         with dm.bind_window(dialog_hwnd, bind_cfg=bind_cfg):
@@ -561,9 +562,7 @@ class HallManagerMixin:
                 dm.send_string(password, hwnd=dialog_hwnd)
                 logger.info(f"已输入房间密码: {password}")
                 time.sleep(0.3)
-        # 输入密码后刷新弹窗（layered window 后台输入后画面不刷新）。
-        # force_refresh 会取消/恢复 WS_EX_LAYERED，可能破坏大漠后台绑定状态，
-        # 因此放在 bind 上下文之外，刷新后重新 bind 再点击创建。
+        # 输入密码后刷新弹窗（layered window 后台输入后画面不刷新），再重新 bind 点击创建。
         if password:
             dm.force_refresh_layered(dialog_hwnd)
             dm.save_screenshot(label="password_input_check", force=True)

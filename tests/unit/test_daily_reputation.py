@@ -23,10 +23,10 @@ pytestmark = [pytest.mark.unit]
 
 BASE_TOML = """
 extends = []
-[paths]
+[this.paths]
 log_path = "logs"
 
-[dm]
+[this.dm]
 version = "3.1233"
 """
 
@@ -45,21 +45,21 @@ small_window_response_time = 0.5
 JIUBING2_TOML = """
 extends = ["war3"]
 
-[game]
+[this.game]
 load_war3_time = 33
 
-[command]
+[this.command]
 clear_nearby = "-delh"
 
 [hero]
 inventory = ["A", "B", "C"]
 
-[atomic_task]
+[this.atomic_task]
 accept_text = "已领取"
 complete_text = "前往任务发布者处完成任务"
 monitor_interval = 0.2
 
-[prompt_text]
+[this.prompt_text]
 area_coords = [100, 100, 800, 600]
 """
 
@@ -262,7 +262,7 @@ class TestDailyReputationConfig(TestDailyReputationBase):
     def test_atomic_task_monitor_interval(self):
         """atomic_task 段的 monitor_interval 应在加载结果中可用。"""
         result = self.cfg.load_task("war3.jiubing2.tasks.reputation.daily_reputation")
-        self.assertEqual(result.get("atomic_task", {}).get("monitor_interval"), 0.2)
+        self.assertEqual(result["war3"]["jiubing2"].get("atomic_task", {}).get("monitor_interval"), 0.2)
 
     def test_clear_nearby_interval_in_parent(self):
         """clear_nearby_interval 应在父级 daily_reputation 段中。"""

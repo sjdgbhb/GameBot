@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from ctypes import wintypes
 from typing import TYPE_CHECKING, Optional, cast
 
+from GameBot.config import resolve_bind_cfg
 from GameBot.runner.driver.process_lock import NamedMutex
 from GameBot.utils import StopTaskError, logger
 
@@ -146,14 +147,14 @@ class MultiInstanceMixin:
         click_x = (input_rect[0] + input_rect[2]) // 2
         click_y = (input_rect[1] + input_rect[3]) // 2
         for _ in range(retries):
-            with dm.bind_window(hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+            with dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
                 dm.move_to(click_x, click_y)
-                dm.sleep(0.3)
+                time.sleep(0.3)
                 dm.left_click()
-                dm.sleep(0.2)
+                time.sleep(0.2)
                 dm.key_press_char("ctrl+a")  # 清掉输入框残留内容
                 dm.send_string(token, hwnd=hwnd)
-                dm.sleep(0.2)
+                time.sleep(0.2)
                 dm.key_press_char("enter")  # 发送到房间聊天
             # layered 窗口后台输入后画面不刷新，须在 bind 之外刷新再 OCR
             dm.force_refresh_layered(hwnd)
@@ -255,7 +256,7 @@ class MultiInstanceMixin:
 
             # 绑定大厅窗口，点击头像展开下拉框
             dm.set_client_size(hall_hwnd, *main_size)
-            with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+            with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
                 dm.move_to(*main_cfg["profile_icon_coords"])
                 if stop_event:
                     if stop_event.wait(0.3):
@@ -294,7 +295,7 @@ class MultiInstanceMixin:
 
             if not dropdown:
                 logger.warning(f"KK 主界面窗口 {hall_hwnd} 点击头像后未检测到下拉框窗口")
-                with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+                with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
                     dm.key_press_char("esc")
                 return ""
 
@@ -326,7 +327,7 @@ class MultiInstanceMixin:
 
             # 绑定下拉框窗口做 OCR，OCR 完成后在同一上下文内 ESC 关闭
             owner = ""
-            with dm.bind_window(dd_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+            with dm.bind_window(dd_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
                 lines = self.ocr_lines(
                     dd_hwnd,
                     {"area_coords": [0, 0, dd_w, dd_h]},

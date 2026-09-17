@@ -21,7 +21,7 @@ dropdown_window_class = "Qt5152QWindowPopupSaveBits" # 下拉框窗口类名
 min_business_window_size = [200, 200]  # 业务候选窗口最小可见尺寸
 
 # 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
-#   - 顶层任务可在自身 [this] 中设置 bind_mode 覆盖此默认值
+#   - 任务/变体文件可写 [kk] bind_mode = "..." 覆盖此默认值（绝对寻址补丁）
 #   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
 bind_mode = "foreground"
 
@@ -94,10 +94,10 @@ keypad = "normal"      # 可选：normal / windows
 mode = 0               # 大漠 BindWindow 附加模式
 
 # 后台绑定参数（bind_mode = background 或多成员组队时生效）
-# gdi2 在窗口可见时稳定；多开/窗口被遮挡时 dx2 更能读后台缓冲。
-# dx3 在弹窗/房间上常截到纯色/黑屏。
+# display 已无实际用途——截图/找图/找色/OCR 统一走 WGC，大漠仅剩输入注入；
+# dx 系显示钩子会劫持 layered 窗口渲染链路产生黑边，KK 固定 normal。
 [this.bind_background]
-display = "dx2"       # 多开/弹窗被遮挡时用 dx2，单开可见窗口可用 gdi2
+display = "normal"
 mouse = "windows3"     # Windows 后台鼠标，支持多子窗口
 keypad = "windows"     # Windows 后台键盘
 mode = 0               # 推荐模式 0

@@ -55,43 +55,55 @@ def _deep_merge(base: dict, override: dict):
             base[key] = value
 
 
+# 用户配置顶层键 → 命名空间映射：war3/kk/team/base/web/hero 本就是顶层键；
+# dm/paths/inference/float_window 归属 base；其余（tasks/game/command/pet/chest/…）归属 war3.jiubing2
+_NS_TOP_KEYS = {"war3", "kk", "team", "base", "web", "hero"}
+_BASE_USER_KEYS = {"dm", "paths", "inference", "float_window"}
+
+
+def _remap_user_cfg(user_cfg: dict) -> dict:
+    """把用户配置里的简写顶层键重映射到命名空间路径（如 [tasks.x] → war3.jiubing2.tasks.x）。"""
+    remapped = {}
+    for key, value in user_cfg.items():
+        if key in _NS_TOP_KEYS:
+            remapped[key] = value
+        elif key in _BASE_USER_KEYS:
+            remapped.setdefault("base", {})[key] = value
+        else:
+            remapped.setdefault("war3", {}).setdefault("jiubing2", {})[key] = value
+    return remapped
+
+
 def _apply_overrides(task_cfg: dict, user_cfg: dict):
     """将用户 config.toml 的覆盖应用到任务配置字典和全局配置。
 
     同时设置 exe 环境的路径配置（dm、dm_bridge、resources）。
     推理在主进程内进行，无需配置推理子进程路径。
     """
+    # 0. 用户配置的简写顶层键重映射到新命名空间
+    user_cfg = _remap_user_cfg(user_cfg)
+
     # 1. 覆盖任务配置中的用户可调参数
     _deep_merge(task_cfg, user_cfg)
 
     # 2. 同步覆盖到全局配置
     _deep_merge(cfg_singleton._config, user_cfg)
 
-    # 3. 覆盖 exe 环境的路径配置
-    if "dm" not in cfg_singleton._config:
-        cfg_singleton._config["dm"] = {}
-    cfg_singleton._config["dm"]["dll_path"] = "dm"
+    # 3. 覆盖 exe 环境的路径配置（dm/paths/inference 归属 base 命名空间）
+    base_cfg = cfg_singleton._config.setdefault("base", {})
+    base_cfg.setdefault("dm", {})["dll_path"] = "dm"
     # dm_bridge 子进程路径（exe 版使用打包的 dm_bridge.exe，32 位大漠 COM 桥接）
-    cfg_singleton._config["dm"]["python_path"] = "dm_bridge/dm_bridge.exe"
-    if "paths" not in cfg_singleton._config:
-        cfg_singleton._config["paths"] = {}
-    cfg_singleton._config["paths"]["resources_path"] = "resources"
+    base_cfg["dm"]["python_path"] = "dm_bridge/dm_bridge.exe"
+    base_cfg.setdefault("paths", {})["resources_path"] = "resources"
 
-    if "dm" in task_cfg:
-        task_cfg["dm"]["dll_path"] = "dm"
-        task_cfg["dm"]["python_path"] = "dm_bridge/dm_bridge.exe"
-    if "paths" in task_cfg:
-        task_cfg["paths"]["resources_path"] = "resources"
+    task_base = task_cfg.setdefault("base", {})
+    task_base.setdefault("dm", {})["dll_path"] = "dm"
+    task_base["dm"]["python_path"] = "dm_bridge/dm_bridge.exe"
+    task_base.setdefault("paths", {})["resources_path"] = "resources"
 
     # 4. 配置推理路径（进程内推理，模型目录指向 resources/models）
-    if "inference" not in cfg_singleton._config:
-        cfg_singleton._config["inference"] = {}
-    cfg_singleton._config["inference"]["models_dir"] = "resources/models"
-
-    if "inference" in task_cfg:
-        task_cfg["inference"]["models_dir"] = "resources/models"
-    else:
-        task_cfg["inference"] = {"models_dir": "resources/models"}
+    base_cfg.setdefault("inference", {})["models_dir"] = "resources/models"
+    task_base.setdefault("inference", {})["models_dir"] = "resources/models"
 
 
 def main():

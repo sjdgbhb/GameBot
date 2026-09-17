@@ -24,11 +24,6 @@ clear_nearby_probability = 0  # 每次收竿后清理英雄附近物品的概率
 mode = 0  # 以何种方法检测中钩，0找色（红色三角形填充），1找图
 hook_coords = [943, 520]  # 鱼钩位置
 is_test_check = false  # 是否测试中钩区域
-# 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
-#   - 顶层任务可在自身 [this] 中设置 bind_mode 覆盖此默认值
-#   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
-bind_mode = "background"
-
 [this.check]
 # 预判收竿：填充循环周期稳定（实测 ~3.1s），用红色出现时刻+周期推算下次出现时刻，
 # 提前 retract_lead_time 秒按键，补偿按键到游戏执行的固有延迟（约 100~200ms）。
@@ -44,3 +39,9 @@ hook_color = 'ff0000'  # 中钩三角形填充的颜色
 hook_attempts = 200  # 一次钓鱼的检测次数
 hook_check_interval = 0.005  # 轮询间隔（秒），忙循环时不使用
 hook_timeout = 15  # 一次钓鱼等待中钩的超时时间（秒）
+
+# 后台绑定：覆盖命名空间级默认值（war3.toml/kk.toml 默认 foreground）
+[war3]
+bind_mode = "background"
+[kk]
+bind_mode = "background"

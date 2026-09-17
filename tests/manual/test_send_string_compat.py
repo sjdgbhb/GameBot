@@ -32,6 +32,7 @@ import time
 from ctypes import wintypes
 
 from GameBot.config import config
+from GameBot.config import resolve_bind_cfg as _resolve_bind_cfg
 from GameBot.runner.driver import create_dm_client
 from GameBot.utils import logger, setup_log_file
 
@@ -91,13 +92,12 @@ def find_create_room_dialog(kk_cfg: dict, owner_pid: int) -> int:
     return 0
 
 
-def resolve_bind_cfg(cfg: dict, ns: str, mode: str = None) -> dict:
-    """取解析后的 bind；--mode 指定时改用 bind_foreground/bind_background。"""
-    ns_cfg = cfg.get(ns, {})
+def pick_bind_cfg(cfg: dict, ns: str, mode: str = None) -> dict:
+    """取绑定参数表；--mode 指定时覆盖 ns.bind_mode 选择。"""
+    ns_cfg = dict(cfg.get(ns, {}))
     if mode:
-        src = ns_cfg.get("bind_background" if mode == "background" else "bind_foreground", {})
-        return dict(src)
-    return dict(ns_cfg.get("bind", {}))
+        ns_cfg["bind_mode"] = mode
+    return _resolve_bind_cfg(ns_cfg)
 
 
 def send_text(dm, text: str, hwnd: int, api: str):
@@ -249,12 +249,12 @@ def main() -> int:
     if args.kk_search or args.kk_password:
         cfg = config.load_task("kk")
         kk_cfg = cfg.get("kk", {})
-        kk_bind_cfg = resolve_bind_cfg(cfg, "kk", args.mode)
+        kk_bind_cfg = pick_bind_cfg(cfg, "kk", args.mode)
         logger.info(f"KK 绑定配置: {kk_bind_cfg}")
     if args.war3:
         cfg = config.load_task("war3.jiubing2.tasks.others.fishing")
         war3_cfg = cfg.get("war3", {})
-        war3_bind_cfg = resolve_bind_cfg(cfg, "war3", args.mode)
+        war3_bind_cfg = pick_bind_cfg(cfg, "war3", args.mode)
         logger.info(f"war3 绑定配置: {war3_bind_cfg}")
     if args.public_ime:
         for bc in (kk_bind_cfg, war3_bind_cfg):

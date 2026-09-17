@@ -12,11 +12,11 @@ config_data_dir = project_root / 'exe' / 'upgrade_stigmata' / 'data'
 
 stigmata_tomls = [
     config_data_dir / 'base.toml',
-    config_data_dir / 'war3.toml',
-    config_data_dir / 'jiubing2.toml',
-    config_data_dir / 'scenes' / 'blackstone_city.toml',
-    config_data_dir / 'tasks' / 'atomic' / 'blackstone_gate_harassment.toml',
-    config_data_dir / 'tasks' / 'others' / 'upgrade_stigmata.toml',
+    config_data_dir / 'war3' / 'war3.toml',
+    config_data_dir / 'war3' / 'jiubing2' / 'jiubing2.toml',
+    config_data_dir / 'war3' / 'jiubing2' / 'scenes' / 'blackstone_city.toml',
+    config_data_dir / 'war3' / 'jiubing2' / 'tasks' / 'atomic' / 'blackstone_gate_harassment.toml',
+    config_data_dir / 'war3' / 'jiubing2' / 'tasks' / 'others' / 'upgrade_stigmata.toml',
 ]
 datas = []
 for toml_file in stigmata_tomls:

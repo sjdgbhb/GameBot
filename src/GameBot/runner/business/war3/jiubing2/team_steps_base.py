@@ -79,7 +79,7 @@ class Jiubing2TaskSteps(TeamTaskSteps):
 
         is_leader = member.get_role() == "leader"
         if is_leader:
-            ui.select_difficulty(task_cfg)
+            ui.select_difficulty(task_cfg, stop_event=stop_event)
             member.ipc.write_game_state(
                 phase="in_game",
                 sync_source=member.sync_source,

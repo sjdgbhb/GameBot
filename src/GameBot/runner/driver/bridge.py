@@ -22,12 +22,17 @@ from GameBot.utils.exception_handler import DmError
 from GameBot.utils.logger import logger
 
 
+def _dm_cfg() -> dict:
+    """读取 base.dm 配置段（显式加载 base 闭包）。"""
+    return config.load_task("base").get("base", {}).get("dm", {})
+
+
 def resolve_bridge_python() -> str:
     """解析 dm_bridge 使用的 32 位 Python 路径。
 
     优先 [dm].python_path 配置，未配置则自动检测 .venv-dm/Scripts/python.exe。
     """
-    dm_cfg = config.get("base.dm", {})
+    dm_cfg = _dm_cfg()
     raw = dm_cfg.get("python_path", "")
     if raw:
         p = Path(raw)
@@ -51,7 +56,7 @@ class DmBridgeClient(DmClientBase):
     """经 dm_bridge 子进程的大漠驱动（每实例独占一个桥接进程，多开互不干扰）。"""
 
     def __init__(self):
-        dm_cfg = config.get("base.dm", {})
+        dm_cfg = _dm_cfg()
         self.expected_version = dm_cfg.get("version", "3.1233")
         dll_path = dm_cfg.get("dll_path")
         if not dll_path:

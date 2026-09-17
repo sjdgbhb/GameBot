@@ -95,7 +95,7 @@
 
 ## 禁忌
 
-- ❌ 不要在业务代码中调用 `config.load_task` 或 `config.get`（通过依赖注入接收配置）
+- ❌ 不要在业务代码中调用 `config.load_task`（通过依赖注入接收配置 dict）
 - ❌ 不要硬编码物品快捷键（从英雄配置的 inventory 获取）
 - ❌ 不要硬编码坐标（从配置读取，坐标基于 war3.toml 的 client_size）
 - ❌ 不要在文字监测线程中使用大漠 COM（用 OCR 子进程）

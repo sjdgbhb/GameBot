@@ -25,9 +25,9 @@ work_dir = str(project_root / 'exe' / 'build')
 config_data_dir = project_root / 'exe' / 'fishing' / 'data'
 fishing_tomls = [
     config_data_dir / 'base.toml',
-    config_data_dir / 'war3.toml',
-    config_data_dir / 'jiubing2.toml',
-    config_data_dir / 'tasks' / 'others' / 'fishing.toml',
+    config_data_dir / 'war3' / 'war3.toml',
+    config_data_dir / 'war3' / 'jiubing2' / 'jiubing2.toml',
+    config_data_dir / 'war3' / 'jiubing2' / 'tasks' / 'others' / 'fishing.toml',
 ]
 datas = []
 for toml_file in fishing_tomls:

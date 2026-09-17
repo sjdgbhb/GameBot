@@ -12,6 +12,7 @@ from __future__ import annotations
 import time
 from typing import Optional
 
+from GameBot.config import resolve_bind_cfg
 from GameBot.runner.team.ipc import TeamIPC
 from GameBot.utils import logger
 
@@ -229,7 +230,7 @@ class TeamFollower(TeamMemberBase):
                     return text
             return ""
 
-        bind_cfg = self.kk_cfg.get("bind", {})
+        bind_cfg = resolve_bind_cfg(self.kk_cfg)
         for attempt in range(1, max_retries + 1):
             if self.stop_event.is_set():
                 return False

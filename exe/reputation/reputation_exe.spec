@@ -12,14 +12,14 @@ config_data_dir = project_root / 'exe' / 'reputation' / 'data'
 
 reputation_tomls = [
     config_data_dir / 'base.toml',
-    config_data_dir / 'war3.toml',
-    config_data_dir / 'jiubing2.toml',
-    config_data_dir / 'scenes' / 'blackstone_city.toml',
-    config_data_dir / 'scenes' / 'forest_city.toml',
-    config_data_dir / 'scenes' / 'menethil.toml',
-    config_data_dir / 'tasks' / 'atomic' / 'blackstone_gate_harassment.toml',
-    config_data_dir / 'tasks' / 'atomic' / 'swift_beast.toml',
-    config_data_dir / 'tasks' / 'reputation' / 'daily_reputation.toml',
+    config_data_dir / 'war3' / 'war3.toml',
+    config_data_dir / 'war3' / 'jiubing2' / 'jiubing2.toml',
+    config_data_dir / 'war3' / 'jiubing2' / 'scenes' / 'blackstone_city.toml',
+    config_data_dir / 'war3' / 'jiubing2' / 'scenes' / 'forest_city.toml',
+    config_data_dir / 'war3' / 'jiubing2' / 'scenes' / 'menethil.toml',
+    config_data_dir / 'war3' / 'jiubing2' / 'tasks' / 'atomic' / 'blackstone_gate_harassment.toml',
+    config_data_dir / 'war3' / 'jiubing2' / 'tasks' / 'atomic' / 'swift_beast.toml',
+    config_data_dir / 'war3' / 'jiubing2' / 'tasks' / 'reputation' / 'daily_reputation.toml',
 ]
 datas = []
 for toml_file in reputation_tomls:

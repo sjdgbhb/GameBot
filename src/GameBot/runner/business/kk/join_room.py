@@ -8,6 +8,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
+from GameBot.config import resolve_bind_cfg
 from GameBot.runner.business.kk.hall_manager import _longest_common_substring_len
 from GameBot.utils import logger
 
@@ -67,7 +68,7 @@ class JoinRoomMixin:
         self.dismiss_hall_popups(dm, exclude_hwnds={hall_hwnd}, owner_pid=owner_pid)
 
         # 3. 点击"房间列表"按钮
-        with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+        with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
             room_list_coords = main_cfg.get("room_list_button_coords", [0, 0])
             if room_list_coords == [0, 0]:
                 logger.warning("未配置 main.room_list_button_coords")
@@ -82,7 +83,7 @@ class JoinRoomMixin:
         self.dismiss_hall_popups(dm, exclude_hwnds={hall_hwnd}, owner_pid=owner_pid)
 
         # 4. 输入房间号并搜索
-        with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+        with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
             # 点击房间号输入框
             room_id_input_coords = main_cfg.get("room_id_input_coords", [0, 0])
             if room_id_input_coords == [0, 0]:
@@ -124,7 +125,7 @@ class JoinRoomMixin:
         existing_popups = {w["hwnd"] for w in dm.find_windows(popup_class, window_title, owner_pid)}
         if len(ocr_area) == 2:
             # 直接双击搜索结果位置
-            with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+            with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
                 dm.move_to(*ocr_area)
                 time.sleep(0.3)
                 dm.left_double_click()
@@ -145,7 +146,7 @@ class JoinRoomMixin:
                 return 0
 
             # 双击搜索结果进入房间（OCR 坐标是截图区域内相对坐标，需加区域偏移转换为客户区坐标）
-            with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+            with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
                 dm.move_to(int(target_line["x_center"]) + ocr_area[0], int(target_line["y_center"]) + ocr_area[1])
                 time.sleep(0.3)
                 dm.left_double_click()
@@ -177,7 +178,7 @@ class JoinRoomMixin:
         except Exception as e:
             logger.warning(f"设置密码弹窗尺寸失败: {e}")
 
-        bind_cfg = self.kk_cfg.get("bind", {})
+        bind_cfg = resolve_bind_cfg(self.kk_cfg)
         with dm.bind_window(password_hwnd, bind_cfg=bind_cfg):
             # 点击密码输入框
             if password_input_coords == [0, 0]:
@@ -194,9 +195,7 @@ class JoinRoomMixin:
                 dm.send_string(password, hwnd=password_hwnd)
                 logger.info(f"已输入加入房间密码: {password}")
                 time.sleep(0.3)
-        # 输入密码后刷新弹窗（layered window 后台输入后画面不刷新）。
-        # force_refresh 会取消/恢复 WS_EX_LAYERED，可能破坏大漠后台绑定状态，
-        # 因此放在 bind 上下文之外，刷新后重新 bind 再点击确认。
+        # 输入密码后刷新弹窗（layered window 后台输入后画面不刷新），再重新 bind 点击确认。
         if password:
             dm.force_refresh_layered(password_hwnd)
             dm.save_screenshot(label="join_password_input_check", force=True)
@@ -242,7 +241,7 @@ class JoinRoomMixin:
         dm.set_client_size(hall_hwnd, *main_size)
 
         # 点击搜索输入框，清空并输入地图名
-        with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+        with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
             search_input_coords = main_cfg.get("search_input_coords", [0, 0])
             if search_input_coords == [0, 0]:
                 logger.warning("未配置 main.search_input_coords")
@@ -264,7 +263,7 @@ class JoinRoomMixin:
         self.dismiss_hall_popups(dm, exclude_hwnds={hall_hwnd}, owner_pid=owner_pid)
 
         # 点击搜索图标
-        with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+        with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
             search_map_coords = main_cfg.get("search_map_coords", [0, 0])
             if search_map_coords == [0, 0]:
                 logger.warning("未配置 main.search_map_coords")
@@ -305,7 +304,7 @@ class JoinRoomMixin:
             return False
 
         # 点击匹配的搜索结果（OCR 坐标是截图区域内相对坐标，需加区域偏移转换为客户区坐标）
-        with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+        with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
             dm.move_to(int(target_line["x_center"]) + ocr_area[0], int(target_line["y_center"]) + ocr_area[1])
             time.sleep(0.3)
             dm.left_click()

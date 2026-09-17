@@ -1,10 +1,9 @@
-name = "base"
 extends = []
 
-[paths]
+[this.paths]
 log_path = "logs"
 resources_path = "resources"
 
-[dm]
+[this.dm]
 version = "3.1233"
 dll_path = "dm"

@@ -110,7 +110,7 @@ class TeamLeader(TeamMemberBase):
                     logger.info("【测试模式】跳过开始游戏，KK 端流程完成")
                     self.stop_event.set()
                     return True
-                if not self.kk.start_game(self.dm, room_hwnd=room_hwnd):
+                if not self.kk.start_game(self.dm, room_hwnd=room_hwnd, stop_event=self.stop_event):
                     logger.error("开始游戏失败：按钮未变为'开始游戏'")
                     return False
                 return True
@@ -170,7 +170,7 @@ class TeamLeader(TeamMemberBase):
             logger.info("【测试模式】跳过开始游戏，KK 端流程完成")
             self.stop_event.set()
             return True
-        if not self.kk.start_game(self.dm, room_hwnd=room_hwnd):
+        if not self.kk.start_game(self.dm, room_hwnd=room_hwnd, stop_event=self.stop_event):
             logger.error("开始游戏失败：按钮未变为'开始游戏'")
             self.dm.save_screenshot(label="leader_start_game_failed", force=True)
             return False
@@ -206,7 +206,7 @@ class TeamLeader(TeamMemberBase):
             logger.info("【测试模式】跳过开始游戏，KK 端流程完成")
             self.stop_event.set()
             return True
-        if not self.kk.start_game(self.dm, room_hwnd=room_hwnd):
+        if not self.kk.start_game(self.dm, room_hwnd=room_hwnd, stop_event=self.stop_event):
             logger.error("开始游戏失败：按钮未变为'开始游戏'")
             self.dm.save_screenshot(label="leader_reuse_start_game_failed", force=True)
             return False

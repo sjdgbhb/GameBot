@@ -38,10 +38,10 @@ def make_test_config_dir() -> Path:
         "base.toml",
         """
 extends = []
-[paths]
+[this.paths]
 log_path = "logs"
 
-[dm]
+[this.dm]
 version = "3.1233"
 """,
     )
@@ -69,10 +69,10 @@ general_time = 0.3
         """
 extends = ["war3"]
 
-[game]
+[this.game]
 load_war3_time = 33
 
-[command]
+[this.command]
 clear_nearby = "-delh"
 
 [hero]
