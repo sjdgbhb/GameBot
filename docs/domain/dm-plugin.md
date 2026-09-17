@@ -21,12 +21,12 @@
 - 获取窗口矩形、客户区矩形、前台窗口
 - 窗口状态查询（可见/最小化/进程ID）
 
-### 截图
-- **后台截图**：`Capture`（gdi2/dx2 模式），客户区坐标，无需转换
-  - gdi2：GDI 后台截图，兼容性好
-  - dx2：DirectX 后台截图，适用于 DirectX 渲染窗口（如 War3）
-- **前台/屏幕截图**：PIL ImageGrab，屏幕坐标，需手动转换客户区→屏幕
-- **Layered 窗口降级**：PrintWindow + PW_RENDERFULLCONTENT（临时解绑大漠后截图）
+### 截图（已迁移至 WGC，大漠不再承担）
+- **现状**：项目截图统一走 WGC（Windows Graphics Capture，`runner/driver/wgc_capture.py`），
+  按 hwnd 从 DWM 取帧，客户区坐标，不进游戏进程
+- **大漠 Capture（gdi2/dx2）已废弃**：dx 截图与 dx 系鼠标注入共用游戏进程内钩子，
+  并发截图会撕开注入锁卡一帧，是迁移 WGC 的根因
+- **PIL ImageGrab / PrintWindow 已移除**：项目只维护 WGC 一种截图方式，不保留降级路径
 
 ### 找图找色
 - `FindPic` / `FindPicEx`：按图片模板在指定区域找图
@@ -41,7 +41,7 @@
 
 ### OCR
 - 项目统一用 RapidOCR（ONNXRuntime 后端），不用大漠自带 OCR
-- 流程：大漠截图存文件 → RapidOCR 识别文件（`ocr_lines_from_file` / `ocr_from_file`）
+- 流程：WGC 取帧 → ndarray → RapidOCR 识别（`ocr_lines_from_array` / `ocr_from_array`）
 - 大漠 OCR 代码已移除，不保留接口
 
 ## 绑定模式
@@ -76,14 +76,14 @@
 `Capture` 等调用**不报错但实际落空**：
 - `force_refresh_layered`：取消/恢复 `WS_EX_LAYERED` 样式会破坏后台绑定，
   不能在 `bind_window` 上下文内调用，需拆成两段 bind（详见 [AGENTS.md](../../AGENTS.md)）
-- PrintWindow 降级截图：对 layered 窗口需临时 `UnBindWindow` 再 PrintWindow 再重绑，
-  解绑/重绑出错则绑定丢失
 - 绑定丢失后大漠 COM 不抛异常，调用方若不检查返回值会误以为操作成功
 
-### dx2 截图限制
-- dx2 会 hook GDI，导致 PrintWindow 黑屏
-- 需要临时解绑才能用 PrintWindow 截图
+> 截图已迁移至 WGC，不再依赖大漠绑定状态，PrintWindow 降级路径已移除。
+
+### dx2 截图限制（历史，截图已迁移 WGC）
+- dx2 截图与 dx 系鼠标注入共用游戏进程内钩子，并发截图会撕开注入锁卡帧——这是迁移 WGC 的根因
 - 窗口需要部分在屏幕外（Win7/Vista 不需要）
+- 当前大漠 `display=dx2` 仅作为鼠标/键盘输入注入的配套钩子保留，不再用于截图
 
 ### COM 注册
 - 首次使用或版本变更时需要注册 dm.dll
@@ -92,19 +92,20 @@
 
 ## 截图方式对比
 
-| 方式 | 坐标系 | 线程安全 | 适用场景 |
-|------|--------|----------|----------|
-| 大漠 Capture | 客户区 | 否（COM线程亲和） | 后台截图，已绑定窗口 |
-| PIL ImageGrab | 屏幕 | 是 | 前台/全屏截图，独立线程 |
-| PrintWindow | 客户区 | 是 | Layered 窗口降级截图 |
+| 方式 | 坐标系 | 线程安全 | 状态 |
+|------|--------|----------|------|
+| **WGC**（`wgc_capture.py`） | 客户区 | 是 | ✅ 当前唯一截图方式，按 hwnd 从 DWM 取帧 |
+| 大漠 Capture（gdi2/dx2） | 客户区 | 否（COM线程亲和） | ❌ 已废弃，与 dx 鼠标注入共用钩子会卡帧 |
+| PIL ImageGrab | 屏幕 | 是 | ❌ 已移除，需坐标转换 |
+| PrintWindow | 客户区 | 是 | ❌ 已移除，layered 窗口降级路径不再需要 |
 
-### 待统一事项
-当前部分场景用 ImageGrab（需坐标转换），目标是统一为大漠截图（客户区坐标，无需转换）。
-详见 [AGENTS.md](../../AGENTS.md) 的待办事项。
+### 迁移说明
+项目截图已统一走 WGC，消除坐标转换与 layered 特判。大漠仅剩鼠标/键盘输入注入。
+详见 [docs/change_logs/war3后台开发记录.md](../change_logs/war3后台开发记录.md)。
 
 ## 相关文档
 
 - [驱动层](../modules/driver.md) —— 大漠能力的代码封装
 - [KK平台特性](kk-platform.md) —— layered 窗口问题的背景
 - [架构总览](../architecture/overview.md) —— 双环境隔离的设计理由
-- [AGENTS.md](../../AGENTS.md) —— 截图方式统一的待办
+- [war3 后台开发记录](../change_logs/war3后台开发记录.md) —— WGC 迁移全过程

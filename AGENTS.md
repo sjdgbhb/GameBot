@@ -43,7 +43,8 @@ GameBot — 魔兽争霸3 RPG地图"九种兵器2"的 Python 自动化脚本系�
 ## 后台绑定与输入（war3）
 
 **定稿**（dm 3.1233 免费版）：`display=dx2`、`keypad=windows`、
-`mouse=windows2|dx.mouse.input.lock.api`、`public=dx.public.active.api`、`mode=4`
+`mouse=dx.mouse.position.lock.api|dx.mouse.position.lock.message|dx.mouse.state.message|dx.mouse.input.lock.api`
+（`windows2` 即前三段简写）、`public=dx.public.active.api`、`mode=4`
 
 - 任务入口统一 `war3.find_game_window()`；禁止业务代码直接调 `dm.get_active_window`/`dm.find_window` 找 war3 窗口
 - `set_client_size` 必须先于 `bind_window` 调用
@@ -96,3 +97,15 @@ GameBot — 魔兽争霸3 RPG地图"九种兵器2"的 Python 自动化脚本系�
   - **认领失败直接终止任务**——归属未确认时继续运行可能误操作另一账号窗口
 - 启动要求：账号停留在 **KK 房间**内（创建好密码房即可运行）
 - 注意：浮窗停止键 NumPad- 是全局热键，两个脚本同时按会一起停；单独停用各浮窗 ✕ 按钮
+
+## OpenSpec（规格驱动开发）
+
+本项目已集成 [OpenSpec](https://openspec.dev/)（v1.13.1，`--tools devin`），用于单次变更的规划与规格管理。与 AGENTS.md 互补：AGENTS.md 是常驻规则，OpenSpec 是按需工作流（跑 `/opsx-*` 命令时介入）。
+
+- 规格与变更产物在 `openspec/`（`specs/` 为既有真相，`changes/` 为进行中的变更，`changes/archive/` 为已归档）
+- 工作流技能在 `.devin/skills/openspec-*/`，命令在 `.devin/workflows/opsx-*.md`
+- 项目上下文已预填进 `openspec/config.yaml`（含双环境隔离、配置规范、绑定/Layered 约束等），生成 spec 时自动注入
+- 当前为 core profile（6 个工作流）：`/openspec-propose`、`/openspec-explore`、`/openspec-apply-change`、`/openspec-update-change`、`/openspec-sync-specs`、`/openspec-archive-change`
+- 扩展命令（new/continue/ff/verify/bulk-archive/onboard）用 `openspec config profile` 切换
+- 更新 OpenSpec：`openspec update`（刷新技能/命令文件）
+- OpenSpec 生成的 spec/tasks 仍须遵守本文件所有规则

@@ -42,6 +42,10 @@ def __getattr__(name):
         from GameBot.runner.tasks.war3.jiubing2.festival.ingame_special import IngameSpecialTask
 
         return IngameSpecialTask
+    if name == "PersonalAchievementTask":
+        from GameBot.runner.tasks.war3.jiubing2.achievements.personal import PersonalAchievementTask
+
+        return PersonalAchievementTask
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -56,4 +60,5 @@ __all__ = [
     "BlackstoneReputationTask",
     "ForestReputationTask",
     "IngameSpecialTask",
+    "PersonalAchievementTask",
 ]

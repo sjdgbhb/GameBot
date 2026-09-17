@@ -18,9 +18,10 @@
 
 - **窗口管理**：查找/枚举窗口、绑定/解绑窗口（上下文管理器）、获取窗口矩形和状态、
   客户区坐标与屏幕坐标转换、layered 窗口强制刷新
-- **截图**：区域截图（支持 layered 窗口的 PrintWindow 降级路径）、临时截图供 OCR 使用
+- **截图**：截图统一走 WGC（Windows Graphics Capture，`runner/driver/wgc_capture.py`），
+  按 hwnd 从 DWM 取帧，不进游戏进程；大漠不再承担截图职责
 - **输入**：键盘按键、鼠标移动/点击/双击、向窗口发送字符串
-- **视觉**：找图（按名称在资源目录查找 BMP 模板）、找色、取色
+- **视觉**：找图（按名称在资源目录查找 BMP 模板）、找色、取色（均基于 WGC 帧 numpy 实现）
 - **调试截图**：保存截图到日志目录（带频率控制，避免刷屏）
 
 ## 依赖关系
@@ -29,7 +30,7 @@
 - **资源管理器**：解析找图用的 BMP 模板路径
 - **共享工具**：日志、异常（DmError）
 - **桥接子进程**：依赖 pywin32（COM）、大漠插件 DLL、ctypes（DPI感知/管理员提权）
-- **PIL**：处理 PrintWindow 截图的图像数据
+- **windows-capture**：WGC 截图库（仅主环境，按 hwnd 从 DWM 取帧）
 
 ## 关键约束
 
@@ -64,8 +65,9 @@
 | `dm.dll_path` | base.toml | 大漠 DLL 所在目录 |
 | `dm.python_path` | base.toml | 可选：32位Python路径（默认自动检测 .venv-dm） |
 | `war3.bind_mode` | war3.toml | 绑定模式开关：foreground / background（顶层任务可用自身 [this].bind_mode 覆盖） |
-| `war3.bind_foreground.*` | war3.toml | 前台绑定参数（normal 系截图/鼠标/键盘） |
-| `war3.bind_background.*` | war3.toml | 后台绑定参数（dx2截图 + 后台鼠标/键盘，多开/遮挡用） |
+| `war3.bind_foreground.*` | war3.toml | 前台绑定参数（normal 系鼠标/键盘；display 仅大漠输入注入配套用，截图走 WGC） |
+| `war3.bind_background.*` | war3.toml | 后台绑定参数（dx 系鼠标/键盘 + windows 键盘；display 仅保留配套，截图走 WGC） |
+| `war3.wgc_min_interval_ms` | war3.toml | WGC 最小出帧间隔（毫秒） |
 | `paths.screenshot_path` | base.toml | 调试截图输出目录 |
 
 ## 禁忌
@@ -75,6 +77,7 @@
 - ❌ 不要跨进程共享大漠客户端对象（每个实例独占子进程）
 - ❌ 不要在桥接子进程中安装 Web/OCR/AI 依赖（仅 pywin32 + loguru）
 - ❌ 不要假设子进程崩溃后会自动恢复（需调用方显式处理）
+- ❌ 不要用大漠 Capture 截图（已废弃，与 dx 鼠标注入共用钩子会撕开注入锁卡帧）；截图统一走 WGC
 
 ## 关联文档
 

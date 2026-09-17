@@ -219,7 +219,7 @@ config/data/
 所有任务脚本遵循统一模式：**`main()` 中调用 `load_task` 一次，注入到任务类构造函数**。
 
 ```
-main() → load_task("tasks.xxx") → 得到配置dict → 注入到任务类 → 任务类提取配置段 → 注入到业务对象
+main() → load_task("war3.jiubing2.tasks.{类别}.{task_name}") → 得到配置dict → 注入到任务类 → 任务类提取配置段 → 注入到业务对象
 ```
 
 ```python

@@ -180,8 +180,8 @@ def _namespaced_section_paths(raw):
 
 
 def _cmd_lint() -> int:
-    from GameBot.config.system.base import NAMESPACE_ROOTS
     from GameBot.config import ConfigurationError
+    from GameBot.config.system.base import NAMESPACE_ROOTS
 
     config_dir = config.config_dir
     names = _config_names(config_dir)

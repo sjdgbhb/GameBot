@@ -58,7 +58,7 @@ FishingTask / PatrolLootTask（独立类）
 ```
 main() 入口
   → setup_global_exception_hook()        # 安装全局异常钩子
-  → config.load_task("tasks.xxx")        # 唯一一次加载配置
+  → config.load_task("war3.jiubing2.tasks.{类别}.xxx")  # 唯一一次加载配置
   → 构造任务类（注入配置dict）
   → run_with_float_window(task.run)      # 浮窗包装启动
     → 倒计时 → 后台线程运行任务 → 主线程显示浮窗 → 停止键中断

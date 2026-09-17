@@ -18,7 +18,7 @@ npm run build --prefix src/GameBot/web/frontend
 
 # 4. 运行
 uv run python -m GameBot.web.server          # Web 配置服务器
-uv run python main.py --task fishing          # CLI 运行任务
+uv run python main.py fishing                 # CLI 运行任务（task 为位置参数，默认 fishing）
 ```
 
 > 大漠插件 DLL 放置在 `external/dm/` 目录下（不纳入版本控制）。
@@ -28,14 +28,18 @@ uv run python main.py --task fishing          # CLI 运行任务
 ```bash
 # Web服务器
 uv run python -m GameBot.web.server
+# 或安装后直接用注册的命令入口
+GameBot-web
 
-# 脚本任务（CLI）
-uv run python main.py --task fishing
-uv run python main.py --task endless
-uv run python main.py --task patrol_loot
-uv run python main.py --task daily_reputation
-uv run python main.py --task upgrade_stigmata
-uv run python main.py --task team_task
+# 脚本任务（CLI，task 为位置参数，默认 fishing）
+uv run python main.py fishing
+uv run python main.py endless
+uv run python main.py patrol_loot
+uv run python main.py daily_reputation
+uv run python main.py upgrade_stigmata
+uv run python main.py paladin_wind_dragon
+uv run python main.py ingame_special
+uv run python main.py team_task
 
 # 脚本任务（直接模块）
 uv run python -m GameBot.runner.tasks.war3.jiubing2.others.fishing
@@ -43,6 +47,8 @@ uv run python -m GameBot.runner.tasks.war3.jiubing2.endless.endless
 uv run python -m GameBot.runner.tasks.war3.jiubing2.others.patrol_loot
 uv run python -m GameBot.runner.tasks.war3.jiubing2.reputation.daily_reputation
 uv run python -m GameBot.runner.tasks.war3.jiubing2.others.upgrade_stigmata
+uv run python -m GameBot.runner.tasks.war3.jiubing2.others.paladin_wind_dragon
+uv run python -m GameBot.runner.tasks.war3.jiubing2.festival.ingame_special
 uv run python -m GameBot.runner.tasks.war3.jiubing2.achievements.personal
 ```
 
@@ -57,6 +63,8 @@ uv run python -m GameBot.runner.tasks.war3.jiubing2.achievements.personal
 | 钓鱼 | 自动抛竿、找色检测中钩、OCR 检测次数 | [fishing.md](docs/tasks/fishing.md) |
 | 巡逻拾取 | 路线循环杀怪，AI 检测宝箱，OCR 识别物品 | [patrol_loot.md](docs/tasks/patrol_loot.md) |
 | 升级圣痕 | 交替执行城门骚扰与圣痕升级，直到词条达标 | [upgrade_stigmata.md](docs/tasks/upgrade_stigmata.md) |
+| 圣骑士风龙 | 检测技能图标就绪即施放，冷却自动跳过（后台挂机） | — |
+| 局内特殊任务 | 每日声望（黑石+森之城）→ 森之城鱼点钓鱼（节日活动局内脚本） | — |
 | 组队任务 | 多开协作框架，队长建房广播，队员自动加入 | [技术方案](docs/review_reports/技术方案_多开需求.md) |
 
 ## 文档导航

@@ -39,12 +39,16 @@ name = "{中文名称}"
 """{任务描述}"""
 import time
 
-from GameBot.utils import logger
-from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
-from GameBot.runner.driver import create_dm_client
+from GameBot.config import config, get_task_view
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import GameUI, CombatHelper
+from GameBot.runner import create_dm_client
+from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
+
+# 任务名（完整命名空间路径，与 TOML 文件路径对应）
+TASK_NAME = "war3.jiubing2.tasks.{类别}.{task_name}"
 
 
 class {TaskName}Task:
@@ -52,7 +56,6 @@ class {TaskName}Task:
 
     def __init__(self, cfg: dict):
         self.task_cfg = cfg
-        self.cfg = cfg["tasks"]["{task_name}"]
         self.dm = create_dm_client()
 
         war3_cfg = self.task_cfg.get("war3", {})
@@ -61,19 +64,29 @@ class {TaskName}Task:
         self.war3 = War3Business(self.dm, war3_cfg)
         self.ui = GameUI(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
         self.combat = CombatHelper(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
+        # 任务视图：沿 extends 链深合并（基任务 → 变体），变体不写的参数自动从基任务继承
+        self.cfg = get_task_view(cfg, TASK_NAME)
 
-    def run(self):
+    def run(self, stop_event=None, progress_callback=None):
         # 任务主逻辑
         pass
 
 
 def main():
     setup_global_exception_hook()
+    setup_log_file("{任务名称}")
     logger.info("############################# {任务名称} #############################")
-    time.sleep(5)
-    cfg = config.load_task("tasks.{task_name}")
-    task = {TaskName}Task(cfg)
-    task.run()
+    cfg = config.load_task(TASK_NAME)
+
+    def task_wrapper(stop_event, progress_callback=None):
+        {TaskName}Task(cfg).run(stop_event=stop_event, progress_callback=progress_callback)
+
+    run_with_float_window(
+        "{任务名称}",
+        task_wrapper,
+        countdown_seconds=5,
+        float_cfg=cfg.get("base", {}).get("float_window", {}),
+    )
 
 
 if __name__ == "__main__":
@@ -101,8 +114,10 @@ if __name__ == "__main__":
 
 ## 6. 验证
 
-- 检查 TOML 配置的 `name` 和 `extends` 是否正确
-- 检查 Python 文件的 import 是否完整
+- 检查 TOML 配置的 `extends` 是否正确（不要写顶层 `name`，文件名即配置名）
+- 检查 Python 文件的 import 是否完整，`TASK_NAME` 与 TOML 文件路径对应
+- 可用 `python -m GameBot.config lint` 校验全部 TOML 结构
+- 可用 `python -m GameBot.config order war3.jiubing2.tasks.{类别}.{task_name}` 查看依赖加载顺序
 - 确认运行命令：`uv run python -m GameBot.runner.tasks.war3.jiubing2.{类别}.{task_name}`
 
 ## 相关文档

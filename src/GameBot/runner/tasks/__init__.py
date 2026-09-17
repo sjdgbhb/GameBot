@@ -18,6 +18,7 @@ def __getattr__(name):
         "BlackstoneReputationTask",
         "ForestReputationTask",
         "IngameSpecialTask",
+        "PersonalAchievementTask",
     ):
         from GameBot.runner.tasks import war3 as war3_tasks
 
@@ -40,5 +41,6 @@ __all__ = [
     "BlackstoneReputationTask",
     "ForestReputationTask",
     "IngameSpecialTask",
+    "PersonalAchievementTask",
     "TeamTaskRunner",
 ]

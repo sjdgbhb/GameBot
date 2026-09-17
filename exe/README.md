@@ -157,3 +157,16 @@ clear_nearby_probability = 0.30   # 路线点清理附近物品概率，0 = 禁�
 │   └── images/
 └── _internal/             # Python 运行时（共享，64 位 3.12）
 ```
+
+## 构建说明（开发者）
+
+打包脚本 `exe/build_all.py` 将四个任务打包到同一目录。各任务子目录（`exe/fishing/`、`exe/patrol_loot/` 等）下的 `data/` 是 PyInstaller 打包时用的**精简配置快照**，组装阶段会用主仓库完整配置 `src/GameBot/config/data/` 覆盖包内的 `_internal/config/data/`（见 `build_all.py` 步骤 3.1.1）。
+
+因此修改 `src/GameBot/config/data/` 中的配置后无需同步 `exe/<task>/data/`——它们仅在单独打包单个任务（不经组装）时生效。正常 `uv run python exe/build_all.py` 全流程打包以主仓库配置为准。
+
+构建命令：
+```bash
+uv run python exe/build_all.py            # 完整构建（打包 + 组装）
+uv run python exe/build_all.py --assemble  # 仅组装（主 EXE 和 dm_bridge 已打包好）
+uv run python exe/build_all.py --update <任务名>  # 仅更新单个任务到已有包
+```

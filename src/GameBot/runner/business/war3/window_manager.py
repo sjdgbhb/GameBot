@@ -12,7 +12,7 @@ from ctypes import wintypes
 from typing import Optional
 
 from GameBot.runner.driver.process_lock import NamedMutex
-from GameBot.utils import StopTaskError, WindowLostError, logger
+from GameBot.utils import WindowLostError, logger
 
 _user32 = ctypes.windll.user32
 _user32.IsWindow.argtypes = [wintypes.HWND]

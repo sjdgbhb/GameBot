@@ -164,7 +164,7 @@ OCR/AI 推理在主环境进程内直接执行，避免子进程通信开销。
 
 | 入口 | 用途 | 启动方式 |
 |------|------|----------|
-| `main.py` | CLI 运行单个任务 | `uv run python main.py --task fishing` |
+| `main.py` | CLI 运行单个任务 | `uv run python main.py fishing`（task 为位置参数，默认 fishing） |
 | 任务模块 `__main__` | 直接运行特定任务 | `uv run python -m GameBot.runner.tasks...fishing` |
 | Web 服务器 | 可视化配置 + 启动任务 | `uv run python -m GameBot.web.server` |
 

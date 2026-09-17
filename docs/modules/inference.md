@@ -24,7 +24,7 @@
 - **配置系统**：读取推理设备（cpu/gpu）、模型目录、各模型的参数（输入尺寸/置信度/阈值）
 - **RapidOCR**：OCR 引擎（ONNXRuntime 后端）
 - **ONNXRuntime**：AI 模型推理引擎
-- **PIL**：图像处理（ImageGrab 截图、图像缩放）
+- **PIL**：图像缩放等处理
 - **共享工具**：日志
 
 ## 关键约束
@@ -38,10 +38,10 @@
 - 关闭分类分支、限制最长边 960（平衡速度与精度）
 - 根据配置启用/禁用 CUDA
 
-### 截图方式（待统一）
-- 当前部分场景用 ImageGrab（屏幕坐标，需手动转换客户区→屏幕）
-- 部分场景用大漠截图（客户区坐标，无需转换）
-- 目标是统一为大漠截图，消除坐标转换（见 AGENTS.md 待办）
+### 截图方式
+- 截图统一走 WGC（`runner/driver/wgc_capture.py`），按 hwnd 从 DWM 取帧，客户区坐标，无需坐标转换
+- 推理函数接收 WGC 帧 ndarray（`*_from_array` 入口），不再落盘、不再用 ImageGrab 屏幕截图
+- 战斗状态检测线程直接从 `WgcCapture._latest` 取帧，不再自建截图线程
 
 ### 模型文件
 - 宝箱检测模型：`resources/models/chest_detector.onnx`（YOLOv8）
@@ -73,4 +73,4 @@
 - [架构总览](../architecture/overview.md) —— 推理为什么在进程内执行
 - [训练模型](../guides/train-model.md) —— 如何训练和更新 AI 模型
 - [业务逻辑层](business.md) —— 推理的使用者
-- [AGENTS.md](../../AGENTS.md) —— 截图方式统一的待办事项
+- [大漠插件能力](../domain/dm-plugin.md) —— 截图统一 WGC 的背景

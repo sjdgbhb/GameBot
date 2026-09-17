@@ -101,9 +101,14 @@ git push origin main --tags
 
 ## CI
 
-CI 配置位于 `.github/workflows/ci.yml`，在 push 和 PR 到 `main`、`dev` 时触发：
+CI 配置位于 `.github/workflows/ci.yml`，在任意分支 push 和 PR 时触发，自动运行：
 - 主依赖安装（`uv sync`）
-- 单元测试（`uv run python -m pytest`）
+- 代码风格检查（`uv run ruff check`）
+- 代码格式检查（`uv run ruff format --check`）
+- 单元测试（`uv run pytest tests/unit/ --cov`，覆盖率门槛 45%）
+- 集成测试（`uv run pytest tests/integration/`）
+
+PR 目标为 `main` 时还会额外校验来源分支必须为 `dev`（`main` 只接受来自 `dev` 的合并）。
 
 ## 测试
 
@@ -133,9 +138,9 @@ uv run python tests/manual/test_coords.py
 # Web服务器
 uv run python -m GameBot.web.server
 
-# 脚本任务（CLI）
-uv run python main.py --task fishing
-uv run python main.py --task team_task
+# 脚本任务（CLI，task 为位置参数，默认 fishing）
+uv run python main.py fishing
+uv run python main.py team_task
 
 # 脚本任务（直接模块）
 uv run python -m GameBot.runner.tasks.war3.jiubing2.others.fishing
