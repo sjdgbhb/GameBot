@@ -1,9 +1,0 @@
-extends = []
-
-[this.paths]
-log_path = "logs"
-resources_path = "resources"
-
-[this.dm]
-version = "3.1233"
-dll_path = "dm"

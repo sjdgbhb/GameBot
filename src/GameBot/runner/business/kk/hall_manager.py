@@ -92,7 +92,7 @@ class HallManagerMixin:
 
                 attempted_hwnds.add(hwnd)
                 logger.warning(f"检测到 KK 弹窗: hwnd={hwnd}，尝试关闭")
-                if dm.close_window_by_x(hwnd, offset_x, offset_y):
+                if dm.close_window_by_x(hwnd, offset_x, offset_y, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
                     time.sleep(0.3)
                     closed_any = True
                     break
@@ -123,7 +123,7 @@ class HallManagerMixin:
         第一轮结束后再回头重试被跳过的窗口。
 
         :param target_player: 目标玩家 ID
-        :param hall_owner_cache: TeamIPC 实例，用于共享已认领窗口信息
+        :param hall_owner_cache: 可选跨进程归属缓存（提供 read_hall_owner/write_hall_owner 接口）
         :param busy_retry: 被跳过的正忙窗口的重试轮数
         :param busy_wait: 每轮重试间隔秒数
         :return: (大厅句柄, 进程 PID)，未找到返回 (0, 0)

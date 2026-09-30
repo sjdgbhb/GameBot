@@ -112,7 +112,23 @@ if __name__ == "__main__":
 | 多原子任务 | `MultiAtomicLoopTask` | 一次接取多个，走共享路线，依次提交 |
 | 独立流程 | 无基类 | 自己实现 run()，参考 EndlessTask/FishingTask |
 
-## 6. 验证
+## 6. 多开变体（可选）
+
+同一台机器多个账号各跑各的同一任务时，为任务加变体支持：
+
+1. `main()` 解析 `sys.argv[1]` 为变体名（叶子名拼上任务命名空间前缀，
+   或直接用完整配置名），`load_task(task_name)` 后把 `task_name` 传给任务类
+2. 任务类用 `get_task_view(cfg, task_name)` 取自身配置（变体节点不在固定
+   路径上），并把 `target_player` 注入 `war3.target_player` 供窗口认领链路读取
+3. 创建变体文件 `tasks/<组>/<任务>_<玩家名>.toml`：`extends` 基任务，
+   `[this]` 写 `target_player`，`[war3]`/`[kk]` 段写 `bind_mode="background"`
+   （多开必须后台绑定），按需加 `[hero.xxx]` 账号差异覆盖、`[base.float_window]`
+   错开浮窗位置
+
+参考实现：`endless.py`（多局，加载页只读认领）、`endless_single.py` /
+`fishing.py` / `patrol_loot.py` / `upgrade_stigmata.py`（局内，聊天 token 认领）。
+
+## 7. 验证
 
 - 检查 TOML 配置的 `extends` 是否正确（不要写顶层 `name`，文件名即配置名）
 - 检查 Python 文件的 import 是否完整，`TASK_NAME` 与 TOML 文件路径对应

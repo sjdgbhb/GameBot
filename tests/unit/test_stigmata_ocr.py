@@ -157,6 +157,31 @@ class TestParseStigmataText(unittest.TestCase):
         self.assertEqual(result["upper"][2], ("自然属性", 1.0))
         self.assertEqual(result["core"][0], ("生命值", 301.0))
 
+    def test_untracked_term_preserves_index(self):
+        """未配置上限的词条（如物理攻击）保留占位，跟踪词条 idx 按面板全词条计。
+
+        回归测试：善木木面板每行首词条为"物理攻击"（不在 term_limit），
+        若只收跟踪词条，物理防御 idx=0 会点错技能板第 1 列（实为第 2 列）。
+        """
+        text = "上位圣痕物理攻击+114：物理防御+30：格挡属性+4"
+        result = UpgradeStigmataTask._parse_stigmata_text(text, TERM_LIMIT)
+        terms = result["upper"]
+        self.assertEqual(len(terms), 3)
+        self.assertEqual(terms[1], ("物理防御", 30.0))
+        self.assertEqual(terms[2], ("格挡属性", 4.0))
+        # 差距：物理防御 40-30=10 > 格挡属性 5-4=1 → 选中 idx=1（第 2 列）
+        target = UpgradeStigmataTask._pick_upgrade_target(result, TERM_LIMIT)
+        self.assertEqual((target[0], target[1], target[2]), ("upper", 1, "物理防御"))
+
+    def test_clipped_tail_digit_keeps_placeholder(self):
+        """行尾数字被裁（格挡属性+）：词条保留占位对齐列号，数值 None 不参与选择。"""
+        text = "上位圣痕物理攻击+114：物理防御+30：格挡属性+"
+        result = UpgradeStigmataTask._parse_stigmata_text(text, TERM_LIMIT)
+        self.assertEqual(len(result["upper"]), 3)
+        self.assertEqual(result["upper"][2], ("格挡属性", None))
+        target = UpgradeStigmataTask._pick_upgrade_target(result, TERM_LIMIT)
+        self.assertEqual((target[0], target[1], target[2]), ("upper", 1, "物理防御"))
+
 
 class TestPickUpgradeTarget(unittest.TestCase):
     """测试 _pick_upgrade_target 静态方法。"""

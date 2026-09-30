@@ -14,7 +14,9 @@
 - **返回值即唯一真相**：无全局"当前配置"——入口把 dict 注入业务对象；
   工具模块、子进程等拿不到注入的，自行 `load_task`
 - **路径解析**：`config.resolve_path(value)` 相对路径 → project_root 绝对路径
-- **自动处理**：物品名→ID 解析、快捷键格子注入
+- **自动处理**：物品名→item_id 解析（hero `inventory` 与任务路径点
+  `actions` 中 `type="item"` 的 `item = "名称"` 写法统一解析，业务侧只读
+  `item_id`）、快捷键格子注入
 
 ## 引擎架构
 
@@ -26,7 +28,7 @@
 | `loader.py` | 文件加载缓存、配置名→路径映射、`[this]` 展开、命名空间拆分 |
 | `resolver.py` | DFS 后序依赖解析、循环依赖检测、extends 分层约束 |
 | `builder.py` | 按加载顺序合并、深度合并、英雄互斥、provenance 记录 |
-| `derive.py` | `get_task_view`（任务视图）、`resolve_item_names`（物品名→item_id）、`resolve_bind_cfg`/`force_bind_mode`（bind 调用时选择） |
+| `derive.py` | `get_task_view`（任务视图）、`resolve_item_names`/`resolve_action_item_names`（物品名→item_id）、`resolve_bind_cfg`/`force_bind_mode`（bind 调用时选择） |
 | `user.py` | `user_configs.json` 加载与覆盖（`_USER_KEY_ROUTES` 路由表） |
 | `core.py` | `Config` 单例（纯加载器）：`load_task` / `resolve_path` / `get_provenance` |
 
@@ -47,7 +49,7 @@
 | 顶层裸键 | 报错 | 除 `hero` 外无共享区，必须归入命名空间 |
 | `hero` | `cfg["hero"]` | 唯一顶层键 |
 
-命名空间根 = 显式注册表 `NAMESPACE_ROOTS`（base/kk/team/war3/web）；
+命名空间根 = 显式注册表 `NAMESPACE_ROOTS`（base/kk/war3/web）；
 新增任务/英雄/变体文件无需登记，新增一级命名空间才要登记。
 
 ### 3. 合并语义
@@ -63,6 +65,20 @@
 沿 extends 链深合并 `war3.jiubing2.tasks.*` 节点（基任务在前、变体在后）：
 变体不写的参数自动继承。只合并任务节点——编排任务调子任务参数
 用绝对寻址段打到子任务节点，不进任务视图。非任务入参返回空 dict。
+
+### 5. 多开变体约定
+
+变体文件命名 `<任务>_<玩家名>.toml`（与基任务同目录），`extends` 基任务：
+
+- `[this]` 写 `target_player`（多开窗口认领目标）等差异字段
+- `[war3]`/`[kk]` 段写 `bind_mode="background"` 覆盖命名空间默认
+  （多开必须后台绑定；任务 `[this]` 不支持 bind_mode）
+- `[hero.xxx]` 覆盖账号差异配置（hero 浅合并，子键整表覆盖须写全字段）
+- `[base.float_window]` 可错开各实例浮窗位置
+
+启动：任务模块 `main()` 的第一个位置参数即变体名（叶子名如
+`endless_善木木` 或完整配置名均可），任务内部用 `get_task_view(cfg, task_name)`
+取合并后的任务视图。
 
 ## 读取速查
 
@@ -88,7 +104,7 @@ bind_cfg = resolve_bind_cfg(kk_cfg)           # 按 ns.bind_mode 选前/后台�
 - extends 分层约束（告警阶段）：低层文件不得 extends `tasks.*`；task→task 允许
 - `name`/`extends` 是文件级控制键，不参与合并；`dependencies` 已废弃报错
 - 绑定参数不预写 `ns.bind` 派生字段，调用点 `resolve_bind_cfg(ns_cfg)` 实时选表；
-  组队多成员强转后台 `force_bind_mode(cfg, "background")`
+  需要强制模式时可用 `force_bind_mode(cfg, "background")`（如手动测试脚本）
 - 配置值不要硬编码进代码；物品快捷键从 `hero.inventory` 取
 
 ## 排障工具（CLI）

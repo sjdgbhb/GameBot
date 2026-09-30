@@ -1,18 +1,18 @@
 """配置系统 CLI — 配置排障与审计工具。
 
-用法（主环境 .venv）：
+用法（主环境 .venv，即 uv run）：
 
-    python -m GameBot.config order <配置名>                      # 打印依赖闭包的线性加载顺序
-    python -m GameBot.config explain <配置名> <dot路径>          # 查某个键的值与写入来源链
-    python -m GameBot.config dump <配置名> [--annotate] [--out 文件]  # 导出合并后的有效配置
-    python -m GameBot.config lint                                # 结构校验全部 TOML（不执行任务）
-    python -m GameBot.config new <配置名>                        # 生成新任务/变体配置模板
+    uv run python -m GameBot.config order <配置名>                      # 打印依赖闭包的线性加载顺序
+    uv run python -m GameBot.config explain <配置名> <dot路径>          # 查某个键的值与写入来源链
+    uv run python -m GameBot.config dump <配置名> [--annotate] [--out 文件]  # 导出合并后的有效配置
+    uv run python -m GameBot.config lint                                # 结构校验全部 TOML（不执行任务）
+    uv run python -m GameBot.config new <配置名>                        # 生成新任务/变体配置模板
 
 示例：
 
-    python -m GameBot.config explain war3.jiubing2.tasks.endless.endless_善木木 hero.shard.use_index
-    python -m GameBot.config dump war3.jiubing2.tasks.endless.endless_善木木 --out merged_cfg.json
-    python -m GameBot.config dump war3.jiubing2.tasks.endless.endless_善木木 --annotate
+    uv run python -m GameBot.config explain war3.jiubing2.tasks.endless.endless_善木木 hero.shard.use_index
+    uv run python -m GameBot.config dump war3.jiubing2.tasks.endless.endless_善木木 --out merged_cfg.json
+    uv run python -m GameBot.config dump war3.jiubing2.tasks.endless.endless_善木木 --annotate
 
 provenance 来源名说明：
 - 配置名（如 war3.jiubing2.tasks.endless.endless）：对应 config/data/ 下的 TOML 文件

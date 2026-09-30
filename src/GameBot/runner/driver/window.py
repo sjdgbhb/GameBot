@@ -217,7 +217,7 @@ class WindowMixin:
             )
         return results
 
-    def close_window_by_x(self, hwnd: int, offset_x: int = 15, offset_y: int = 15) -> bool:
+    def close_window_by_x(self, hwnd: int, offset_x: int = 15, offset_y: int = 15, bind_cfg: dict = None) -> bool:
         """点击窗口右上角 X 关闭按钮。
 
         通过绑定目标窗口并移动鼠标到客户区右上角偏移位置实现，
@@ -226,6 +226,8 @@ class WindowMixin:
         :param hwnd: 待关闭窗口句柄
         :param offset_x: 距右侧边界偏移（像素）
         :param offset_y: 距上侧边界偏移（像素）
+        :param bind_cfg: 绑定模式配置字典；缺省用 normal 前台绑定（物理点击，
+                         弹窗被遮挡时落空），后台运行任务须显式传入
         :return: 是否成功点击
         """
         if not hwnd:
@@ -244,7 +246,7 @@ class WindowMixin:
             return False
 
         try:
-            with self.bind_window(hwnd):
+            with self.bind_window(hwnd, bind_cfg=bind_cfg):
                 self.move_to(click_x, click_y)
                 time.sleep(0.1)
                 self.left_click()

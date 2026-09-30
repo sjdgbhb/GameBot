@@ -58,11 +58,15 @@ FishingTask / PatrolLootTask（独立类）
 ```
 main() 入口
   → setup_global_exception_hook()        # 安装全局异常钩子
-  → config.load_task("war3.jiubing2.tasks.{类别}.xxx")  # 唯一一次加载配置
-  → 构造任务类（注入配置dict）
-  → run_with_float_window(task.run)      # 浮窗包装启动
+  → 解析 argv[1] 变体名（可选，叶子名或完整配置名）→ 得到 task_name
+  → config.load_task(task_name)          # 唯一一次加载配置
+  → 构造任务类（注入配置dict + task_name）
+  → run_with_float_window(task.run)      # 浮窗包装启动（标题含 target_player 区分多开实例）
     → 倒计时 → 后台线程运行任务 → 主线程显示浮窗 → 停止键中断
 ```
+
+任务类取自身参数统一走 `get_task_view(cfg, task_name)`（沿 extends 链合并，
+变体节点不在固定路径上）；无变体的旧调用方式（按固定路径取节点）仍兼容。
 
 CLI 入口（`main.py`）维护任务名到配置路径和任务类的映射表，
 Web 入口通过推导模块路径直接启动任务子进程，两者都调用 `load_task`。
@@ -92,7 +96,14 @@ Web 入口通过推导模块路径直接启动任务子进程，两者都调用 
 - `reputation/` — 声望任务（每日/黑石城/森之城）
 - `achievements/` — 成就任务（个人）
 
-每个任务 TOML 通过 `name` 声明自身命名空间，并通过 `extends` 声明继承（通常包含 `war3.jiubing2`、`heroes.xxx` 和 `scenes.xxx`）。任务数据写在 `[this]` 下。
+每个任务 TOML 通过 `extends` 声明继承（通常包含 `war3.jiubing2`、`heroes.xxx`
+和 `scenes.xxx`），任务数据写在 `[this]` 下；`name` 是文件级控制键（显示名），
+命名空间由文件路径推导。
+
+**变体文件**：`<任务>_<玩家名>.toml` 与基任务同目录，`extends` 基任务，
+用于多开认领（`target_player` + `bind_mode="background"`）与账号差异覆盖；
+启动时在模块 `main()` 的位置参数传变体名。详见 [配置系统](config.md) 的
+「多开变体约定」。
 
 ## 禁忌
 
@@ -105,6 +116,5 @@ Web 入口通过推导模块路径直接启动任务子进程，两者都调用 
 
 - [业务逻辑层](business.md) —— 任务编排依赖的业务原语
 - [配置系统](config.md) —— 任务配置的加载机制
-- [组队框架](team.md) —— 组队任务的独立框架
 - [任务详细文档](../tasks/) —— 各任务的详细流程说明
 - [新增任务模块](../guides/new-task.md) —— 如何添加新任务

@@ -1,7 +1,7 @@
 # =============================================================================
 # 局内特殊任务变体 — 善木木（多开认领）
 # 继承 ingame_special 全部配置，[this] 只写差异字段（target_player / 覆盖参数）。
-# 启动：.venv\Scripts\python -m GameBot.runner.tasks.war3.jiubing2.festival.ingame_special ingame_special_善木木
+# 启动：uv run python -m GameBot.runner.tasks.war3.jiubing2.festival.ingame_special ingame_special_善木木
 # =============================================================================
 extends = ["war3.jiubing2.tasks.festival.ingame_special"]
 
@@ -15,3 +15,7 @@ target_player = "善木木"
 bind_mode = "background"
 [kk]
 bind_mode = "background"
+
+# 钓鱼参数覆盖（绝对寻址：直接打到 tasks.others.fishing 节点）
+[war3.jiubing2.tasks.others.fishing]
+max_times = 40            # 抛竿次数

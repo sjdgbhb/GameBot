@@ -51,18 +51,27 @@
 | 模式 | 说明 | 配置段 | 适用场景 |
 |------|------|--------|----------|
 | **前台**（foreground） | `normal` + `normal` + `normal`，简单可靠，但会抢占前台 | `[xx.bind_foreground]` | 单开、调试 |
-| **后台**（background） | `gdi2`/`dx2` + `windows3` + `windows`，不抢占前台，支持多窗口 | `[xx.bind_background]` | 多开、需要后台操作 |
+| **后台**（background） | 不抢占前台，支持多窗口；定稿参数见下 | `[xx.bind_background]` | 多开、需要后台操作 |
+
+后台绑定定稿参数（dm 3.1233 免费版实测）：
+
+- `display=dx2`（仅作输入注入配套钩子，截图统一走 WGC）
+- `keypad=windows`
+- `mouse=dx.mouse.position.lock.api|dx.mouse.position.lock.message|dx.mouse.state.message|dx.mouse.input.lock.api`
+  （`windows2` 即前三段简写）
+- `public=dx.public.active.api`、`mode=4`
 
 ### 模式选择规则
-- **非组队 / 单成员组队**：由命名空间级 `bind_mode` 决定（`foreground` 或 `background`）
-- **多成员组队（成员数 > 1）**：强制 `background`，忽略 `bind_mode` 配置
+- 由命名空间级 `bind_mode` 决定（`foreground` 或 `background`）
 - 切换方式：任务/变体文件写 `[war3]`/`[kk]` 段的 `bind_mode` 覆盖 `war3.toml`/`kk.toml` 默认值（绝对寻址补丁）；任务 `[this]` 不支持 bind_mode
 - 调用点用 `resolve_bind_cfg(ns_cfg)`（GameBot.config）按 `bind_mode` 实时选表，配置字典不生成 `bind` 派生字段
 
 ### 后台模式注意事项
 - **需要管理员权限**
-- dx2 要求窗口部分在屏幕外（Win7/Vista 不需要）
 - 不可连续操作，需加延时（`bind_delay`）
+- **war3 读图期禁操作窗口**：加载页只允许只读检测（WGC/OCR）与内核互斥锁，
+  改尺寸/注入 dx 绑定会使并发读图的另一实例卡死加载页（详见
+  [KK平台特性](kk-platform.md) 与 AGENTS.md）
 
 ## 重要约束
 

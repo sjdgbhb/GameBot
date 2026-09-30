@@ -140,7 +140,6 @@ uv run python -m GameBot.web.server
 
 # 脚本任务（CLI，task 为位置参数，默认 fishing）
 uv run python main.py fishing
-uv run python main.py team_task
 
 # 脚本任务（直接模块）
 uv run python -m GameBot.runner.tasks.war3.jiubing2.others.fishing

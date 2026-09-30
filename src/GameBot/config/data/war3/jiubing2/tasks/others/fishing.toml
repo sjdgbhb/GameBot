@@ -9,7 +9,7 @@ extends = ["war3.jiubing2", "kk"]   # war3.jiubing2 传递依赖 war3，提供�
 # ------------------------------ 物品栏配置（背包1-6格） ------------------------------
 # 钓鱼不依赖特定英雄，但需要物品栏配置（鱼竿）
 # slot: 格子编号 0~5 对应第 1~6 格
-# item: 物品名（映射表在 jiubing2.toml 的 items 中），也可用 item_id = 数字
+# item: 物品名（映射表在 jiubing2.toml 的 items 中）
 # 快捷键从 kk.toml 的 inventory_slots 查找
 [hero]
 inventory = [

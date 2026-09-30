@@ -12,7 +12,7 @@ class ConfigurationError(Exception):
 # 只有新增一级命名空间（如 data/yy/）才加一行——这本该是显式决策。
 # 自动扫描的风险：data/ 下任何新建目录都会把同名裸键从"可继承"翻转为
 # "命名空间隔离"，无报错、静默改变合并语义。
-NAMESPACE_ROOTS = frozenset({"base", "kk", "team", "war3", "web"})
+NAMESPACE_ROOTS = frozenset({"base", "kk", "war3", "web"})
 
 # 互斥命名空间：一场游戏只能玩一个英雄，heroes.* 中最后加载者独占生效（规则 3）
 # 当加载顺序中出现多个 heroes.* 配置时，后加载的英雄整体替换前一英雄的可继承节点

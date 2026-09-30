@@ -342,10 +342,17 @@ class TestClaimRoomWindow(unittest.TestCase):
         }
         return kk
 
+    def _setup_windows(self, kk, hwnds, room_hwnds=None):
+        """让 dm.find_windows 枚举出 hwnds，_check_room_window 判定 room_hwnds 为房间。"""
+        kk.dm.find_windows.return_value = [{"hwnd": h} for h in hwnds]
+        room_set = set(room_hwnds) if room_hwnds is not None else set(hwnds)
+        kk._check_room_window = MagicMock(side_effect=lambda dm, h: h in room_set)
+        kk.dm.get_window_state.return_value = True
+
     def test_claim_room_matches_target_player(self):
         """token 归属匹配目标玩家时应认领该窗口并返回 (hwnd, pid)。"""
         kk = self._make_kk()
-        kk.find_room_windows = MagicMock(return_value=[500, 600])
+        self._setup_windows(kk, [500, 600])
         kk._identify_room_owner_by_chat = MagicMock(side_effect=["其他玩家", "善木木"])
         kk.dm.get_window_process_id.return_value = 456
 
@@ -357,35 +364,48 @@ class TestClaimRoomWindow(unittest.TestCase):
     def test_claim_room_no_match_returns_zero(self):
         """所有窗口归属都不匹配时应返回 (0, 0)。"""
         kk = self._make_kk()
-        kk.find_room_windows = MagicMock(return_value=[500])
+        self._setup_windows(kk, [500])
         kk._identify_room_owner_by_chat = MagicMock(return_value="其他玩家")
 
         hwnd, pid = kk.claim_room_window(kk.dm, "善木木", claim_timeout=0.2)
 
         self.assertEqual((hwnd, pid), (0, 0))
 
-    def test_claim_room_reuses_cached_hwnd(self):
-        """已认领且窗口存活（PID 一致）时直接复用缓存，不重复验证。"""
+    def test_claim_room_skips_non_room_windows(self):
+        """非房间窗口（大厅等）不应尝试窗口锁与归属验证。"""
         kk = self._make_kk()
-        kk.find_room_windows = MagicMock(return_value=[500])
+        self._setup_windows(kk, [500, 600], room_hwnds={600})
+        kk._identify_room_owner_by_chat = MagicMock(return_value="善木木")
+        kk.dm.get_window_process_id.return_value = 456
+
+        hwnd, pid = kk.claim_room_window(kk.dm, "善木木", claim_timeout=5)
+
+        self.assertEqual((hwnd, pid), (600, 456))
+        kk._identify_room_owner_by_chat.assert_called_once()
+        kk.release_room_claim()
+
+    def test_claim_room_reuses_cached_hwnd(self):
+        """已认领且窗口存活（PID 一致）时直接复用缓存，不重复枚举验证。"""
+        kk = self._make_kk()
+        self._setup_windows(kk, [500])
         kk._identify_room_owner_by_chat = MagicMock(return_value="善木木")
         kk.dm.get_window_process_id.return_value = 456
 
         hwnd, pid = kk.claim_room_window(kk.dm, "善木木", claim_timeout=5)
         self.assertEqual((hwnd, pid), (500, 456))
 
-        kk.find_room_windows.reset_mock()
+        kk.dm.find_windows.reset_mock()
         kk._identify_room_owner_by_chat.reset_mock()
         hwnd2, pid2 = kk.claim_room_window(kk.dm, "善木木", claim_timeout=5)
         self.assertEqual((hwnd2, pid2), (500, 456))
-        kk.find_room_windows.assert_not_called()
+        kk.dm.find_windows.assert_not_called()
         kk._identify_room_owner_by_chat.assert_not_called()
         kk.release_room_claim()
 
     def test_claim_room_reclaims_after_window_dead(self):
         """认领窗口销毁（PID 查询为 0）后应释放窗口锁并重新认领。"""
         kk = self._make_kk()
-        kk.find_room_windows = MagicMock(return_value=[500, 700])
+        self._setup_windows(kk, [500, 700])
         # 第一次认领 500=善木木；重新认领时旧窗口识别为其他玩家，跳过换 700
         kk._identify_room_owner_by_chat = MagicMock(side_effect=["善木木", "其他玩家", "善木木"])
         # 第一次认领 pid=456；复用校验旧 hwnd 已死（pid=0）；新窗口 700 pid=789

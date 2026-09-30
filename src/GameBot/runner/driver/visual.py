@@ -38,11 +38,15 @@ class VisualMixin:
 
     # ── WGC 会话 ─────────────────────────────────────────
 
-    def _wgc(self) -> WgcCapture:
-        """当前绑定窗口的 WGC 常驻会话；未绑定直接报错（不做前台/其他回退）。"""
-        hwnd = getattr(self, "_current_bind_hwnd", 0)
+    def _wgc(self, hwnd: int = 0) -> WgcCapture:
+        """目标窗口的 WGC 常驻会话。
+
+        显式传入 hwnd 时按该窗口取帧（无绑定场景，如读图期/认领前检测）；
+        否则用当前绑定窗口，未绑定直接报错（不做前台/其他回退）。
+        """
+        hwnd = hwnd or getattr(self, "_current_bind_hwnd", 0)
         if not hwnd:
-            raise CaptureError("当前未绑定窗口（_current_bind_hwnd=0），无法用 WGC 取帧")
+            raise CaptureError("未指定窗口且无绑定窗口（_current_bind_hwnd=0），无法用 WGC 取帧")
         return WgcCapture.for_hwnd(hwnd)
 
     # ── 模板匹配 ─────────────────────────────────────────
@@ -84,13 +88,14 @@ class VisualMixin:
 
     # ── 找图 ─────────────────────────────────────────────
 
-    def find_pic(self, x1, y1, x2, y2, pic_name, sim=0.9, delta_color="000000", dir=0) -> Tuple[int, int, int]:
+    def find_pic(self, x1, y1, x2, y2, pic_name, sim=0.9, delta_color="000000", dir=0, hwnd=0) -> Tuple[int, int, int]:
         """找图，返回 (index, x, y)。index=0 命中，-1 未命中；x,y 为命中图左上角客户区坐标。
 
         与大漠 FindPic 语义一致：delta_color 每通道容差，sim 为容差内像素占比阈值。
         dir 仅支持 0（左上→右下扫描序的第一个命中，取分数最高者）。
+        hwnd 非 0 时对指定窗口取帧（无需绑定）；为 0 时用当前绑定窗口。
         """
-        region = self._wgc().grab_client_rgb((x1, y1, x2, y2))
+        region = self._wgc(hwnd).grab_client_rgb((x1, y1, x2, y2))
         tpl = self._load_template(pic_name)
         if tpl.shape[0] > region.shape[0] or tpl.shape[1] > region.shape[1]:
             return -1, -1, -1

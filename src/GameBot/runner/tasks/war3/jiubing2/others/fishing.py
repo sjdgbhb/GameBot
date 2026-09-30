@@ -291,30 +291,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# ── 组队任务步骤 ────────────────────────────────────────────
-
-
-from GameBot.runner.business.war3.jiubing2.team_steps_base import Jiubing2TaskSteps
-
-
-class _FishingSteps(Jiubing2TaskSteps):
-    """钓鱼组队步骤 — preparation 继承九兵通用流程，run_task 执行钓鱼循环。"""
-
-    def run_task(self, member, stop_event=None, **kwargs):
-        """钓鱼主循环（窗口已由 _game_phase 绑定，直接使用 member.dm）。"""
-        fishing_task = FishingTask(
-            member.task_cfg,
-            stop_event=stop_event,
-            progress_callback=member.task_ctx._progress_callback,
-            dm=member.dm,
-        )
-        fishing_task.run_fishing_loop()
-
-
-_steps = _FishingSteps()
-preparation = _steps.preparation
-position_init = _steps.position_init
-pre_exit = _steps.pre_exit
-run_task = _steps.run_task

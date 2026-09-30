@@ -95,8 +95,11 @@ class TestGetInventoryHotkeys(unittest.TestCase):
         self.assertEqual(get_inventory_hotkeys({}, 9), [])
 
     def test_skip_items_without_hotkey(self):
-        # 旧格式兼容：hotkey 为空时跳过
-        cfg = {"inventory": [{"id": 9, "hotkey": ""}, {"id": 9, "hotkey": "5"}]}
+        # 格子在 inventory_slots 中无 hotkey 时跳过
+        cfg = {
+            "inventory_slots": [{"slot": 1, "hotkey": "5"}],
+            "inventory": [{"slot": 0, "item_id": 9}, {"slot": 1, "item_id": 9}],
+        }
         self.assertEqual(get_inventory_hotkeys(cfg, 9), ["5"])
 
     def test_new_format_slot_lookup(self):
@@ -107,10 +110,10 @@ class TestGetInventoryHotkeys(unittest.TestCase):
         }
         self.assertEqual(get_inventory_hotkeys(cfg, 9), ["3"])
 
-    def test_new_format_no_slots_fallback_to_inline(self):
-        # 无 inventory_slots 时回退到 inventory 内联 hotkey（旧格式兼容）
+    def test_new_format_no_slots_returns_empty(self):
+        # 无 inventory_slots 时无快捷键可查（inventory 内联 hotkey 已废弃）
         cfg = {"inventory": [{"slot": 0, "item_id": 9, "hotkey": "1"}]}
-        self.assertEqual(get_inventory_hotkeys(cfg, 9), ["1"])
+        self.assertEqual(get_inventory_hotkeys(cfg, 9), [])
 
 
 class TestGameUIOptionalPreparation(unittest.TestCase):

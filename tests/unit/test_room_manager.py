@@ -51,6 +51,8 @@ def _make_kk():
         "create_room_window_class": "CreateClass",
         "room": {
             "window_size": [1328, 945],
+            "room_id_ocr_area_coords": [111, 109, 274, 142],
+            "room_id_keyword": "房间号",
             "start_button_coords": [1100, 900],
             "start_button_ocr_area_coords": [800, 850, 1200, 930],
             "start_game_keyword": "开始游戏",
@@ -141,19 +143,20 @@ class TestFindRoomWindow(unittest.TestCase):
     def tearDown(self):
         _restore_dm_modules(self._orig)
 
-    def test_owner_pid_and_ready_text_return_hwnd(self):
+    def test_owner_pid_and_room_id_text_return_hwnd(self):
         kk = _make_kk()
         target_hwnd = 800
         kk.dm.find_windows.return_value = [
             {"hwnd": target_hwnd, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1328, 945)}
         ]
-        kk.ocr_kk_lines = MagicMock(return_value=[{"text": "取消准备"}])
+        kk.ocr_kk_lines = MagicMock(return_value=[{"text": "房间号：106660"}])
 
         result = kk._find_room_window(kk.dm, owner_pid=5678)
 
         self.assertEqual(result, target_hwnd)
         kk.dm.set_client_size.assert_not_called()
-        kk.ocr_kk_lines.assert_not_called()
+        # 房间识别走 OCR"房间号"区域：客户区与基准同尺寸，区域不缩放
+        kk.ocr_kk_lines.assert_called_once_with(800, {"area_coords": [111, 109, 274, 142]})
 
     def test_owner_pid_mismatch_skips_window(self):
         """PID 不匹配时 find_windows 返回空列表，_find_room_window 返回 0。"""
@@ -183,14 +186,15 @@ class TestFindRoomWindow(unittest.TestCase):
         self.assertEqual(result, 0)
         kk.ocr_kk_lines.assert_not_called()
 
-    def test_non_room_size_is_rejected(self):
+    def test_window_without_room_id_keyword_is_rejected(self):
+        """候选窗口 OCR 未命中"房间号"关键词时不判为房间（即使尺寸接近）。"""
         kk = _make_kk()
         kk.dm.find_windows.return_value = [
-            {"hwnd": 800, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1000, 700)}
+            {"hwnd": 800, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1328, 945)}
         ]
-        kk.dm.get_client_rect.return_value = (0, 0, 1000, 700)
+        kk.ocr_kk_lines = MagicMock(return_value=[{"text": "开始游戏"}])
 
         result = kk._find_room_window(kk.dm, owner_pid=5678)
 
         self.assertEqual(result, 0)
-        kk.ocr_kk_lines.assert_not_called()
+        kk.ocr_kk_lines.assert_called_once()

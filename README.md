@@ -39,7 +39,6 @@ uv run python main.py daily_reputation
 uv run python main.py upgrade_stigmata
 uv run python main.py paladin_wind_dragon
 uv run python main.py ingame_special
-uv run python main.py team_task
 
 # 脚本任务（直接模块）
 uv run python -m GameBot.runner.tasks.war3.jiubing2.others.fishing
@@ -51,6 +50,24 @@ uv run python -m GameBot.runner.tasks.war3.jiubing2.others.paladin_wind_dragon
 uv run python -m GameBot.runner.tasks.war3.jiubing2.festival.ingame_special
 uv run python -m GameBot.runner.tasks.war3.jiubing2.achievements.personal
 ```
+
+### 多开（变体配置）
+
+同一台机器多个账号各跑各的任务：为每个账号建变体配置
+`tasks/<组>/<任务>_<玩家名>.toml`（`extends` 基任务，`[this]` 写
+`target_player`，`[war3]`/`[kk]` 写 `bind_mode="background"`），
+启动时在模块命令后加变体名：
+
+```bash
+# 两个账号同时跑多局无尽（各自停留在自己的 KK 密码房）
+uv run python -m GameBot.runner.tasks.war3.jiubing2.endless.endless endless_善木木
+uv run python -m GameBot.runner.tasks.war3.jiubing2.endless.endless endless_岁月神偷
+```
+
+支持变体的任务：`endless`、`endless_single`、`fishing`、`patrol_loot`、
+`upgrade_stigmata`、`ingame_special`。认领失败任务直接停止；
+Num - 是全局热键，多开时两个脚本会一起停（单独停用各浮窗 ✕ 按钮）。
+详见 [AGENTS.md](AGENTS.md)「多开单任务」。
 
 ## 任务列表
 
@@ -65,7 +82,6 @@ uv run python -m GameBot.runner.tasks.war3.jiubing2.achievements.personal
 | 升级圣痕 | 交替执行城门骚扰与圣痕升级，直到词条达标 | [upgrade_stigmata.md](docs/tasks/upgrade_stigmata.md) |
 | 圣骑士风龙 | 检测技能图标就绪即施放，冷却自动跳过（后台挂机） | — |
 | 局内特殊任务 | 每日声望（黑石+森之城）→ 森之城鱼点钓鱼（节日活动局内脚本） | — |
-| 组队任务 | 多开协作框架，队长建房广播，队员自动加入 | [技术方案](docs/review_reports/技术方案_多开需求.md) |
 
 ## 文档导航
 
@@ -104,7 +120,3 @@ uv run python -m GameBot.runner.tasks.war3.jiubing2.achievements.personal
 uv run python -m pytest tests/unit -v          # 单元测试
 uv run python -m pytest tests/integration -v   # 集成测试
 ```
-
-## 许可证
-
-私有项目，未公开发布。

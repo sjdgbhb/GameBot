@@ -5,11 +5,12 @@
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from typing import Optional
 
-from GameBot.config import config, resolve_bind_cfg
+from GameBot.config import config, get_task_view, resolve_bind_cfg
 from GameBot.inference import get_inference_client
 from GameBot.runner import create_dm_client
 from GameBot.runner.business.war3 import TextMonitor, War3Business
@@ -23,9 +24,15 @@ from GameBot.utils.exception_handler import setup_global_exception_hook
 class PatrolLootTask:
     """巡逻杀怪 + 宝箱拾取任务。"""
 
-    def __init__(self, cfg: dict, stop_event=None, progress_lines_callback=None, dm=None):
+    def __init__(self, cfg: dict, stop_event=None, progress_lines_callback=None, dm=None, task_name: str = ""):
         self.task_cfg = cfg
-        self.cfg = cfg["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]
+        # task_name 非空时走 get_task_view 沿 extends 链合并（变体节点不在固定路径上），
+        # 为空则按固定路径取基础任务节点
+        self.cfg = (
+            get_task_view(cfg, task_name)
+            if task_name
+            else cfg["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]
+        )
         self.dm = dm or create_dm_client()
         self._stop_event = stop_event
         self._progress_lines_callback = progress_lines_callback
@@ -34,6 +41,8 @@ class PatrolLootTask:
         hero_cfg = self.task_cfg.get("hero", {})
 
         self.war3 = War3Business(self.dm, war3_cfg)
+        # 多开认领：变体配置的 target_player（后台绑定时 find_game_window 走窗口认领协议）
+        self.war3.target_player = self.cfg.get("target_player", "")
         self.ui = GameUI(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
         self.combat = CombatHelper(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
         self.war3_cfg = war3_cfg
@@ -124,10 +133,10 @@ class PatrolLootTask:
             self.run_core(hwnd)
 
     def run_core(self, hwnd, skip_feed_only=False):
-        """核心巡逻循环 — 假设窗口已绑定。供 run() 和组队步骤调用。
+        """核心巡逻循环 — 假设窗口已绑定。
 
         :param hwnd: War3 窗口句柄
-        :param skip_feed_only: True 时跳过储物箱满后的仅喂宠物循环（组队模式用）
+        :param skip_feed_only: True 时跳过储物箱满后的仅喂宠物循环
         """
         self.hwnd = hwnd
         self._stats["start_time"] = time.time()
@@ -597,15 +606,30 @@ class PatrolLootTask:
 
 def main():
     setup_global_exception_hook()
-    setup_log_file("刷装备")
-    logger.info("############################# 刷装备任务 #############################")
+    # 命令行参数可指定变体配置名（如 patrol_loot_善木木 认领指定玩家窗口）
+    # 用法：python -m GameBot.runner.tasks.war3.jiubing2.others.patrol_loot patrol_loot_善木木
+    base_task_name = "war3.jiubing2.tasks.others.patrol_loot"
+    task_name = base_task_name
+    if len(sys.argv) > 1:
+        leaf_arg = sys.argv[1]
+        task_name = leaf_arg if "." in leaf_arg else f"war3.jiubing2.tasks.others.{leaf_arg}"
+    cfg = config.load_task(task_name)
 
-    cfg = config.load_task("war3.jiubing2.tasks.others.patrol_loot")
-    route_scheme = cfg["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"].get("route_scheme", "")
-    title = f"刷装备（{route_scheme}）" if route_scheme else "刷装备"
+    # 显示名动态计算：变体配置带 target_player 时拼上玩家名
+    task_view = get_task_view(cfg, task_name)
+    route_scheme = task_view.get("route_scheme", "")
+    target_player = task_view.get("target_player", "")
+    title = f"刷装备-{target_player}" if target_player else (f"刷装备（{route_scheme}）" if route_scheme else "刷装备")
+
+    setup_log_file(title)
+    logger.info(f"############################# {title} #############################")
+    if task_name != base_task_name:
+        logger.info(f"使用指定配置: {task_name}")
 
     def task_wrapper(stop_event, progress_callback=None, **kwargs):
-        task = PatrolLootTask(cfg, stop_event=stop_event, progress_lines_callback=kwargs.get("progress_lines_callback"))
+        task = PatrolLootTask(
+            cfg, stop_event=stop_event, progress_lines_callback=kwargs.get("progress_lines_callback"), task_name=task_name
+        )
         task.run()
 
     run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=cfg.get("base", {}).get("float_window", {}))
@@ -613,97 +637,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# ── 组队任务步骤 ────────────────────────────────────────────
-
-
-from GameBot.runner.business.war3.jiubing2.team_steps_base import Jiubing2TaskSteps
-
-
-class _PatrolLootSteps(Jiubing2TaskSteps):
-    """刷装备组队步骤 — position_init 导航至巡逻区域，run_task 执行巡逻拾取。"""
-
-    def position_init(self, member, stop_event=None, **kwargs):
-        """就位 — 折叠属性面板 → TP至米奈希尔 → 点击复活石传送至巡逻区域 → 移动到路线最后一个点。
-
-        使用米奈希尔tp -> 点击米奈希尔复活石里的传送至 strange_land/unknown_cave 无延迟 -> 对应路线的最后一个位置。
-        """
-        from GameBot.runner.business.war3.jiubing2.team_steps_base import _build_business_objects
-
-        ui, nav, combat, runner = _build_business_objects(member)
-        patrol_cfg = (
-            member.task_cfg.get("war3", {})
-            .get("jiubing2", {})
-            .get("tasks", {})
-            .get("others", {})
-            .get("patrol_loot", {})
-        )
-
-        if not patrol_cfg:
-            logger.error("position_init 缺少 patrol_loot 配置")
-            member._flow_failed = True
-            return
-
-        route_scheme = patrol_cfg.get("route_scheme", "")
-        points = patrol_cfg.get("points", [])
-        if not points:
-            route_presets = patrol_cfg.get("route_presets", [])
-            for preset in route_presets:
-                if preset.get("name") == route_scheme:
-                    points = preset.get("points", [])
-                    break
-
-        if not points:
-            logger.error(f"路线方案「{route_scheme}」未找到路线点")
-            member._flow_failed = True
-            return
-
-        logger.info(f"组队刷装备就位：路线方案「{route_scheme}」，路线点 {len(points)} 个")
-        ui.switch_attribute_panel(is_fold=True, stop_event=stop_event)
-        # TP至米奈希尔 → 点击复活石传送至巡逻区域
-        nav.tp_to_patrol_area(route_scheme, stop_event)
-        # 移动到路线最后一个点（靠近裂隙，方便后续巡逻循环从第一个点开始）
-        last_pt = points[-1]
-        member.war3.move_to_minimap_point(
-            last_pt.get("mini_coords"),
-            last_pt.get("coords"),
-            last_pt.get("walk_mode", 1),
-            last_pt.get("time", 3),
-            stop_event=stop_event,
-        )
-        logger.info("组队刷装备就位完成")
-
-    def run_task(self, member, stop_event=None, **kwargs):
-        """巡逻杀怪 + 宝箱拾取主循环。"""
-        # 校验必须携带宠物食物（id=9），否则宠物会逃亡
-        if not get_inventory_hotkeys(member.hero_cfg, 9):
-            logger.error("未装备宠物食物（物品 id=9），任务拒绝启动")
-            member._flow_failed = True
-            return
-
-        task = PatrolLootTask(member.task_cfg, stop_event=stop_event, dm=member.dm)
-        hwnd = member._current_war3_hwnd
-        if not hwnd:
-            logger.error("run_task 无可用 War3 窗口句柄")
-            member._flow_failed = True
-            return
-        try:
-            task.run_core(hwnd, skip_feed_only=True)
-        except StopTaskError:
-            logger.info("用户请求停止刷装备")
-            raise
-        except Exception as e:
-            logger.error(f"刷装备任务异常: {e}")
-            member._flow_failed = True
-
-    def pre_exit(self, member, stop_event: Optional[threading.Event] = None, **kwargs) -> None:
-        """退出前无需额外操作（存档由路线点 action 触发）。"""
-        pass
-
-
-_steps = _PatrolLootSteps()
-preparation = _steps.preparation
-position_init = _steps.position_init
-pre_exit = _steps.pre_exit
-run_task = _steps.run_task

@@ -1,6 +1,6 @@
 """派生值解析 — 从源配置推导运行时字段的公共逻辑。
 
-被 Config.load_task 与组队路径（team/base.py）等非标准加载路径共用，
+被 Config.load_task 与非标准加载路径（exe 入口用户覆盖后补解析等）共用，
 避免同一段推导逻辑在多处手写复制。
 
 bind 参数表不预写入配置字典，由调用点用 resolve_bind_cfg 按 bind_mode
@@ -70,11 +70,11 @@ def _deep_merge(base: dict, override: dict):
 
 
 def resolve_item_names(inventory: list, items: list) -> int:
-    """将 inventory 条目中的 item（物品名）解析为 item_id（原地修改）。
+    """将条目中的 item（物品名）解析为 item_id（原地修改）。
 
     支持用物品名替代数字 ID，提升配置可读性。已有 item_id 的条目不受影响。
 
-    :param inventory: 物品栏条目列表（原地修改）
+    :param inventory: 条目列表（原地修改）
     :param items: 物品定义表（含 id/name 字段，如 jiubing2.toml 的 items）
     :return: 成功解析的条目数
     """
@@ -92,6 +92,39 @@ def resolve_item_names(inventory: list, items: list) -> int:
                 resolved += 1
             else:
                 logger.warning(f"物品名 '{name}' 未在物品定义表中找到，请检查 items 配置")
+    return resolved
+
+
+def resolve_action_item_names(tasks_cfg: dict, items: list) -> int:
+    """将任务路径点 actions 中 type="item" 条目的 item（物品名）解析为 item_id（原地修改）。
+
+    递归扫描 tasks 配置树中所有含 "actions" 列表的节点；
+    只有 type="item" 的条目参与解析（type="skill" 的 skill 是技能名，不受影响）。
+
+    :param tasks_cfg: war3.jiubing2.tasks 命名空间配置 dict
+    :param items: 物品定义表（含 id/name 字段）
+    :return: 成功解析的条目数
+    """
+    resolved = 0
+
+    def _walk(node):
+        nonlocal resolved
+        if isinstance(node, dict):
+            actions = node.get("actions")
+            if isinstance(actions, list):
+                item_acts = [
+                    a for a in actions
+                    if isinstance(a, dict) and a.get("type") == "item"
+                ]
+                resolved += resolve_item_names(item_acts, items)
+            for v in node.values():
+                _walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                _walk(v)
+
+    if isinstance(tasks_cfg, dict):
+        _walk(tasks_cfg)
     return resolved
 
 
@@ -125,7 +158,7 @@ def force_bind_mode(config: dict, mode: str):
 
     :param config: 合并后的配置字典（含 war3/kk 命名空间节点）
     :param mode: 强制模式（"foreground"/"background"），
-        组队多成员强转后台等场景使用
+        手动测试脚本等需要强制绑定模式的场景使用
     """
     for ns in ("war3", "kk"):
         ns_cfg = config.get(ns)

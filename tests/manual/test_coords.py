@@ -1,7 +1,7 @@
 """坐标测试工具 — 绑定 war3 窗口后，鼠标移动到指定坐标 / 框选指定区域。
 
-用法（主环境 .venv）：
-  .venv/Scripts/python.exe tests/manual/test_coords.py
+用法（主环境 .venv，即 uv run）：
+  uv run python tests/manual/test_coords.py
 
 流程：
   1. 浮窗倒计时（按 Num- 可停止）
@@ -21,11 +21,10 @@ from GameBot.runner.ui import run_with_float_window
 # ==================== 配置区 ====================
 
 # 鼠标移动目标坐标 [x, y]（客户区坐标，基于 1902x1033）
-# MOVE_COORDS = [253,865]
 MOVE_COORDS = [1039, 405]
 
 # 框选区域 [x1, y1, x2, y2]（客户区坐标，基于 1902x1033）
-BOX_COORDS = [850, 350, 1200, 450]
+BOX_COORDS = [971,371,991,389]
 
 # 每次操作后停留时间（秒），供观察
 HOLD_TIME = 5
@@ -37,8 +36,8 @@ INTERVAL_TIME = 2
 #   ("box", [x1, y1, x2, y2]) — 框选区域
 #   ("move", [x, y])          — 移动鼠标到坐标
 STEPS = [
-    # ("box", BOX_COORDS),
-    ("move", MOVE_COORDS),
+    ("box", BOX_COORDS),
+    # ("move", MOVE_COORDS),
 ]
 
 # ==================== 逻辑区 ====================

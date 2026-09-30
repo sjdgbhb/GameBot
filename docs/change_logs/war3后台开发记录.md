@@ -270,3 +270,95 @@ class WgcCapture:
 
 **`dm.input_guard()`**（已实测回退）
 - `_io_lock` 包住关键输入序列防并发截图，持锁区段外仍周期性卡顿/丢光标
+
+---
+
+## 2026-09-24 后台模式收尾：读图期零操作认领、KK 房间 token 防刷屏、变体机制推广
+
+> 状态：**已实机验证并合并** | 关联任务：`endless`（含变体）、`endless_single`、
+> `fishing`、`patrol_loot`、`upgrade_stigmata`、`ingame_special` 及各自变体
+
+### 解决的问题
+
+1. **多开读图卡死加载页**（2026-09-18 实机定位）：两个实例读图重叠时，
+   脚本对窗口做 `set_client_size`/`BindWindowEx`(dx2+active.api) 导致其中一方
+   卡死——WGC 帧流正常（加载页动画在跑）但读条永不推进，`wait_enter_game`
+   120s 超时。手动双开同刻读图无此问题 → 肇事者是注入操作而非读图并发本身
+2. **难度界面在场时无法验归属**：进游戏后发聊天 token 需要 Enter 开聊天框，
+   但难度选择界面在场时 Enter 会误选默认难度；且各账号难度可能不同，
+   必须先验归属再选难度
+3. **KK 房间窗口识别不可靠**：大厅与房间类名/标题相同，尺寸过滤不严谨
+   （窗口可被拉伸）
+4. **token 灌屏**：认领重试时每轮重发 token，晚到的消息灌进聊天区，
+   且旧 marker 行残留会导致错领归属
+5. **遗留任务卡接取**：原子任务接取被拒（"已经接取"上次遗留未完成）直接判失败
+
+### 方案与改动
+
+**war3 加载页只读认领（多局任务）**
+
+- 读图期对窗口**零操作**（不占窗口、不改尺寸、不绑定），与手动启动等价：
+  只做 WGC 只读检测（`is_in_game(hwnd)`/`ocr_lines(hwnd)`）+ 内核互斥锁
+- `claim_war3_window` 的 `identify` 改分阶段回调（endless 的
+  `_identify_claim_window`）：加载页 OCR 玩家列表 / 已进游戏且无难度界面
+  时聊天 token / 难度界面在场返回 "" 跳过本轮
+- 进游戏后：无绑定 WGC 轮询（`wait_enter_game(hwnd)`）→ 统一尺寸 → 绑定 →
+  `wait_and_select_difficulty` 按本账号配置选难度；init 等待扣除难度选定后
+  已流逝时间（`difficulty_selected_time`）
+- 认领过程不再统一 `set_client_size`——需要输入的 identify 实现内部自行
+  对齐尺寸并绑定；未统一尺寸窗口的检测区域按"实际-校准"尺寸差外扩
+  （`_size_tolerant_area`）
+- 认领跳过：已销毁（IsWindow）、已最小化（IsIconic，WGC 无帧）、已验明
+  非本账号（mismatched 集合，本次认领内不再重试）的窗口
+- 认领失败直接终止；**绝不对未认领窗口发退出键清场**（未进游戏的窗口
+  可能属于其他玩家）。单开兜底：找不到窗口时对所有未认领 war3 窗口发
+  退出键清场（单开本机窗口必属本玩家）
+
+**KK 房间认领防刷屏 + OCR 房间号识别**
+
+- 房间窗口识别改为 OCR 左上角"房间号：xxx"区域（`room_id_ocr_area_coords`
+  按窗口实际尺寸等比缩放，`room_id_keyword="房间号"` 命中判定），
+  结论按 hwnd 缓存（`_room_verdicts`）；`size_tolerance` 移除
+- token 防刷屏：发送前先查聊天记录，本进程 marker 已上屏直接解析归属；
+  未上屏才发，**每窗口每轮最多发 1 次**，之后只重读（`send_retries` 调到 8，
+  回显慢实测可超 10s）；归属名解析失败只重截屏重试，不重发
+- `_find_marker_owner`：OCR 去空格比 marker；无"："分隔符时取 marker 前
+  文本段兜底；"玩家名："与消息被拆两行时回看上一行
+- war3 聊天 token 同理：优先整串命中本次 token，退化取最下方（最新）
+  marker 行，避免旧 token 残留行错领
+
+**变体机制推广**
+
+- 变体支持扩展到 `endless_single` / `patrol_loot` / `upgrade_stigmata`
+  （此前仅 endless/fishing/ingame_special）：`main()` 解析 `argv[1]` 变体名，
+  任务类改收 `task_name` 走 `get_task_view`；浮窗标题拼 `target_player`
+  区分实例
+- `AtomicLoopTask`/`PatrolLootTask` 等接受 `task_name` 参数，
+  空串时按固定路径取节点（组队等旧调用方式不变）
+
+**其他收尾**
+
+- 原子任务 `_accept` 拆分 `_try_accept` + `_handle_already_accepted`：
+  命中 `already_accepted_text` 时 `-rw` 弹窗点任务名→点"放弃"→等待
+  `abandon_wait_time` 后重接一次
+- 配置统一 `item = "名称"` 写法：inventory 与路径点 `actions` 中
+  `type="item"` 条目在 `load_task` 时解析为 `item_id`
+  （`resolve_action_item_names`）；`combat_helper` 删除旧格式兼容
+  （inventory 内联 hotkey、`id` 字段），业务侧只读 `item_id`
+- `close_window_by_x` 加 `bind_cfg` 参数：后台任务须显式传入，
+  缺省 normal 前台绑定（弹窗被遮挡时物理点击落空）；KK 弹窗清理/
+  掉线取消重连均改为 bind 上下文内点击
+- `open_card_window`：F4 是开关切换，先检测窗口是否已开再决定按不按；
+  `card_show_delta_color` 补偿 WGC 渲染与老模板的色差
+- 圣痕面板 OCR：词条列表保留全部词条（含未配置上限的占位），索引即
+  技能板列号-1；`num_coords` 右边界外扩防行尾数字被裁
+- WGC 帧停滞分级：窗口销毁/最小化/锁屏（OpenInputDesktop 不可达）抛
+  `CaptureError`；窗口健康但应用忙（war3 读图单线程不产帧）沿用最后一帧
+  继续轮询，不误杀任务
+
+### 验证
+
+- 双开 endless（善木木/岁月神偷变体）多局连续运行：读图重叠不再卡死，
+  认领/选难度/难度差异均正确
+- KK 房间 token 认领：双开互不干扰，token 不灌屏，归属识别稳定
+- 冒烟：`tests/manual/test_war3_claim.py`、`tests/manual/test_kk_room_claim.py`

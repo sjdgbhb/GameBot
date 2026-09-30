@@ -75,7 +75,7 @@ class TestDoWar3BossTimeout(unittest.TestCase):
         from GameBot.runner.business.war3.jiubing2.endless_runner import BossDeathTimeoutError
 
         task = self._make_task()
-        task.war3.wait_for_game_window.return_value = 123
+        task.war3.claim_war3_window.return_value = 123
         # bind_window 上下文管理器
         ctx = MagicMock()
         task.dm.bind_window.return_value = ctx
@@ -92,7 +92,7 @@ class TestDoWar3BossTimeout(unittest.TestCase):
     def test_do_war3_normal_complete_quits_game(self, mock_time):
         """正常完成时也应调用 quit_game。"""
         task = self._make_task()
-        task.war3.wait_for_game_window.return_value = 123
+        task.war3.claim_war3_window.return_value = 123
         ctx = MagicMock()
         task.dm.bind_window.return_value = ctx
         task.runner.start_endless.return_value = None  # 正常完成
@@ -109,7 +109,7 @@ class TestDoWar3BossTimeout(unittest.TestCase):
 
         task = self._make_task()
         task.kk_cfg = {"create_room_window_class": "CreateClass", "window_title": "KKTitle"}
-        task.war3.wait_for_game_window.return_value = 123
+        task.war3.claim_war3_window.return_value = 123
         ctx = MagicMock()
         task.dm.bind_window.return_value = ctx
         task.runner.start_endless.side_effect = WindowLostError("窗口消失")
@@ -119,10 +119,10 @@ class TestDoWar3BossTimeout(unittest.TestCase):
         self.assertFalse(result)
         task.war3.quit_game.assert_not_called()
 
-    # 多开：claim_war3_window 加载页面认领本账号窗口
+    # 多开：claim_war3_window 加载页只读认领本账号窗口
     @patch("GameBot.runner.tasks.war3.jiubing2.endless.endless.time")
     def test_do_war3_multi_instance_claims_window(self, mock_time):
-        """target_player 配置时走 claim_war3_window + 加载页 identify 认领本账号窗口。"""
+        """target_player 配置时走 claim_war3_window + 分阶段归属验证认领本账号窗口。"""
         task = self._make_task()
         task.target_player = "Player1"
         task.war3.claim_war3_window.return_value = 123
@@ -135,9 +135,9 @@ class TestDoWar3BossTimeout(unittest.TestCase):
         task.war3.release_war3_claim.assert_called_once()
         task.war3.claim_war3_window.assert_called_once()
         task.war3.wait_for_game_window.assert_not_called()
-        # 归属验证走加载页面玩家列表（identify_war3_owner），非聊天 token
+        # 归属验证走分阶段回调：加载页只读 OCR / 进游戏聊天 token / 难度界面跳过
         _, kwargs = task.war3.claim_war3_window.call_args
-        self.assertIs(kwargs["identify"], task.war3.identify_war3_owner)
+        self.assertEqual(kwargs["identify"], task._identify_claim_window)
 
     # 多开：认领失败终止任务
     def test_do_war3_multi_instance_claim_fail_raises(self):
@@ -269,7 +269,7 @@ class TestDoWar3TimeoutError(unittest.TestCase):
     def test_do_war3_timeout_error_quits_game(self, mock_time):
         """TimeoutError 应触发 quit_game 并返回 False。"""
         task = self._make_task()
-        task.war3.wait_for_game_window.return_value = 123
+        task.war3.claim_war3_window.return_value = 123
         ctx = MagicMock()
         task.dm.bind_window.return_value = ctx
         task.runner.start_endless.side_effect = TimeoutError("加载超时")

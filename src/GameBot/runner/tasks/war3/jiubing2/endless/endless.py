@@ -2,12 +2,15 @@
 多局无尽刷分 — 完整流程：KK → War3 → 准备 → 进皇宫 → 进无尽 → 循环 → 退出
 
 多开用法（本机两个玩家各跑各的多局无尽，互不干扰）：
-    .venv/Scripts/python -m GameBot.runner.tasks.war3.jiubing2.endless.endless endless_善木木
+    uv run python -m GameBot.runner.tasks.war3.jiubing2.endless.endless endless_善木木
 变体配置 tasks/endless/endless_<玩家名>.toml 需写 target_player、
 [war3]/[kk] bind_mode="background"（多开必须后台绑定）等差异字段：
 - KK 侧：认领本账号房间窗口——聊天输入框发随机 token，OCR 聊天记录区"玩家名：token"
   提取归属；认领后拿到 owner_pid，弹窗/掉线处理全按 PID 过滤
-- War3 侧：每局在加载页面 OCR 玩家列表认领本账号窗口（命名互斥锁互斥）
+- War3 侧：加载页只读认领（WGC OCR 玩家列表 + 内核互斥锁，读图期对窗口
+  零操作），进游戏后等待→统一尺寸→绑定→按本账号配置选难度。实测读图期
+  对窗口注入 dx 绑定会使多开另一实例卡死加载页；难度界面在场时无法发
+  聊天 token 验归属（Enter 会误选默认难度），故认领必须在加载页完成
 - 任一认领失败任务直接停止，避免误操作另一账号窗口
 启动要求：账号停留在 KK 房间内（创建好密码房即可运行）
 """
@@ -29,7 +32,7 @@ from GameBot.runner.business.war3.jiubing2 import (
 from GameBot.runner.business.war3.jiubing2.endless_runner import BossDeathTimeoutError
 from GameBot.runner.ui import run_with_float_window
 from GameBot.utils import StopTaskError, WindowLostError, logger, setup_log_file
-from GameBot.utils.exception_handler import setup_global_exception_hook
+from GameBot.utils.exception_handler import CaptureError, setup_global_exception_hook
 
 
 class EndlessTask:
@@ -121,40 +124,88 @@ class EndlessTask:
         else:
             time.sleep(seconds)
 
+    def _identify_claim_window(self, hwnd: int) -> str:
+        """认领归属验证（只读优先，按窗口所处阶段选择方式）——多局任务认领模式。
+
+        对应"局内任务认领"（ingame_special 等直接用默认聊天 token，启动时已在
+        游戏内）：多局任务窗口随每局重开，认领须赶在加载页完成。
+
+        - 加载页：OCR 玩家列表判归属（纯 WGC 读帧，对窗口零操作）
+        - 已进游戏：发聊天 token 验证（内部自行对齐尺寸并绑定）
+        - 已进游戏但难度选择界面在场：返回 "" 跳过本轮——此时 Enter 会误选
+          默认难度而非打开聊天框，token 不可用（不同账号难度可能不同，
+          绝不能在归属未确认时触碰难度界面）
+        """
+        try:
+            if not self.war3.is_in_game(hwnd):
+                return self.war3.identify_war3_owner(hwnd)
+            if self.ui.is_difficulty_visible(hwnd):
+                logger.debug(f"war3 窗口 {hwnd} 难度选择界面在场，本轮无法发 token 验归属")
+                return ""
+            return self.war3._identify_owner_by_chat(hwnd, self._stop_event)
+        except CaptureError:
+            return ""  # WGC 会话尚无帧/窗口将销毁等瞬时失败，本轮跳过下轮再试
+
     def do_war3(self, game_idx) -> bool:
         """执行单局 War3 流程。
 
         :return: True=本局正常完成, False=本局异常已跳过
         """
         logger.debug("已进入war3，等待地图加载")
-        if self.target_player:
-            # 多开认领：上局窗口随 quit_game 销毁，先释放旧认领；
-            # 本局在加载页面 OCR 玩家列表判归属（加载页只显示窗口自己的玩家，
-            # 认领须赶在加载阶段完成；失败终止任务，避免误操作另一账号窗口）。
-            self.war3.release_war3_claim()
-            claim_timeout = float(
-                self.war3_cfg.get("wait_for_game_window", {}).get("timeout", 60)
-            ) + float(self.war3_cfg.get("in_game_detect", {}).get("timeout", 120))
-            hwnd = self.war3.claim_war3_window(
-                self.target_player,
-                stop_event=self._stop_event,
-                claim_timeout=claim_timeout,
-                identify=self.war3.identify_war3_owner,
-            )
-            if not hwnd:
+        # 读图期对 war3 窗口零操作（与手动启动一致）：加载页只做只读 OCR 认领
+        # + 内核互斥锁（不占窗口、不改尺寸、不绑定、不注入）。实测两个实例读图
+        # 重叠时对窗口改尺寸/注入 dx 绑定会使其中一方卡死加载页。
+        # 认领必须在加载页完成：难度界面在场时无法发聊天 token 验归属
+        # （Enter 会误选默认难度），且各账号难度可能不同，必须先验归属再选难度。
+        # 上局窗口随 quit_game 销毁，先释放旧认领。
+        self.war3.release_war3_claim()
+        self._difficulty_selected_time = 0.0  # 每局重置，选完难度时打点
+        claim_timeout = float(self.war3_cfg.get("wait_for_game_window", {}).get("timeout", 60)) + float(
+            self.war3_cfg.get("in_game_detect", {}).get("timeout", 120)
+        )
+        hwnd = self.war3.claim_war3_window(
+            self.target_player,
+            stop_event=self._stop_event,
+            claim_timeout=claim_timeout,
+            identify=self._identify_claim_window,
+        )
+        if not hwnd:
+            if self.target_player:
+                # 认领失败直接终止——归属未确认时继续运行可能误操作另一账号窗口。
+                # 注意不能对未认领窗口发退出键清场：未进游戏的窗口可能属于其他玩家
                 raise RuntimeError(f"未认领到归属 {self.target_player} 的 War3 窗口，任务停止")
-        else:
-            hwnd = self.war3.wait_for_game_window(self._stop_event, timeout=60)
-            if not hwnd:
-                logger.error("未找到 War3 窗口，跳过本局")
-                self._handle_kk_disconnect()
-                return False
+            # 单开兜底：未进游戏的窗口必属本机玩家，发退出键清场后下轮重开
+            self._quit_stuck_war3_windows()
+            logger.error("未找到 War3 窗口，跳过本局")
+            self._handle_kk_disconnect()
+            return False
+        # 等进游戏：无绑定 WGC 轮询，读图期不触碰窗口
+        try:
+            self.runner.wait_enter_game(self, self._stop_event, hwnd=hwnd)
+        except TimeoutError as e:
+            logger.error(f"卡在加载界面，关闭 War3：{e}")
+            # 窗口已认领为本账号（持互斥锁），可安全绑定发退出键
+            with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
+                self.war3.quit_game()
+            return False
+        except WindowLostError:
+            logger.error("掉线，War3 窗口消失")
+            self._handle_kk_disconnect()
+            return False
         self.war3.set_client_size(hwnd)
         try:
             with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
                 try:
-                    self.runner.wait_enter_game(self, self._stop_event)
-                    self.runner.do_preparation_phase(self.endless_cfg, self._stop_event)
+                    # 进游戏后按本账号配置选难度（界面不在场则跳过）
+                    if self.ui.wait_and_select_difficulty(hwnd, self.endless_cfg, self._stop_event):
+                        self._difficulty_selected_time = time.time()
+                    # init 等待扣除难度选定后已流逝的时间
+                    self.runner.do_preparation_phase(
+                        self.endless_cfg,
+                        self._stop_event,
+                        skip_select_difficulty=True,
+                        difficulty_selected_time=self._difficulty_selected_time,
+                    )
                     self.ui.switch_attribute_panel(is_fold=True, stop_event=self._stop_event)
                     self.nav.enter_palace(self._stop_event)
                     self.nav.enter_endless(self, self.endless_cfg, self._stop_event)
@@ -180,6 +231,21 @@ class EndlessTask:
     def _handle_kk_disconnect(self) -> None:
         """检测并处理 KK 掉线重连弹窗（多开时按本账号 PID 过滤）。"""
         self.kk.handle_disconnect_dialog(self.dm, owner_pid=self.owner_pid)
+
+    def _quit_stuck_war3_windows(self) -> None:
+        """单开兜底：对所有未认领 war3 窗口发退出键，清理可能卡死加载页的窗口。
+
+        仅在单开路径调用（target_player 为空）——此时本机所有 war3 窗口均属
+        本玩家，可直接操作；多开路径绝不可调用（未认领窗口可能属于其他玩家）。
+        """
+        wins = self.dm.find_windows(self.war3_cfg.get("window_class", ""), self.war3_cfg.get("window_title", ""))
+        for w in wins:
+            hwnd = w["hwnd"]
+            try:
+                with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
+                    self.war3.quit_game()
+            except Exception as e:
+                logger.warning(f"清理疑似卡死 war3 窗口 {hwnd} 失败：{e}")
 
     def run(self, stop_event=None, progress_callback=None):
         self._stop_event = stop_event

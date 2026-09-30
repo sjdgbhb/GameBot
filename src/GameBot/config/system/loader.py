@@ -128,7 +128,7 @@ class ConfigLoaderMixin:
     def namespace_roots(self) -> FrozenSet[str]:
         """命名空间根集合：显式注册表 NAMESPACE_ROOTS（不随目录扫描变化）。
 
-        只登记一级领域名（war3/kk/team/base/web）；war3 内部的 tasks/heroes/scenes
+        只登记一级领域名（war3/kk/base/web）；war3 内部的 tasks/heroes/scenes
         等子目录不参与判定——新增任务/英雄/场景/变体文件无需登记。
         config_dir 下出现未登记的一级目录或顶层 .toml 时告警：其顶层键会被当作
         命名空间节点保留在路径下（多半不是预期），新增一级命名空间请登记 NAMESPACE_ROOTS。
@@ -163,7 +163,7 @@ class ConfigLoaderMixin:
 
         规则：
         - hero → 顶层键（局内唯一英雄，任务层横向覆盖英雄层的通道）
-        - 命名空间根键（war3/kk/base/team/web）→ 命名空间节点，保留在路径下
+        - 命名空间根键（war3/kk/base/web）→ 命名空间节点，保留在路径下
         - 其余裸键 → 报错：请用 [this.xxx] 归入自身命名空间
           （旧设计把这些键提升到顶层"共享区"，已废弃——所有配置必须归属命名空间）
         """

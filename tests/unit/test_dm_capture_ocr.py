@@ -1,7 +1,6 @@
 """bind_window / bind_background 相关单元测试。
 
-覆盖 TeamMemberBase bind_background 切换、BindWindowEx、resolve_bind_cfg /
-force_bind_mode、bind_window 重入等。
+覆盖 BindWindowEx、resolve_bind_cfg / force_bind_mode、bind_window 重入等。
 """
 
 import sys
@@ -46,198 +45,6 @@ def mock_windows():
     originals = _mock_dm_modules()
     yield
     _restore_dm_modules(originals)
-
-
-# ── TeamMemberBase bind_background 切换测试 ────────────────
-
-
-class TestTeamMemberBindMulti:
-    """测试 TeamMemberBase 根据成员数/bind_mode 切换 bind_background。"""
-
-    def test_single_member_keeps_bind(self, tmp_path, monkeypatch):
-        """单成员时保持 bind 配置不变。"""
-        monkeypatch.setattr("GameBot.runner.team.base.create_dm_client", lambda: MagicMock())
-        monkeypatch.setattr("GameBot.runner.team.base.KKBusiness", lambda dm, cfg: MagicMock())
-        monkeypatch.setattr("GameBot.runner.team.base.War3Business", lambda dm, cfg: MagicMock())
-
-        from GameBot.runner.team.base import TeamMemberBase
-        from GameBot.runner.team.ipc import TeamIPC
-
-        class TestMember(TeamMemberBase):
-            def get_role(self):
-                return "leader"
-
-            def kk_phase(self, round_num):
-                return True
-
-        cfg = {
-            "war3": {
-                "bind_foreground": {"display": "normal", "mouse": "normal", "keypad": "normal", "mode": 0},
-                "bind_background": {"display": "dx2", "mouse": "windows3", "keypad": "windows", "mode": 0},
-            },
-            "hero": {"inventory": []},
-            "kk": {
-                "bind_foreground": {"display": "normal", "mouse": "normal", "keypad": "normal", "mode": 0},
-                "bind_background": {"display": "gdi2", "mouse": "windows3", "keypad": "windows", "mode": 0},
-            },
-            "team": {
-                "team_task": {
-                    "rounds": 0,
-                    "members": [{"role": "leader", "target_player": "p1"}],
-                }
-            },
-        }
-        ipc = TeamIPC("test", str(tmp_path / "ipc"))
-        member = TestMember(cfg, cfg["team"]["team_task"]["members"][0], ipc, "p1")
-
-        assert resolve_bind_cfg(member.kk_cfg)["display"] == "normal"
-        assert resolve_bind_cfg(member.war3_cfg)["display"] == "normal"
-
-    def test_multi_members_switch_bind_background(self, tmp_path, monkeypatch):
-        """多成员时 bind_background 配置覆盖 bind 配置。"""
-        monkeypatch.setattr("GameBot.runner.team.base.create_dm_client", lambda: MagicMock())
-        monkeypatch.setattr("GameBot.runner.team.base.KKBusiness", lambda dm, cfg: MagicMock())
-        monkeypatch.setattr("GameBot.runner.team.base.War3Business", lambda dm, cfg: MagicMock())
-
-        from GameBot.runner.team.base import TeamMemberBase
-        from GameBot.runner.team.ipc import TeamIPC
-
-        class TestMember(TeamMemberBase):
-            def get_role(self):
-                return "leader"
-
-            def kk_phase(self, round_num):
-                return True
-
-        cfg = {
-            "war3": {
-                "bind_foreground": {"display": "normal", "mouse": "normal", "keypad": "normal", "mode": 0},
-                "bind_background": {
-                    "display": "dx2",
-                    "mouse": "windows3",
-                    "keypad": "windows",
-                    "mode": 0,
-                    "bind_delay": 1.5,
-                },
-            },
-            "hero": {"inventory": []},
-            "kk": {
-                "bind_foreground": {"display": "normal", "mouse": "normal", "keypad": "normal", "mode": 0},
-                "bind_background": {
-                    "display": "gdi2",
-                    "mouse": "windows3",
-                    "keypad": "windows",
-                    "mode": 0,
-                    "bind_delay": 1.0,
-                },
-            },
-            "team": {
-                "team_task": {
-                    "rounds": 0,
-                    "members": [
-                        {"role": "leader", "target_player": "p1"},
-                        {"role": "follower", "target_player": "p2"},
-                    ],
-                }
-            },
-        }
-        ipc = TeamIPC("test", str(tmp_path / "ipc"))
-        member = TestMember(cfg, cfg["team"]["team_task"]["members"][0], ipc, "p1")
-
-        assert member.kk_cfg["bind_mode"] == "background"
-        assert member.war3_cfg["bind_mode"] == "background"
-        kk_bind = resolve_bind_cfg(member.kk_cfg)
-        assert kk_bind["display"] == "gdi2"
-        assert kk_bind["mouse"] == "windows3"
-        assert kk_bind["bind_delay"] == 1.0
-        war3_bind = resolve_bind_cfg(member.war3_cfg)
-        assert war3_bind["display"] == "dx2"
-        assert war3_bind["mouse"] == "windows3"
-        assert war3_bind["bind_delay"] == 1.5
-
-    def test_bind_mode_foreground_multi_member_forces_back(self, tmp_path, monkeypatch):
-        """bind_mode=foreground 但多成员时，强制用后台 bind_background。"""
-        monkeypatch.setattr("GameBot.runner.team.base.create_dm_client", lambda: MagicMock())
-        monkeypatch.setattr("GameBot.runner.team.base.KKBusiness", lambda dm, cfg: MagicMock())
-        monkeypatch.setattr("GameBot.runner.team.base.War3Business", lambda dm, cfg: MagicMock())
-
-        from GameBot.runner.team.base import TeamMemberBase
-        from GameBot.runner.team.ipc import TeamIPC
-
-        class TestMember(TeamMemberBase):
-            def get_role(self):
-                return "leader"
-
-            def kk_phase(self, round_num):
-                return True
-
-        cfg = {
-            "war3": {
-                "bind_foreground": {"display": "normal"},
-                "bind_background": {"display": "dx2"},
-            },
-            "hero": {"inventory": []},
-            "kk": {
-                "bind_foreground": {"display": "normal"},
-                "bind_background": {"display": "gdi2"},
-            },
-            "team": {
-                "team_task": {
-                    "rounds": 0,
-                    "bind_mode": "foreground",
-                    "members": [
-                        {"role": "leader", "target_player": "p1"},
-                        {"role": "follower", "target_player": "p2"},
-                    ],
-                }
-            },
-        }
-        ipc = TeamIPC("test", str(tmp_path / "ipc"))
-        member = TestMember(cfg, cfg["team"]["team_task"]["members"][0], ipc, "p1")
-
-        # 多成员强制后台，即使 bind_mode=foreground
-        assert resolve_bind_cfg(member.kk_cfg)["display"] == "gdi2"
-        assert resolve_bind_cfg(member.war3_cfg)["display"] == "dx2"
-
-    def test_bind_mode_background_forces_back(self, tmp_path, monkeypatch):
-        """bind_mode=background 时即使单成员也用 bind_background。"""
-        monkeypatch.setattr("GameBot.runner.team.base.create_dm_client", lambda: MagicMock())
-        monkeypatch.setattr("GameBot.runner.team.base.KKBusiness", lambda dm, cfg: MagicMock())
-        monkeypatch.setattr("GameBot.runner.team.base.War3Business", lambda dm, cfg: MagicMock())
-
-        from GameBot.runner.team.base import TeamMemberBase
-        from GameBot.runner.team.ipc import TeamIPC
-
-        class TestMember(TeamMemberBase):
-            def get_role(self):
-                return "leader"
-
-            def kk_phase(self, round_num):
-                return True
-
-        cfg = {
-            "war3": {
-                "bind_foreground": {"display": "normal"},
-                "bind_background": {"display": "dx2", "bind_delay": 1.5},
-            },
-            "hero": {"inventory": []},
-            "kk": {
-                "bind_foreground": {"display": "normal"},
-                "bind_background": {"display": "gdi2", "bind_delay": 1.0},
-            },
-            "team": {
-                "team_task": {
-                    "rounds": 0,
-                    "bind_mode": "background",
-                    "members": [{"role": "leader", "target_player": "p1"}],
-                }
-            },
-        }
-        ipc = TeamIPC("test", str(tmp_path / "ipc"))
-        member = TestMember(cfg, cfg["team"]["team_task"]["members"][0], ipc, "p1")
-
-        assert resolve_bind_cfg(member.kk_cfg)["display"] == "gdi2"
-        assert resolve_bind_cfg(member.war3_cfg)["display"] == "dx2"
 
 
 # ── BindWindowEx 路径测试 ────────────────────────────
@@ -416,7 +223,7 @@ class TestResolveBindCfg:
         assert resolve_bind_cfg({"bind_mode": "background"}) == {"bind_mode": "background"}
 
     def test_force_bind_mode_overrides(self):
-        """force_bind_mode 覆写 war3/kk 命名空间 bind_mode（组队多成员强转后台）。"""
+        """force_bind_mode 覆写 war3/kk 命名空间 bind_mode。"""
         config = self._config(war3_mode="foreground", kk_mode="foreground")
         force_bind_mode(config, "background")
         assert config["war3"]["bind_mode"] == "background"

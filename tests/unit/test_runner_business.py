@@ -314,8 +314,8 @@ class TestEndlessRunnerOnArrive(unittest.TestCase):
         pt = {
             "coords": [100, 100],
             "actions": [
-                {"type": "item", "id": 8},
-                {"type": "skill", "id": 1},
+                {"type": "item", "item_id": 8},
+                {"type": "skill", "skill": "相位作战服"},
             ],
         }
         endless_cfg = {"use_shard_floor": 5}
@@ -334,8 +334,8 @@ class TestEndlessRunnerOnArrive(unittest.TestCase):
         pt = {
             "coords": [100, 100],
             "actions": [
-                {"type": "item", "id": 8},
-                {"type": "skill", "id": 1},
+                {"type": "item", "item_id": 8},
+                {"type": "skill", "skill": "相位作战服"},
             ],
         }
         endless_cfg = {"use_shard_floor": 5}
@@ -363,7 +363,7 @@ class TestEndlessRunnerOnArrive(unittest.TestCase):
         pt = {
             "coords": [100, 100],
             "actions": [
-                {"type": "item", "id": 8},
+                {"type": "item", "item_id": 8},
             ],
         }
         endless_cfg = {"use_shard_floor": 10}
@@ -380,8 +380,8 @@ class TestEndlessRunnerOnArrive(unittest.TestCase):
         pt = {
             "coords": [100, 100],
             "actions": [
-                {"type": "item", "id": 8},
-                {"type": "skill", "id": 1},
+                {"type": "item", "item_id": 8},
+                {"type": "skill", "skill": "相位作战服"},
             ],
         }
         endless_cfg = {}
@@ -399,8 +399,8 @@ class TestEndlessRunnerOnArrive(unittest.TestCase):
         pt = {
             "coords": [100, 100],
             "actions": [
-                {"type": "item", "id": 8},
-                {"type": "skill", "id": 1},
+                {"type": "item", "item_id": 8},
+                {"type": "skill", "skill": "相位作战服"},
             ],
         }
         original_actions = list(pt["actions"])
@@ -417,8 +417,8 @@ class TestEndlessRunnerOnArrive(unittest.TestCase):
         pt = {
             "coords": [100, 100],
             "actions": [
-                {"type": "item", "id": "8"},
-                {"type": "skill", "id": 1},
+                {"type": "item", "item_id": "8"},
+                {"type": "skill", "skill": "相位作战服"},
             ],
         }
         endless_cfg = {"use_shard_floor": 5}

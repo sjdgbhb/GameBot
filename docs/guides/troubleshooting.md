@@ -11,7 +11,7 @@
 
 ### 大漠 DLL 未注册
 - **原因**：dm.dll 未注册或版本不匹配
-- **解决**：运行 `uv run python -m GameBot.dm_bridge --register`（需管理员权限）
+- **解决**：运行 `.venv-dm\Scripts\python.exe -m GameBot.dm_bridge --register`（需 32 位 .venv-dm 环境 + 管理员权限）
 - **检查**：确认 `external/dm/dm.dll` 存在
 
 ### Python 版本不匹配
@@ -33,8 +33,24 @@
 
 ### 多开时窗口认领错误
 - **原因**：多个 KK 实例窗口外观相同，操作了错误的窗口
-- **解决**：通过 OCR 玩家名匹配窗口归属
-- **检查**：确认 multi_instance 配置正确
+- **解决**：通过 OCR 玩家名匹配窗口归属；认领失败任务会直接终止，
+  避免误操作另一账号窗口
+- **检查**：确认 `target_player` 与 KK 显示的玩家名一致、`multi_instance`
+  坐标配置正确
+
+### 多开读图卡死加载页
+- **现象**：两个实例读图重叠时一方卡在加载页（加载动画在跑但读条不推进），
+  `wait_enter_game` 超时
+- **原因**：读图期对 war3 窗口做 `set_client_size`/`BindWindowEx`(dx2) 会干扰
+  并发读图的另一实例（2026-09-18 实机定位）
+- **解决**：读图期只允许只读检测（WGC `is_in_game(hwnd)`/OCR）与内核互斥锁；
+  认领、等进游戏全部走无绑定接口，进游戏后才统一尺寸并绑定
+- 详见 AGENTS.md「读图期禁操作 war3 窗口」
+
+### 后台输入后 KK 画面不刷新（补充）
+- token 发到房间聊天但 OCR 读不到：先确认已调 `force_refresh_layered(hwnd)`；
+  KK 回显偶发较慢（实测可超 10s），认领逻辑内置每窗口每轮最多发 1 次
+  token + 多次重读，无需手动重发
 
 ## 截图与 OCR 相关
 
@@ -78,11 +94,6 @@
 ### 原子任务不执行
 - **原因**：原子任务未注册到 `ATOMIC_TASK_REGISTRY`
 - **解决**：在 `atomic/__init__.py` 中注册
-
-### 组队任务同步异常
-- **原因**：文件 IPC 读取超时或文件损坏
-- **解决**：检查 `logs/team_ipc/` 下的文件，确认原子写入正常
-- 详见 [组队框架](../modules/team.md)
 
 ## 相关文档
 

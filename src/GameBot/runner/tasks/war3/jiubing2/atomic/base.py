@@ -96,6 +96,15 @@ class AtomicTaskBase:
     # ── 接取任务 ──────────────────────────────────────────
 
     def _accept(self) -> bool:
+        if self._try_accept():
+            return True
+        # 接取被拒：若提示"任务已接取需完成后才能再接"（上次遗留未完成），
+        # 放弃遗留任务并等待冷却后重接一次
+        if self._handle_already_accepted():
+            return self._try_accept()
+        return False
+
+    def _try_accept(self) -> bool:
         gt = self.combat.war3_cfg["general_time"]
         npc = self._npc
         self.dm.key_press_char("F1")
@@ -135,6 +144,93 @@ class AtomicTaskBase:
             timeout=accept_timeout,
             stop_event=self._stop_event,
         )
+
+    # ── 放弃遗留任务 ──────────────────────────────────────
+
+    def _handle_already_accepted(self) -> bool:
+        """接取失败后检测"任务已接取"提示，命中则放弃遗留任务并等待重接冷却。
+
+        :return: True=已执行放弃流程可重试接取；False=非"已接取"原因，直接判失败
+        """
+        atomic_cfg = self.combat.cfg.get("war3", {}).get("jiubing2", {}).get("atomic_task", {})
+        accepted_kw = self.war3._normalize_ocr(atomic_cfg.get("already_accepted_text", ""))
+        if not accepted_kw:
+            return False
+        # 读最近一次提示区 OCR 文本：有监测线程取 latest，否则现场读一次
+        if self.monitor is not None:
+            seen = self.monitor.latest
+        else:
+            prompt_text = self.combat.cfg.get("war3", {}).get("jiubing2", {}).get("prompt_text")
+            if not prompt_text:
+                return False
+            try:
+                seen = self.war3._normalize_ocr(self.war3._ocr_region_text(prompt_text))
+            except Exception as e:
+                logger.debug(f"接取失败后读提示区文本失败: {e}")
+                return False
+        if accepted_kw not in seen:
+            return False
+
+        logger.info(f"{self._task_label}已接取未完成，放弃遗留任务后重接")
+        if not self._abandon_task():
+            return False
+        wait_time = atomic_cfg.get("abandon_wait_time", 60)
+        logger.info(f"等待 {wait_time}s 后重新接取")
+        self._interruptible_wait(wait_time)
+        return True
+
+    def _abandon_task(self) -> bool:
+        """-rw 打开任务弹窗 → 点击任务名 → 点击确认弹窗"放弃"按钮。
+
+        :return: 放弃操作是否完成（弹窗未开/未找到任务名/未找到放弃按钮均 False）
+        """
+        jiubing2 = self.combat.cfg.get("war3", {}).get("jiubing2", {})
+        popup_cfg = jiubing2.get("task_popup", {})
+        command_cfg = jiubing2.get("command", {})
+        gt = self.combat.war3_cfg["general_time"]
+        swt = self.combat.war3_cfg["small_window_response_time"]
+        area = popup_cfg.get("area_coords", [])
+        hwnd = self.war3._find_war3_hwnd()
+        if not hwnd or not area:
+            logger.error("放弃任务失败：未找到 war3 窗口或未配置 task_popup.area_coords")
+            return False
+
+        def _click_text(ocr_area, keyword, desc) -> bool:
+            """OCR 区域内找含 keyword 的行并点击其中心，返回是否点到。"""
+            lines = self.war3.ocr_lines(hwnd, {"area_coords": ocr_area})
+            for line in lines:
+                if keyword in line.get("text", ""):
+                    x = ocr_area[0] + int(line.get("x_center", 0))
+                    y = ocr_area[1] + int(line.get("y_center", 0))
+                    logger.info(f"点击{desc}「{line.get('text')}」: ({x},{y})")
+                    self.dm.move_to(x, y)
+                    self._interruptible_wait(gt)
+                    self.dm.left_click()
+                    self._interruptible_wait(swt)
+                    return True
+            logger.warning(
+                f"未找到{desc}「{keyword}」，OCR: {[l.get('text') for l in lines]}"
+            )
+            return False
+
+        # 1) -rw 打开任务弹窗，点击本任务名行
+        self.war3.send_msg(command_cfg.get("task_query", "-rw"), stop_event=self._stop_event)
+        self._interruptible_wait(popup_cfg.get("open_wait_time", 0.5))
+        if not _click_text(area, self._task_label, "任务名"):
+            self._close_task_popup(gt)
+            return False
+        # 2) 弹出的确认窗口与任务弹窗同区域，点击"放弃"按钮
+        if not _click_text(area, popup_cfg.get("abandon_keyword", "放弃"), "放弃按钮"):
+            self._close_task_popup(gt)
+            return False
+        # 3) 关闭残留的任务弹窗
+        self._close_task_popup(gt)
+        return True
+
+    def _close_task_popup(self, gt: float):
+        """关闭任务弹窗：按 Escape（弹窗无 X 按钮）。"""
+        self.dm.key_press_char("Escape")
+        self._interruptible_wait(gt)
 
     # ── 路线清怪 ──────────────────────────────────────────
 

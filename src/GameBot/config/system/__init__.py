@@ -10,7 +10,7 @@
 - loader   — 文件加载 & 命名空间拆分 mixin
 - resolver — 依赖解析（DFS 后序展开）mixin
 - builder  — 合并构建 & 深度合并 mixin
-- derive   — 派生值解析（bind 调用时选择、物品名→item_id，供 load_task 与组队路径共用）
+- derive   — 派生值解析（bind 调用时选择、物品名→item_id，供 load_task 与 exe 入口等非标准路径共用）
 - user     — 用户配置覆盖 mixin
 - core     — Config 类 + 单例 + load_task + 路径解析
 """
@@ -21,6 +21,7 @@ from .derive import (
     derive_bind_mode,
     force_bind_mode,
     get_task_view,
+    resolve_action_item_names,
     resolve_bind_cfg,
     resolve_item_names,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "derive_bind_mode",
     "force_bind_mode",
     "get_task_view",
+    "resolve_action_item_names",
     "resolve_bind_cfg",
     "resolve_item_names",
 ]

@@ -44,29 +44,44 @@ class EndlessRunner:
 
     # ── 游戏进入 & 准备 ───────────────────────────────────
 
-    def wait_enter_game(self, task, stop_event=None):
+    def wait_enter_game(self, task, stop_event=None, hwnd: int = 0):
         """等待进入游戏（委托 War3Business.wait_enter_game，带超时和掉线检测）。
 
         :param task: 任务对象（需有 game_start_time / pet_feed_time 属性）
         :param stop_event: 停止事件，设置时中断等待
+        :param hwnd: 非 0 时对指定窗口做无绑定 WGC 轮询（读图期等待进游戏用）
         :raises WindowLostError: War3 窗口消失（掉线）
         :raises TimeoutError: 等待进入游戏超时（卡在加载界面）
         """
-        self._war3.wait_enter_game(task, stop_event)
+        self._war3.wait_enter_game(task, stop_event, hwnd=hwnd)
 
-    def do_preparation_phase(self, task_cfg: dict = None, stop_event=None, skip_select_difficulty: bool = False):
+    def do_preparation_phase(
+        self,
+        task_cfg: dict = None,
+        stop_event=None,
+        skip_select_difficulty: bool = False,
+        difficulty_selected_time: float = 0,
+    ):
         """完整准备阶段。
 
         顺序：选难度 → 等游戏初始化 → 选英雄 → 读档 → 圣痕 → 卡牌 → 神碎 → 学技能。
 
         :param task_cfg: 任务配置（含 difficulty 字段，传给 select_difficulty）
         :param stop_event: 停止事件，设置时中断等待
-        :param skip_select_difficulty: 是否跳过选难度（组队时由队长单独选）
+        :param skip_select_difficulty: 是否跳过选难度（认领前置选择等场景由调用方已选）
+        :param difficulty_selected_time: 难度选择完成的时间戳（认领前置选择场景），
+            init 等待会扣除已流逝时间；0 表示本阶段内刚选完/未记录，等足全程
         """
         if not skip_select_difficulty:
             self._ui.select_difficulty(task_cfg, stop_event=stop_event)
-        logger.info(f"初始化...（等待 {self.game_cfg['init_game_time']}s）")
-        self._war3.interruptible_wait(self.game_cfg["init_game_time"], stop_event)
+            difficulty_selected_time = time.time()
+        init_wait = float(self.game_cfg["init_game_time"])
+        if difficulty_selected_time:
+            # init_game_time 语义是"难度选定后等待游戏初始化"，认领前置选择
+            # 场景下认领/绑定已消耗部分时间，扣除避免难度→选英雄拖延过久
+            init_wait = max(0.0, init_wait - (time.time() - difficulty_selected_time))
+        logger.info(f"初始化...（等待 {init_wait:.1f}s）")
+        self._war3.interruptible_wait(init_wait, stop_event)
         self._ui.select_hero(stop_event=stop_event)
         self._ui.load_save(stop_event=stop_event)
         self._ui.load_stigmata(stop_event=stop_event)
@@ -238,7 +253,7 @@ class EndlessRunner:
         pt_eff = dict(pt)
         actions = pt_eff.get("actions")
         if actions and floor < endless_cfg.get("use_shard_floor", 0):
-            filtered = [a for a in actions if not (a and a.get("type") == "item" and int(a.get("id", 0)) == 8)]
+            filtered = [a for a in actions if not (a and a.get("type") == "item" and int(a.get("item_id", 0)) == 8)]
             if filtered:
                 pt_eff["actions"] = filtered
             else:

@@ -77,24 +77,59 @@ GameBot — 魔兽争霸3 RPG地图"九种兵器2"的 Python 自动化脚本系�
 
 ## 多开单任务（非组队）用法（2026-09-15）
 
-同一台机器两个玩家各自跑同一任务、互不干扰，用"变体配置"模式（参考 ingame_special/fishing 变体）：
+同一台机器两个玩家各自跑同一任务、互不干扰，用"变体配置"模式
+（支持变体的任务：endless/endless_single/fishing/patrol_loot/upgrade_stigmata/ingame_special）：
 
 - 变体文件：`tasks/<组>/<任务>_<玩家名>.toml`，`extends` 基础任务，`[this]` 只写
   `target_player`，并用 `[war3]`/`[kk]` 段写 `bind_mode="background"` 覆盖命名空间默认
   （多开必须后台绑定；任务 `[this]` 不支持 bind_mode）；可加 `[base.float_window] y`
   错开浮窗、`[hero.xxx]` 覆盖账号差异配置（hero 浅合并，子键整表覆盖须写全字段）
-- 启动：`.venv\Scripts\python -m GameBot.runner.tasks.war3.jiubing2.<组>.<任务> <任务>_<玩家名>`
+- 启动：`uv run python -m GameBot.runner.tasks.war3.jiubing2.<组>.<任务> <任务>_<玩家名>`
   （如 `...endless.endless endless_善木木`）
 - 隔离机制：
   - KK 侧 `claim_room_window`：向房间聊天输入框发随机 token（含本进程 pid 标记），
     OCR 聊天记录区"玩家名：token"提取归属；认领后拿 `owner_pid`，
     房间/弹窗/掉线处理全按 PID 过滤。坐标在 `kk.toml [this.multi_instance]`
-  - war3 侧 `claim_war3_window(identify=identify_war3_owner)`：加载页面 OCR 玩家列表
-    判归属（无需进游戏），命名互斥锁防抢占；多局任务局间须 `release_war3_claim`，
-    旧 hwnd 销毁后复领新窗口
-  - **认领失败直接终止任务**——归属未确认时继续运行可能误操作另一账号窗口
+  - war3 侧 `claim_war3_window` 两种认领模式（窗口锁协议一致）：
+    - **局内任务认领**（ingame_special/fishing/endless_single/patrol_loot/
+      upgrade_stigmata 等，启动时已在游戏内）：
+      默认 `identify=_identify_owner_by_chat`——发聊天 token，OCR 聊天区
+      "玩家名：token"回显定归属；进游戏窗口可正常绑定/输入，无需特殊处理
+    - **多局任务认领**（endless 等，窗口随每局重开）：
+      `identify=分阶段回调`（`_identify_claim_window`）——**加载页只读认领**，
+      读图期对窗口零操作（只读 WGC OCR 玩家列表 + 内核互斥锁，不占窗口、
+      不改尺寸、不绑定），与手动启动等价；进游戏后等待（无绑定 WGC 轮询）
+      → 统一尺寸 → 绑定 → 按本账号配置选难度。
+      认领必须在加载页完成：难度界面在场时无法发聊天 token 验归属
+      （Enter 会误选默认难度），且各账号难度可能不同，必须先验归属再选难度
+    - 多局任务局间须 `release_war3_claim`，旧 hwnd 销毁后复领新窗口
+  - **认领失败直接终止任务**——归属未确认时继续运行可能误操作另一账号窗口；
+    且绝不可对未认领窗口发退出键清场（未进游戏的窗口可能属于其他玩家）
+
+**读图期禁操作 war3 窗口（2026-09-18 实机定位）**：两个实例读图重叠时，
+脚本在读图期对窗口做 `set_client_size`/`BindWindowEx`(dx2+active.api) 会导致
+其中一方卡死加载页——WGC 帧流正常（加载页动画在跑）但读条永不推进，
+`wait_enter_game` 120s 超时。手动双开同刻读图无此问题 → 肇事者是注入操作
+而非读图并发本身。对策即上面的"加载页只读认领 + 进游戏后绑定"：
+读图期只允许只读检测（WGC `is_in_game(hwnd)`/OCR）与内核互斥锁。
 - 启动要求：账号停留在 **KK 房间**内（创建好密码房即可运行）
 - 注意：浮窗停止键 NumPad- 是全局热键，两个脚本同时按会一起停；单独停用各浮窗 ✕ 按钮
+
+## EXE 打包（exe/build_all.py）
+
+- 任务定义在 `exe/build_all.py` 的 TASKS；各任务 spec/入口/用户配置在 `exe/<task>/`
+- spec 直接打包完整 `config/data/`（变体 TOML 运行时按名加载）；组装时再覆盖一遍保证最新
+- **坑（2026-09-22）**：PyInstaller 从 Python 安装目录打包 VC 运行库，版本过旧
+  （14.28）会让 onnxruntime_pybind11_state 初始化失败（"DLL 初始化例程失败"）；
+  `build_all.py` 的 `_fix_vc_runtime` 在组装/更新时用 System32 较新版覆盖 `_internal/`
+- `windows_capture`（WGC）是惰性导入的 Rust pyd，spec 里须 `collect_all` 收集
+- exe 入口无旧全局配置：用户覆盖与 exe 路径补丁写进任务闭包 + 常用自加载闭包缓存
+  （base/kk/war3.jiubing2）；多开用用户配置 `[tasks.<组>.<任务>] target_player = "玩家名"`，
+  入口 `_remap_user_cfg` 的 NS 顶层键必须合并而非整表赋值（否则 `[war3]` 段会吞掉
+  排在它前面的 `[tasks.*]` 段）
+- 物品名写法 `item = "名称"`：inventory 与 `type="item"` 动作统一在 load_task 时解析为
+  `item_id`（`resolve_item_names` / `resolve_action_item_names`）；exe 入口用户覆盖后须
+  再补一次解析；业务侧只读 `item_id`，无 id 兼容兜底
 
 ## OpenSpec（规格驱动开发）
 

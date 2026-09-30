@@ -39,8 +39,9 @@ wgc_min_interval_ms = 100 # WGC 最小出帧间隔（毫秒），略小于 monit
 
 # 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
 #   - 任务/变体文件可写 [war3] bind_mode = "..." 覆盖此默认值（绝对寻址补丁）
-#   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
 bind_mode = "foreground"
+
+hero_head_show_coords = [538,874,666,964] # 下方英雄头像（非左上角）显示区域（客户区坐标）
 
 # 等待 war3 窗口出现超时（bind_war3_window / wait_for_game_window）
 [this.wait_for_game_window]
@@ -58,7 +59,7 @@ mouse = "normal"       # 可选：normal / windows / windows2 / windows3
 keypad = "normal"      # 可选：normal / windows
 mode = 0               # 大漠 BindWindow 附加模式
 
-# 后台绑定参数（bind_mode = background 或多成员组队时生效）
+# 后台绑定参数（bind_mode = background 时生效）
 # dx2 + windows3 + windows 需要管理员权限
 # 注意：dx2 模式要求窗口有一部分在屏幕外（Win7/Vista 不需要），且不可连续操作需加 10ms 延时
 [this.bind_background]
@@ -83,7 +84,6 @@ bind_delay = 1.5       # 绑定后延时 1.5 秒等待后台生效（DX 绑定�
 
 # 多开识别配置
 [this.multi_instance]
-
 # 聊天 token 认领（游戏内）：向候选窗口发随机 token，OCR 聊天区匹配"玩家名：token"定归属。
 # 互斥锁先行——已认领窗口跳过不发 token；token = 前缀+pid+随机hex，进程唯一不错领。
 chat_area_coords = [11, 436, 355, 676]  # 聊天信息显示区（客户区坐标）

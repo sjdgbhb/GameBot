@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     pass
+from GameBot.config import resolve_bind_cfg
 from GameBot.utils import logger
 
 
@@ -69,7 +70,27 @@ class GameUI:
             self.dm.left_click()
             self._wait(gt, stop_event)
 
-    def select_difficulty(self, task_cfg: dict = None, stop_event=None):
+    def is_difficulty_visible(self, hwnd: int = 0) -> bool:
+        """难度选择界面是否在场（OCR difficulty.keywords 判定，只读不操作）。
+
+        :param hwnd: 目标窗口句柄；为 0 时取认领/绑定窗口
+        :return: True=难度界面在场
+        """
+        diff_cfg = self.cfg.get("war3", {}).get("jiubing2", {}).get("difficulty", {})
+        keywords = diff_cfg.get("keywords", [])
+        hwnd = hwnd or self._war3._find_war3_hwnd()
+        if not keywords or not hwnd:
+            return False
+        # 窗口可能未统一客户区尺寸（认领前检测），按尺寸差外扩 OCR 区域
+        ocr_cfg = dict(diff_cfg)
+        if "area_coords" in ocr_cfg:
+            ocr_cfg["area_coords"] = self._war3._size_tolerant_area(hwnd, ocr_cfg["area_coords"])
+        lines = self._war3.ocr_lines(hwnd, ocr_cfg)
+        return any(kw in line.get("text", "") for kw in keywords for line in lines)
+
+    def select_difficulty(
+        self, task_cfg: dict = None, stop_event=None, hwnd: int = 0, only_if_visible: bool = False
+    ) -> bool:
         """OCR 识别难度选项并点击目标难度。
 
         从 task_cfg['difficulty'] 或 game.default_difficulty 获取目标难度关键词，
@@ -78,39 +99,84 @@ class GameUI:
 
         :param task_cfg: 任务配置（含 difficulty 字段，fallback 到 game.default_difficulty）
         :param stop_event: 停止事件，设置时中断等待
+        :param hwnd: 目标窗口句柄；为 0 时取认领/绑定窗口（_find_war3_hwnd）
+        :param only_if_visible: True 时仅在难度选择界面确实存在（OCR 命中任一
+            difficulty.keywords）时才操作，否则直接返回 False——用于窗口归属未确认的
+            认领前阶段，不发 Enter 等按键避免误触
+        :return: True=已点击目标难度, False=未选择
         """
         diff_cfg = self.cfg.get("war3", {}).get("jiubing2", {}).get("difficulty", {})
         target = (task_cfg or {}).get("difficulty") or self.game_cfg.get("default_difficulty")
 
         if not target or not diff_cfg:
+            if only_if_visible:
+                return False
             logger.info("未配置难度选择，使用默认（Enter）")
             self.dm.key_press_char("enter")
             self._wait(self.war3_cfg["general_time"], stop_event)
-            return
+            return True
 
-        logger.info(f"选择难度，关键词：{target}")
-        hwnd = self._war3._find_war3_hwnd()
+        if not only_if_visible:
+            logger.info(f"选择难度，关键词：{target}")
+        hwnd = hwnd or self._war3._find_war3_hwnd()
         if not hwnd:
+            if only_if_visible:
+                return False
             logger.warning("未找到 War3 窗口，回退到默认（Enter）")
             self.dm.key_press_char("enter")
             self._wait(self.war3_cfg["general_time"], stop_event)
-            return
+            return True
 
         area_coords = diff_cfg.get("area_coords", [0, 0, 0, 0])
         lines = self._war3.ocr_lines(hwnd, diff_cfg)
-        for line in lines:
-            if target in line.get("text", ""):
+        texts = [line.get("text", "") for line in lines]
+        for line, text in zip(lines, texts):
+            if target in text:
                 x = int(line.get("x_center", 0)) + area_coords[0]
                 y = int(line.get("y_center", 0)) + area_coords[1]
-                logger.info(f"已匹配难度：{line.get('text')}，点击 ({x}, {y})")
+                logger.info(f"已匹配难度：{text}，点击 ({x}, {y})")
                 self.dm.move_to(x, y)
                 self._wait(self.war3_cfg["general_time"], stop_event)
                 self.dm.left_click()
                 self._wait(self.war3_cfg["general_time"], stop_event)
-                return
+                return True
+        # 难度界面存在性判定：任一难度关键词命中即认为界面在场
+        keywords = diff_cfg.get("keywords", [])
+        visible = bool(keywords) and any(kw in text for kw in keywords for text in texts)
+        if only_if_visible:
+            if visible:
+                logger.warning(f"难度选择界面在场但未匹配到目标「{target}」，跳过选择（OCR: {texts}）")
+            return False
         logger.warning(f"未找到难度关键词「{target}」，回退到默认（Enter）")
         self.dm.key_press_char("enter")
         self._wait(self.war3_cfg["general_time"], stop_event)
+        return True
+
+    def wait_and_select_difficulty(
+        self, hwnd: int, task_cfg: dict = None, stop_event=None, timeout: float = None
+    ) -> bool:
+        """等待难度选择界面出现并选择目标难度；界面始终未出现则返回 False。
+
+        供认领前钩子调用（窗口归属未确认）：内部自行绑定 hwnd，
+        全程只做安全的 OCR + 目标点击，不发送 Enter 等按键。
+
+        :param hwnd: 目标窗口句柄
+        :param task_cfg: 任务配置（含 difficulty 字段）
+        :param stop_event: 停止事件
+        :param timeout: 最长等待秒数，None 时用 difficulty.wait_ui_time（默认 8s）
+        :return: True=已选择难度, False=界面未出现/未选择
+        """
+        diff_cfg = self.cfg.get("war3", {}).get("jiubing2", {}).get("difficulty", {})
+        wait_ui_time = float(timeout if timeout is not None else diff_cfg.get("wait_ui_time", 8))
+        deadline = time.time() + wait_ui_time
+        with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
+            while True:
+                if self.select_difficulty(task_cfg, stop_event=stop_event, hwnd=hwnd, only_if_visible=True):
+                    return True
+                if time.time() >= deadline:
+                    logger.debug(f"等待难度选择界面超时（{wait_ui_time}s），按无界面处理")
+                    return False
+                self._wait(0.5, stop_event)
 
     def select_hero(self, stop_event=None):
         """选择英雄。
@@ -188,28 +254,34 @@ class GameUI:
             return
         card_cfg = self.cfg.get("war3", {}).get("jiubing2", {}).get("card", {})
         hotkey = card_cfg["switch_hotkey"]
+        delta_color = card_cfg.get("card_show_delta_color", "000000")
+
+        def _card_window_open() -> bool:
+            index, _, _ = self.dm.find_pic(
+                *card_cfg["card_show_area_coords"],
+                card_cfg["card_show_img"],
+                sim=card_cfg["card_show_sim"],
+                delta_color=delta_color,
+            )
+            return index > -1
+
         # 卡牌窗口打开有渲染延迟：按一次热键后在 open_timeout 内轮询找图，
         # 确认未打开才重按——否则 F4 会把刚打开还没渲染出来的窗口又按关，反复开关
         open_timeout = card_cfg.get("open_timeout", 2.0)
-        while True:
+        # F4 是开关切换：先检测一次，已打开则跳过按键（避免把开着的窗口按关）
+        opened = _card_window_open()
+        while not opened:
             self.dm.key_press_char(hotkey)
             deadline = time.monotonic() + open_timeout
-            opened = False
             while time.monotonic() < deadline:
                 self._wait(self.war3_cfg["small_window_response_time"], stop_event)
-                (index, x, y) = self.dm.find_pic(
-                    *card_cfg["card_show_area_coords"],
-                    card_cfg["card_show_img"],
-                    sim=card_cfg["card_show_sim"],
-                )
-                if index > -1:
+                if _card_window_open():
                     opened = True
                     break
-            if opened:
-                logger.info("成功打开卡牌窗口")
-                break
-            logger.warning("未打开卡牌窗口，稍后重试...")
-            self._wait(self.war3_cfg["general_time"], stop_event)
+            if not opened:
+                logger.warning("未打开卡牌窗口，稍后重试...")
+                self._wait(self.war3_cfg["general_time"], stop_event)
+        logger.info("成功打开卡牌窗口")
 
         gt = self.war3_cfg["general_time"]
         for c in self._get_card_coords():

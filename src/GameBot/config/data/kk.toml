@@ -4,7 +4,7 @@ extends = ["base"]
 # ------------------------------ War3 物品栏格子快捷键（默认配置） ------------------------------
 # slot: 格子编号 0~5 对应第 1~6 格
 # hotkey: 该格子对应的快捷键（在 KK 平台上设置的物品栏快捷键）
-# 组队配置中每个成员可用 inventory_slots 覆盖此默认值
+# 英雄配置可用 [hero] inventory_slots 覆盖此默认值
 [this]
 inventory_slots = [
   {slot = 0, hotkey = "1"},
@@ -22,7 +22,6 @@ min_business_window_size = [200, 200]  # 业务候选窗口最小可见尺寸
 
 # 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
 #   - 任务/变体文件可写 [kk] bind_mode = "..." 覆盖此默认值（绝对寻址补丁）
-#   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
 bind_mode = "foreground"
 
 # kk主界面
@@ -51,10 +50,10 @@ create_button_coords = [805,898]  # 创建房间按钮坐标
 # kk房间
 [this.room]
 window_size = [1224,904] # 房间坐标基准尺寸，运行时保留原生尺寸并按比例缩放
-size_tolerance = 30 # 按原生客户区尺寸识别房间窗口的允许误差（像素）
 start_button_coords = [867,613] # 窗口坐标，开始游戏按钮/准备开始坐标
 start_wait_time = 6 # 点击开始游戏按钮后，进入游戏前的时间（正常情况）
 room_id_ocr_area_coords = [111,109,274,142]   # 房间号 OCR 区域（房间窗口左上角），“房间号：xxx”
+room_id_keyword = "房间号"  # 房间窗口识别关键词：候选窗口左上角 OCR 命中即判定为房间（大厅无此文本）
 start_button_ocr_area_coords = [820,595,920,640]  # 开始游戏/等待准备/准备/取消准备按钮 OCR 区域
 not_ready_keyword = "准备"                    # 未准备状态关键词（OCR 匹配）
 ready_keyword = "取消准备"                    # 已准备状态关键词（OCR 匹配）
@@ -69,8 +68,8 @@ start_game_keyword = "开始游戏"              # 开始游戏按钮文本关�
 room_chat_input_coords = [512, 790, 563, 800]    # 房间聊天输入框区域（客户区坐标，点击取中心）
 room_chat_log_area_coords = [305, 651, 863, 765] # 聊天记录 OCR 区域（客户区坐标）
 token_prefix = "gb"          # token 前缀（须 ASCII）
-send_retries = 3             # 每个窗口 token 验证重试次数
-verify_wait = 1.0            # 每次发送后等待上屏的秒数
+send_retries = 8             # 发送后上屏验证的重读次数（每窗口每轮最多发 1 次 token；偶发回显慢实测可超 10s，窗口要留足）
+verify_wait = 1.0            # 每次重读前等待上屏的秒数
 claim_timeout = 60           # 认领总超时（秒）
 claim_retry_interval = 0.5   # 每轮扫描间隔（秒）
 
@@ -93,7 +92,7 @@ mouse = "normal"       # 可选：normal / windows / windows2 / windows3
 keypad = "normal"      # 可选：normal / windows
 mode = 0               # 大漠 BindWindow 附加模式
 
-# 后台绑定参数（bind_mode = background 或多成员组队时生效）
+# 后台绑定参数（bind_mode = background 时生效）
 # display 已无实际用途——截图/找图/找色/OCR 统一走 WGC，大漠仅剩输入注入；
 # dx 系显示钩子会劫持 layered 窗口渲染链路产生黑边，KK 固定 normal。
 [this.bind_background]

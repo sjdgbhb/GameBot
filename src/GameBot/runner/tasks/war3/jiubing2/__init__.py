@@ -18,6 +18,10 @@ def __getattr__(name):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
 
         return PatrolLootTask
+    if name == "GameCountTask":
+        from GameBot.runner.tasks.war3.jiubing2.others.game_count import GameCountTask
+
+        return GameCountTask
     if name == "PaladinWindDragonTask":
         from GameBot.runner.tasks.war3.jiubing2.others.paladin_wind_dragon import PaladinWindDragonTask
 
@@ -54,6 +58,7 @@ __all__ = [
     "EndlessTask",
     "EndlessSingleTask",
     "PatrolLootTask",
+    "GameCountTask",
     "PaladinWindDragonTask",
     "UpgradeStigmataTask",
     "DailyReputationTask",

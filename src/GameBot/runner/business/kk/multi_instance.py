@@ -42,9 +42,10 @@ class MultiInstanceMixin:
 
         协议（对齐 war3 窗口认领）：先拿全局认领锁 `Local\\GameBot_KK_Room_Claim`
         串行化整个认领过程 → 枚举房间候选窗口逐个尝试窗口锁
-        `Local\\GameBot_KK_Room_{hwnd}`（已被认领的跳过，不发 token）→ 点击房间
-        聊天输入框发送随机 token → OCR 聊天记录区匹配"玩家名：token"提取归属名；
-        不匹配释放窗口锁换下一个。认领成功或本轮全部失败都释放全局锁。
+        `Local\\GameBot_KK_Room_{hwnd}`（已被认领的跳过，不发 token）→ OCR 聊天
+        记录区找本进程 token，已上屏直接解析归属；未上屏才点击聊天输入框发送随机
+        token → 匹配"玩家名：token"提取归属名；不匹配释放窗口锁换下一个。
+        认领成功或本轮全部失败都释放全局锁。
 
         认领成功后窗口互斥锁持有到 release_room_claim 或进程退出（崩溃自动释放），
         self._claimed_room_hwnd / _claimed_room_pid 记录结果，复用时校验存活。
@@ -72,6 +73,9 @@ class MultiInstanceMixin:
         retry_interval = float(mi_cfg.get("claim_retry_interval", 0.5))
         start = time.time()
         last_rooms = 0
+        mismatched = set()  # 验归属失败的窗口（归属他人或 token 未上屏），本次认领内排除
+        window_class = self.kk_cfg.get("window_class", "")
+        window_title = self.kk_cfg.get("window_title", "")
         while time.time() - start < claim_timeout:
             claim_lock = NamedMutex("Local\\GameBot_KK_Room_Claim")
             remaining_ms = int(max(0, claim_timeout - (time.time() - start)) * 1000)
@@ -80,9 +84,18 @@ class MultiInstanceMixin:
             try:
                 # self 运行时实为 KKBusiness（各 mixin 组合体），cast 供 IDE 解析跨 mixin 方法
                 kk = cast("KKBusiness", self)
-                rooms = kk.find_room_windows(dm)
-                last_rooms = len(rooms) or last_rooms
-                for hwnd in rooms:
+                # 逐窗流水：查房间号 → 锁 → 验归属，认领到本账号房间即返回，不再碰后续窗口
+                rooms_found = 0
+                for w in dm.find_windows(window_class, window_title):
+                    hwnd = w["hwnd"]
+                    if hwnd in mismatched:
+                        continue
+                    # 枚举到认领存在间隙，房间窗口可能已关闭——此时跳过该窗口
+                    if not dm.get_window_state(hwnd, 0):
+                        continue
+                    if not kk._check_room_window(dm, hwnd):
+                        continue
+                    rooms_found += 1
                     mutex = NamedMutex(f"Local\\GameBot_KK_Room_{hwnd}")
                     if not mutex.try_acquire():
                         logger.info(f"KK 房间窗口 {hwnd} 已被其他脚本认领，跳过")
@@ -90,12 +103,23 @@ class MultiInstanceMixin:
                     # 先统一客户区尺寸：聊天坐标按 room.window_size 校准。
                     # 归属验证异常直接上抛终止（认领失败即停止，不做兜底）
                     room_size = tuple(self.kk_cfg.get("room", {}).get("window_size", [1224, 904]))
-                    dm.set_client_size(hwnd, room_size[0], room_size[1])
+                    try:
+                        dm.set_client_size(hwnd, room_size[0], room_size[1])
+                    except Exception as e:
+                        logger.info(f"KK 房间窗口 {hwnd} 已失效（{e}），跳过")
+                        mutex.release()
+                        continue
                     owner = self._identify_room_owner_by_chat(dm, hwnd, stop_event)
-                    # 包含匹配：target_player 出现在"："左边的发送者段中即归属
+                    # 包含匹配：target_player 出现在"："左边的发送者段中即归属。
+                    # 归属他人（owner 非空且不匹配）：本次认领内排除不再重试；
+                    # token 未上屏/归属名未解析出（owner 为空）：只释放窗口锁不
+                    # 排除——token 可能晚到，下轮认领会先查 marker 重读归属
                     if not owner or target_player not in owner:
+                        if owner:
+                            mismatched.add(hwnd)
                         logger.info(
-                            f"KK 房间窗口 {hwnd} 归属 {owner or '未知'}，与目标玩家 {target_player} 不匹配，释放"
+                            f"KK 房间窗口 {hwnd} 归属 {owner or '未知'}，"
+                            f"与目标玩家 {target_player} 不匹配，释放"
                         )
                         mutex.release()
                         continue
@@ -106,6 +130,7 @@ class MultiInstanceMixin:
                         f"已认领 KK 房间窗口 hwnd={hwnd}，归属玩家 {owner}，pid={self._claimed_room_pid}"
                     )
                     return hwnd, self._claimed_room_pid
+                last_rooms = rooms_found or last_rooms
             finally:
                 claim_lock.release()
             if stop_event is not None:
@@ -132,6 +157,11 @@ class MultiInstanceMixin:
         marker，不受对方脚本发到本窗口的 token 干扰；取"："左边的发送者段为归属名。
         输入框常驻无需开聊天框；聊天命令仅 ASCII，send_string 够用。
 
+        防刷屏：发送前先查聊天记录——本进程 marker 已上屏则直接解析归属，不再
+        重发；发送后**每窗口每轮最多发 1 次 token**：消息渲染上屏有延迟，
+        未读到 marker 时重发只会重复灌入聊天（上一轮发的可能晚到），后续只做
+        重读验证；仍读不到返回 "" 由认领轮次重试（重试先查 marker，不发新 token）。
+
         :return: 发送者玩家名，未上屏/无归属返回 ""
         """
         mi_cfg = self.kk_cfg.get("multi_instance", {})
@@ -141,12 +171,27 @@ class MultiInstanceMixin:
             logger.warning("kk.multi_instance 未配置房间聊天坐标，无法识别房间归属")
             return ""
         marker = f"{mi_cfg.get('token_prefix', 'gb')}{os.getpid():x}"
-        token = marker + secrets.token_hex(2)
         retries = int(mi_cfg.get("send_retries", 3))
         verify_wait = float(mi_cfg.get("verify_wait", 1.0))
         click_x = (input_rect[0] + input_rect[2]) // 2
         click_y = (input_rect[1] + input_rect[3]) // 2
-        for _ in range(retries):
+
+        def _sleep(sec: float) -> None:
+            if stop_event is not None:
+                if stop_event.wait(sec):
+                    raise StopTaskError("用户请求停止任务")
+            else:
+                time.sleep(sec)
+
+        # 先查聊天记录：本进程 marker 已上屏则直接进入归属名解析，不发新 token
+        dm.force_refresh_layered(hwnd)
+        saw_marker, owner = self._find_marker_owner(
+            cast("KKBusiness", self).ocr_kk_lines(hwnd, {"area_coords": log_area}), marker
+        )
+        if not saw_marker:
+            # 每窗口每轮最多发 1 次：发送后只做重读验证，未上屏返回 "" 由
+            # 认领轮次重试（重试先查 marker，不再重复发 token）
+            token = marker + secrets.token_hex(2)
             with dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
                 dm.move_to(click_x, click_y)
                 time.sleep(0.3)
@@ -156,23 +201,71 @@ class MultiInstanceMixin:
                 dm.send_string(token, hwnd=hwnd)
                 time.sleep(0.2)
                 dm.key_press_char("enter")  # 发送到房间聊天
-            # layered 窗口后台输入后画面不刷新，须在 bind 之外刷新再 OCR
+            # token 一般秒上屏，发送后尽快首读吃常见快路径；
+            # 偶发服务器回显慢（实测可超 10s）靠重读窗口覆盖
+            for _ in range(retries):
+                _sleep(verify_wait)
+                # layered 窗口后台输入后画面不刷新，须在 bind 之外刷新再 OCR
+                dm.force_refresh_layered(hwnd)
+                saw_marker, owner = self._find_marker_owner(
+                    cast("KKBusiness", self).ocr_kk_lines(hwnd, {"area_coords": log_area}), marker
+                )
+                if saw_marker:
+                    break
+                logger.debug(f"KK 房间窗口 {hwnd} 聊天记录未上屏 token {token}，重读")
+            if not saw_marker:
+                return ""
+
+        # marker 已上屏但归属名未解析出（OCR 抖动/拆行）：重截屏重试，不再发 token
+        for _ in range(retries):
+            if owner:
+                return owner
+            _sleep(verify_wait)
             dm.force_refresh_layered(hwnd)
-            if stop_event is not None:
-                if stop_event.wait(verify_wait):
-                    raise StopTaskError("用户请求停止任务")
-            else:
-                time.sleep(verify_wait)
-            for line in cast("KKBusiness", self).ocr_kk_lines(hwnd, {"area_coords": log_area}):
-                text = line.get("text", "").strip()
-                if marker in text:
-                    for sep in ("：", ":"):
-                        if sep in text:
-                            return text.split(sep, 1)[0].strip()
-                    logger.debug(f"KK 房间窗口 {hwnd} token 行无玩家名分隔符: {text}")
-                    return ""
-            logger.debug(f"KK 房间窗口 {hwnd} 聊天记录未上屏 token {token}，重试")
-        return ""
+            saw_marker, owner = self._find_marker_owner(
+                cast("KKBusiness", self).ocr_kk_lines(hwnd, {"area_coords": log_area}), marker
+            )
+        return owner
+
+    @staticmethod
+    def _find_marker_owner(lines: list, marker: str) -> tuple[bool, str]:
+        """在 OCR 行列表中查找本进程 marker，提取发送者归属名。
+
+        遍历所有 marker 行，取第一条能解析出归属名的；marker 行无"："分隔符或
+        发送者段为空时回看上一行（"玩家名："与消息可能被 OCR 拆成两行）。
+
+        :param lines: ocr_kk_lines 返回的行列表
+        :param marker: 本进程 token 前缀（token_prefix + PID hex）
+        :return: (是否见到 marker, 归属名)；见到 marker 但归属名解析失败返回空串
+        """
+        saw_marker = False
+        for i, line in enumerate(lines):
+            text = line.get("text", "").strip()
+            # OCR 可能在 token 中间读出空格导致子串匹配漏判，去空格再比 marker
+            if marker not in text.replace(" ", ""):
+                continue
+            saw_marker = True
+            sender = ""
+            for sep in ("：", ":"):
+                if sep in text:
+                    sender = text.split(sep, 1)[0].strip()
+                    break
+            if not sender:
+                # OCR 漏识别"："分隔符（如"岁月神偷Vgbxx"连读）：取 marker 前的文本段兜底
+                compact = text.replace(" ", "")
+                pos = compact.find(marker)
+                if pos > 0:
+                    sender = compact[:pos].strip("：: ")
+            if not sender and i > 0:
+                prev = lines[i - 1].get("text", "").strip()
+                for sep in ("：", ":"):
+                    if prev.endswith(sep):
+                        sender = prev[: -len(sep)].strip()
+                        break
+            if sender:
+                return True, sender
+            logger.debug(f"KK 房间窗口 token 行未解析出归属名: {text}")
+        return saw_marker, ""
 
 
     @contextmanager

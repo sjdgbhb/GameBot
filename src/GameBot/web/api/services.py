@@ -954,7 +954,7 @@ TASK_SCHEMAS = {
                     "<p><strong>技能说明：</strong></p>"
                     "<ul>"
                     "<li>默认检测 Q「降临」、W「光明礼赞」（指向性，点击客户区中心）、T「神圣复仇」</li>"
-                    "<li>技能格子位置、就绪态图标、施放参数在 paladin_wind_dragon.toml 的 [[this.skills]] 中配置</li>"
+                    "<li>技能格子位置在 paladin_wind_dragon.toml 的 [[this.skills]] 中配置；按键/就绪态图标/指向性由英雄配置 paladin.toml 的技能池按技能名带出</li>"
                     "</ul>"
                 ),
             },

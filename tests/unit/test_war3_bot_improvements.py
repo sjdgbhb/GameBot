@@ -377,6 +377,8 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
                 "create_room_window_class": "CreateClass",
                 "room": {
                     "window_size": [1328, 945],
+                    "room_id_ocr_area_coords": [111, 109, 274, 142],
+                    "room_id_keyword": "房间号",
                     "start_button_coords": [1100, 900],
                     "start_button_ocr_area_coords": [800, 850, 1200, 930],
                     "start_game_keyword": "开始游戏",
@@ -394,11 +396,12 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
         return KKBusiness(dm, kk_cfg)
 
     def test_dismiss_room_popups_room_on_top(self):
-        """房间尺寸匹配时直接返回句柄。"""
+        """窗口 OCR 到"房间号"时直接返回句柄。"""
         kk = self._make_kk()
         kk.dm.find_windows.return_value = [
             {"hwnd": 123, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1328, 945)}
         ]
+        self._ocr_mock.return_value.ocr_lines_from_array.return_value = [{"text": "房间号：12345"}]
 
         result = kk.dismiss_room_popups(kk.dm)
 
@@ -406,9 +409,9 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
         kk.dm.close_window_by_x.assert_not_called()
 
     def test_dismiss_room_popups_large_main_window_breaks(self):
-        """顶层窗口大于房间面积比例时视为大厅，不关闭。"""
+        """窗口 OCR 不到"房间号"时视为大厅，不关闭、不返回。"""
         kk = self._make_kk()
-        # 1600x945 面积大于 1328*945*0.85
+        # 大厅窗口（OCR 默认返回 []，无"房间号"关键词）
         kk.dm.get_client_rect.return_value = (0, 0, 1600, 945)
         kk.dm.find_windows.side_effect = lambda window_class, *args: (
             [{"hwnd": 123, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1600, 945)}]
@@ -433,21 +436,26 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
         ]
         kk.dm.get_client_rect.side_effect = lambda hwnd: (0, 0, 400, 300) if hwnd == popup_hwnd else (0, 0, 1328, 945)
         kk.dm.close_window_by_x.return_value = True
-        self._ocr_mock.return_value.ocr_lines_from_array.side_effect = [[], [{"text": "开始游戏"}]]
+        self._ocr_mock.return_value.ocr_lines_from_array.side_effect = [[], [{"text": "房间号：12345"}]]
 
         result = kk.dismiss_room_popups(kk.dm)
 
         self.assertEqual(result, room_hwnd)
         kk.dm.close_window_by_x.assert_called_once()
 
-    def test_dismiss_room_popups_finds_room_by_size(self):
-        """同类同标题窗口应按客户区尺寸区分房间。"""
+    def test_dismiss_room_popups_finds_room_by_ocr(self):
+        """同类同标题窗口应按"房间号"OCR 区分房间（尺寸不可靠）。"""
         kk = self._make_kk()
         kk.dm.find_windows.return_value = [
             {"hwnd": 111, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1000, 700)},
             {"hwnd": 222, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1328, 945)},
         ]
         kk.dm.get_client_rect.side_effect = lambda hwnd: (0, 0, 1000, 700) if hwnd == 111 else (0, 0, 1328, 945)
+        # 第一个窗口无"房间号"（大厅），第二个有
+        self._ocr_mock.return_value.ocr_lines_from_array.side_effect = [
+            [{"text": "好友列表"}],
+            [{"text": "房间号：12345"}],
+        ]
 
         result = kk.dismiss_room_popups(kk.dm)
 
@@ -544,7 +552,7 @@ class TestWindowManagerMixin(unittest.TestCase):
 
 
 class TestAtomicLoopTaskClosePopup(unittest.TestCase):
-    """AtomicLoopTask._close_popup 右上角 X 模式测试。"""
+    """MultiAtomicLoopTask._close_popup 关闭弹窗测试。"""
 
     def setUp(self):
         self._orig = _mock_dm_modules()
@@ -561,30 +569,18 @@ class TestAtomicLoopTaskClosePopup(unittest.TestCase):
         task.dm = MagicMock()
         return task
 
-    def test_close_popup_by_x(self):
-        """task_popup.close_by_x=true 时点击 area_coords 右上角偏移。"""
-        task = self._make_task(
-            {
-                "war3": {
-                    "jiubing2": {
-                        "task_popup": {
-                            "close_by_x": True,
-                            "area_coords": [600, 200, 1300, 600],
-                            "close_offset": [15, 15],
-                        },
-                    },
-                },
-            }
-        )
+    def test_close_popup_none_escape(self):
+        """close_coords 为 None 时按 Escape 兜底关闭。"""
+        task = self._make_task({"war3": {"jiubing2": {}}})
 
         task._close_popup(None)
 
-        task.dm.move_to.assert_called_once_with(1285, 215)
-        task.dm.left_click.assert_called_once()
-        task.dm.key_press_char.assert_not_called()
+        task.dm.key_press_char.assert_called_once_with("Escape")
+        task.dm.move_to.assert_not_called()
+        task.dm.left_click.assert_not_called()
 
     def test_close_popup_by_coords(self):
-        """close_by_x=false 时点击 close_coords。"""
+        """传入有效 close_coords 时点击该坐标。"""
         task = self._make_task(
             {
                 "task_popup": {"close_by_x": False},
@@ -598,7 +594,7 @@ class TestAtomicLoopTaskClosePopup(unittest.TestCase):
         task.dm.key_press_char.assert_not_called()
 
     def test_close_popup_escape_fallback(self):
-        """close_by_x=false 且 close_coords 无效时按 Escape。"""
+        """close_coords 无效（0,0）时按 Escape。"""
         task = self._make_task(
             {
                 "task_popup": {"close_by_x": False},

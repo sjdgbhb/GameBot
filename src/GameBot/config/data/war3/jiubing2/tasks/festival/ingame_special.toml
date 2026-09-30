@@ -1,7 +1,8 @@
 # =============================================================================
 # 局内特殊任务配置 — 节日活动局内脚本
-# 起始位置：黑石城城门骚扰任务 NPC 附近（可直接接取任务的位置）
-# 流程：每日声望（黑石城 + 森之城）→ 森之城内步行至鱼点 → 钓鱼（默认 350 竿）
+# 起始位置：黑石城城门骚扰任务 NPC 附近（可直接接取任务的位置），如果只做钓鱼，需在森之城鱼点附近
+# 流程：每日声望（黑石城 + 森之城）→ 森之城内步行至鱼点 → 钓鱼
+# 启动：uv run python -m GameBot.runner.tasks.war3.jiubing2.festival.ingame_special ingame_special
 # =============================================================================
 extends = [
     "war3.jiubing2.tasks.reputation.daily_reputation",  # 城门骚扰 + 迅猛野兽 + 场景闭包
@@ -23,16 +24,11 @@ description = "每日声望（黑石+森之城）→ 森之城鱼点钓鱼"
 enable_reputation = true   # 是否执行每日声望
 enable_fishing = true      # 是否执行钓鱼
 
-# 每日声望参数覆盖（绝对寻址：写目标节点完整路径，合并时直接打到 daily_reputation）
-[war3.jiubing2.tasks.reputation.daily_reputation]
-enable_blackstone = true   # 黑石城声望（城门骚扰）
-enable_forest = true       # 森之城声望（迅猛野兽）
-
-[war3.jiubing2.tasks.reputation.daily_reputation.blackstone]
-progress_label = "黑石城声望"   # 浮窗进度行标签
-
-[war3.jiubing2.tasks.reputation.daily_reputation.forest]
-progress_label = "森之城声望"   # 浮窗进度行标签
+# 前台或后台模式
+[war3]
+bind_mode = "background"  # 后台模式，默认使用前台，即foreground
+[kk]
+bind_mode = "background"  # 后台模式，默认使用前台，即foreground
 
 # 鱼点步行点（森之城内）：小地图切视角 → 点击目标点移动
 [this.fishing_spot]

@@ -449,10 +449,10 @@ class TestPersonalAchievementTask(unittest.TestCase):
         self.assertTrue(issubclass(PersonalAchievementTask, MultiAtomicLoopTask))
 
     def test_atomic_name(self):
-        """atomic_name 应为 '个人任务'。"""
+        """atomic_name 应为 '个人任务成就'。"""
         from GameBot.runner.tasks.war3.jiubing2.achievements.personal import PersonalAchievementTask
 
-        self.assertEqual(PersonalAchievementTask.atomic_name, "个人任务")
+        self.assertEqual(PersonalAchievementTask.atomic_name, "个人任务成就")
 
     def test_task_config_path(self):
         """task_config_path 应指向 achievements.personal。"""

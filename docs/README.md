@@ -23,7 +23,6 @@ docs/
 │   ├── inference.md       #   推理模块（OCR / 宝箱检测 / 战斗状态）
 │   ├── config.md          #   配置系统（加载引擎 / 继承机制 / 配置文件）
 │   ├── web.md             #   Web 配置端（FastAPI 后端 + Vue 前端）
-│   ├── team.md            #   组队框架（多开协作 / 文件IPC / 进程管理）
 │   └── utils.md           #   共享工具（日志 / 异常 / 文件IO / 资源管理）
 │
 ├── domain/                # 领域知识层 —— 项目背景，与 AI 对齐

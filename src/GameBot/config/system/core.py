@@ -6,7 +6,7 @@
    同名可继承节点深度合并（未覆盖的字段从父配置继承，已覆盖的字段递归覆盖）。
    文件内使用 [this] 简写代替完整命名空间前缀。
 2. 命名空间约定：config 目录下的一级文件夹名和顶层 .toml 文件名构成命名空间根
-   （如 war3、team、base、kk、web）。TOML 顶层键命中命名空间根的（如 [war3]）
+   （如 war3、base、kk、web）。TOML 顶层键命中命名空间根的（如 [war3]）
    保留在路径下；hero 是唯一保留在顶层的键（局内唯一英雄，任务层横向覆盖英雄层）。
    其余裸键不再提升到顶层（旧"共享区"已废弃）——请用 [this.xxx] 归入自身命名空间。
    不递归扫描子目录——新建子目录不会改变现有 TOML 的合并语义。
@@ -38,7 +38,7 @@ from typing import Dict, List, Optional, Tuple
 
 from .base import CONTROL_KEYS, EXCLUSIVE_NAMESPACES
 from .builder import ConfigBuilderMixin
-from .derive import resolve_item_names
+from .derive import resolve_action_item_names, resolve_item_names
 from .loader import ConfigLoaderMixin
 from .resolver import ConfigResolverMixin
 from .user import ConfigUserMixin
@@ -158,7 +158,7 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
 
         # 将 kk.inventory_slots 注入 hero_cfg，供 get_inventory_hotkey(s) 查找快捷键
         self._inject_inventory_slots(result, prov)
-        # 将 inventory 中的 item 物品名解析为 item_id
+        # 将 inventory 中的 item 物品名解析为 item_id、路径点 actions 中 item 名解析为 id
         self._resolve_inventory_item_names(result, prov)
 
         # 缓存任务结果（含 user_configs.json 的 mtime 与 provenance，用于缓存失效检测与 explain）
@@ -169,7 +169,7 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
         """将 kk.inventory_slots 注入 hero.inventory_slots，供快捷键查找使用。
 
         kk.toml 中定义了默认的格子→快捷键映射，hero_cfg 通过 inventory_slots
-        字段访问该映射。组队配置中成员可用 inventory_slots 覆盖默认值。
+        字段访问该映射。任务/变体可用 [hero] inventory_slots 覆盖默认值。
         """
         kk_cfg = config.get("kk", {})
         if not isinstance(kk_cfg, dict):
@@ -186,7 +186,7 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
 
         支持用物品名替代数字 ID，提升配置可读性。已有 item_id 的条目不受影响。
         物品名→ID 映射来自配置中的 items 列表（war3.jiubing2.items）。
-        实际解析逻辑在 derive.resolve_item_names（组队路径复用）。
+        实际解析逻辑在 derive.resolve_item_names（exe 入口等非标准路径复用）。
         """
         hero = config.get("hero", {})
         j2_cfg = config.get("war3", {}).get("jiubing2", {})
@@ -194,6 +194,8 @@ class Config(ConfigLoaderMixin, ConfigResolverMixin, ConfigBuilderMixin, ConfigU
             return
         if resolve_item_names(hero.get("inventory", []), j2_cfg.get("items", [])):
             self._prov_mark(prov, "hero.inventory", "<派生:物品名→item_id>")
+        if resolve_action_item_names(j2_cfg.get("tasks", {}), j2_cfg.get("items", [])):
+            self._prov_mark(prov, "war3.jiubing2.tasks", "<派生:动作物品名→id>")
 
     def get_provenance(self, task_name: str) -> Dict[str, List[str]]:
         """返回 provenance 映射：dot_path -> [写入来源链]（按写入顺序，末位为生效来源）。

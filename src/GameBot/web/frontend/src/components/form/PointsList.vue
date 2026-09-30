@@ -57,13 +57,13 @@ const requiredErrors = computed<Record<number, { coords: boolean; time: boolean;
   return map
 })
 
-// 页面内已配置的技能快捷键默认值：同 id 技能在最近一次配置中提取的快捷键
-const defaultSkillKeys = computed<Record<number, string>>(() => {
-  const map: Record<number, string> = {}
+// 页面内已配置的技能快捷键默认值：同技能（名称或旧格式 id）在最近一次配置中提取的快捷键
+const defaultSkillKeys = computed<Record<string | number, string>>(() => {
+  const map: Record<string | number, string> = {}
   for (const pt of points.value) {
     for (const act of (pt.actions || [])) {
       if (act.type === 'skill' && act.key) {
-        map[act.id] = act.key
+        map[act.skill ?? act.id] = act.key
       }
     }
   }
@@ -256,7 +256,7 @@ const useItemOptions = computed<{ value: number; label: string }[]>(() => {
   const seen = new Set<number>()
   const arr: { value: number; label: string }[] = []
   for (const slot of props.inventory!) {
-    const itemId = slot.item_id != null ? slot.item_id : slot.id
+    const itemId = slot.item_id
     if ((itemId ?? -1) <= 0) continue
     if (seen.has(itemId)) continue
     seen.add(itemId)
@@ -321,21 +321,21 @@ function onActionTypeChange(idx: number, aIdx: number, type: string) {
   const act: any = { type }
   if (type === 'skill') {
     if (props.heroSkills && props.heroSkills.length > 0) {
-      const usedIds = new Set((list[idx].actions as any[])
+      const usedRefs = new Set((list[idx].actions as any[])
         .filter((a: any) => a.type === 'skill' && a !== list[idx].actions[aIdx])
-        .map((a: any) => a.id))
-      const available = props.heroSkills.find(h => !usedIds.has(h.id))
+        .map((a: any) => actionSkillRef(a)))
+      const available = props.heroSkills.find(h => !usedRefs.has(h.desc))
       if (available) {
-        act.id = available.id
+        act.skill = available.desc
         act.key = available.key
         act.target_type = available.target_type
       } else {
-        act.id = props.heroSkills[0].id
+        act.skill = props.heroSkills[0].desc
         act.key = props.heroSkills[0].key
         act.target_type = props.heroSkills[0].target_type
       }
     } else {
-      act.id = 1
+      act.skill = ''
       act.key = ''
       act.target_type = 'self'
     }
@@ -377,24 +377,35 @@ function updateActionField(idx: number, aIdx: number, field: string, val: any) {
 
 // ── 技能 action 辅助函数 ──
 
+// 按技能名（desc）查找英雄技能池条目；兼容旧数据中的数值 id
+function findHeroSkill(act: any): SkillDef | undefined {
+  return props.heroSkills?.find(h => h.desc === act.skill)
+    ?? props.heroSkills?.find(h => h.id === act.id)
+}
+
+// 技能引用值：新格式 act.skill（技能名），旧数据 act.id 反查 desc 兜底
+function actionSkillRef(act: any): string | number | undefined {
+  return act.skill ?? findHeroSkill(act)?.desc ?? act.id
+}
+
 function actionSkillTargetType(act: any): string {
-  const hero = props.heroSkills?.find(h => h.id === act.id)
+  const hero = findHeroSkill(act)
   return hero ? hero.target_type : (act.target_type || '')
 }
 
 function actionSkillKeyEditable(act: any): boolean {
-  const hero = props.heroSkills?.find(h => h.id === act.id)
+  const hero = findHeroSkill(act)
   if (!hero) return true
   return !!hero.fixed_key
 }
 
 function actionSkillDefaultKey(act: any): string {
-  const hero = props.heroSkills?.find(h => h.id === act.id)
+  const hero = findHeroSkill(act)
   return hero ? hero.key : (act.key || '')
 }
 
 function actionSkillEffectiveKey(act: any): string {
-  const hero = props.heroSkills?.find(h => h.id === act.id)
+  const hero = findHeroSkill(act)
   if (hero) {
     if (hero.fixed_key) return (act.key || '').toUpperCase()
     return (hero.key || '').toUpperCase()
@@ -409,13 +420,13 @@ function hasDuplicateSkillKey(idx: number, aIdx: number, key: string, list?: any
     i !== aIdx && a.type === 'skill' && actionSkillEffectiveKey(a) === key)
 }
 
-function isSkillAlreadyAdded(idx: number, skillId: number, excludeAIdx?: number): boolean {
+function isSkillAlreadyAdded(idx: number, skillRef: string | number | undefined, excludeAIdx?: number): boolean {
   const actions = points.value[idx]?.actions || []
   return actions.some((a: any, i: number) =>
-    i !== excludeAIdx && a.type === 'skill' && a.id === skillId)
+    i !== excludeAIdx && a.type === 'skill' && actionSkillRef(a) === skillRef)
 }
 
-function updateActionSkillId(idx: number, aIdx: number, val: number) {
+function updateActionSkillRef(idx: number, aIdx: number, val: string) {
   if (isSkillAlreadyAdded(idx, val, aIdx)) {
     showToast('该技能已在当前路线点中添加', 'warning')
     return
@@ -423,9 +434,10 @@ function updateActionSkillId(idx: number, aIdx: number, val: number) {
   const list = (props.modelValue || []).map((p, i) => (i === idx ? { ...p } : p))
   if (!list[idx] || !list[idx].actions) return
   const act = list[idx].actions[aIdx]
-  const oldHero = props.heroSkills?.find(h => h.id === act.id)
-  const newHero = props.heroSkills?.find(h => h.id === val)
-  act.id = val
+  const oldHero = findHeroSkill(act)
+  const newHero = props.heroSkills?.find(h => h.desc === val)
+  act.skill = val
+  delete act.id
   if (newHero) {
     act.target_type = newHero.target_type
     if (!newHero.fixed_key) {
@@ -450,10 +462,13 @@ function updateActionSkillId(idx: number, aIdx: number, val: number) {
   emit('update:modelValue', list)
 }
 
-function updateActionSkillCustomId(idx: number, aIdx: number, val: string) {
-  const n = Number(val)
-  if (Number.isNaN(n)) return
-  updateActionSkillId(idx, aIdx, n)
+function updateActionSkillCustom(idx: number, aIdx: number, val: string) {
+  const list = (props.modelValue || []).map((p, i) => (i === idx ? { ...p } : p))
+  if (!list[idx] || !list[idx].actions) return
+  const act = list[idx].actions[aIdx]
+  act.skill = val.trim()
+  delete act.id
+  emit('update:modelValue', list)
 }
 
 function updateActionSkillTargetType(idx: number, aIdx: number, val: string) {
@@ -858,26 +873,26 @@ function onDragEnd() {
                         <div class="action-field-row">
                           <template v-if="heroSkills && heroSkills.length > 0">
                             <el-select
-                              :model-value="act.id"
-                              @update:model-value="updateActionSkillId(idx, aIdx, $event as number)"
+                              :model-value="actionSkillRef(act)"
+                              @update:model-value="updateActionSkillRef(idx, aIdx, $event as string)"
                               placeholder="选择技能"
                               class="route-select"
                               style="width: 160px"
                             >
                               <el-option
                                 v-for="hs in sortedHeroSkills"
-                                :key="hs.id"
-                                :value="hs.id"
+                                :key="hs.desc"
+                                :value="hs.desc"
                                 :label="hs.desc"
-                                :disabled="isSkillAlreadyAdded(idx, hs.id, aIdx)"
+                                :disabled="isSkillAlreadyAdded(idx, hs.desc, aIdx)"
                               />
                             </el-select>
                           </template>
                           <template v-else>
                             <el-input
-                              :model-value="act.id"
-                              @update:model-value="updateActionSkillCustomId(idx, aIdx, $event as string)"
-                              placeholder="技能id"
+                              :model-value="act.skill"
+                              @update:model-value="updateActionSkillCustom(idx, aIdx, $event as string)"
+                              placeholder="技能名"
                               style="width: 80px"
                             />
                             <el-select

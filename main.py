@@ -28,7 +28,6 @@ TASK_REGISTRY = {
     "forest": ("war3.jiubing2.tasks.reputation.forest_reputation", "ForestReputationTask"),
     "ingame_special": ("war3.jiubing2.tasks.festival.ingame_special", "IngameSpecialTask"),
     "personal": ("war3.jiubing2.tasks.achievements.personal", "PersonalAchievementTask"),
-    "team_task": ("team.team_task", "TeamTaskRunner"),
 }
 
 

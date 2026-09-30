@@ -17,29 +17,6 @@ pet_feed_interval = 100  # 每100秒喂一次
 boss_death_text = "开始挑战"  # BOSS 死亡后屏幕提示文字（OCR 检测）
 boss_death_timeout = 60  # 等待 BOSS 死亡提示的超时时间（秒），超时用当前时间兜底
 
-# 神碎配置 !!!!!!
-[hero.shard]
-is_open = true  # 是否装备神碎
-is_resonance = true  # 是否激活神碎共鸣
-is_absorb = true  # 是否吸收覆盖神碎
-max_pages = 3  # 神碎最大可用页数
-# 小号
-# use_index = [
-#     [1, 1],
-#     [1, 2],
-#     [1, 3],
-#     [2, 4]
-# ]  # 示例：[1, 2] 即第1页第2行
-# absorb_index = [2, 3]  # 在第几页第几行吸收神碎，会自动覆盖当前位置神碎，务必慎重！！！
-# 大号
-use_index = [
-   [1, 2],
-   [1, 3],
-   [1, 4],
-   [3, 1]
-]  # 示例：[1, 2] 即第1页第2行
-absorb_index = [1, 1]  # 在第几页第几行吸收神碎，会自动覆盖当前位置神碎，务必慎重！！！
-
 # ------------------------------ 无尽地图路径点定义（按序执行） ------------------------------
 [[this.points]]
 desc = "3点（地图入口或初始位置到无尽刷怪循环起点）"
@@ -50,7 +27,7 @@ entrance_to_start_time = 30
 walk_mode = 0
 [[this.points.actions]]
 type = "skill"
-id = 2
+skill = "相位作战服"
 
 [[this.points]]
 desc = "4点位置"
@@ -81,7 +58,7 @@ time = 8
 walk_mode = 1
 [[this.points.actions]]
 type = "item"
-id = 1
+item = "血瓶"
 
 [[this.points]]
 desc = "5点坡道下方靠地图中间高台"
@@ -91,11 +68,11 @@ time = 4
 walk_mode = 0
 [[this.points.actions]]
 type = "skill"
-id = 1
+skill = "舰队信标"
 target_coords = [882,149]
 [[this.points.actions]]
 type = "skill"
-id = 2
+skill = "相位作战服"
 
 [[this.points]]
 desc = "5点坡道下方靠地图下方"
@@ -105,7 +82,7 @@ time = 9
 walk_mode = 1
 [[this.points.actions]]
 type = "item"
-id = 1
+item = "血瓶"
 
 [[this.points]]
 desc = "6点"
@@ -122,11 +99,11 @@ time = 15
 walk_mode = 2
 [[this.points.actions]]
 type = "skill"
-id = 1
+skill = "舰队信标"
 target_coords = [1138,285]
 [[this.points.actions]]
 type = "skill"
-id = 2
+skill = "相位作战服"
 
 [[this.points]]
 desc = "6点半（坡道下）"
@@ -143,7 +120,7 @@ time = 12
 walk_mode = 2
 [[this.points.actions]]
 type = "item"
-id = 1
+item = "血瓶"
 
 [[this.points]]
 desc = "10点（石笋下坡处）的中途，大概还在高台上"
@@ -153,7 +130,7 @@ time = 9
 walk_mode = 2
 [[this.points.actions]]
 type = "skill"
-id = 2
+skill = "相位作战服"
 
 [[this.points]]
 desc = "10点（石笋下坡处）"
@@ -163,7 +140,7 @@ time = 12
 walk_mode = 2
 [[this.points.actions]]
 type = "item"
-id = 1
+item = "血瓶"
 
 [[this.points]]
 desc = "中间上方台阶处（去往12点位置方向）"
@@ -173,7 +150,7 @@ time = 8
 walk_mode = 2
 [[this.points.actions]]
 type = "skill"
-id = 1
+skill = "舰队信标"
 target_coords = [1631,595]
 
 [[this.points]]
@@ -184,7 +161,7 @@ time = 12
 walk_mode = 2
 [[this.points.actions]]
 type = "skill"
-id = 2
+skill = "相位作战服"
 
 [[this.points]]
 desc = "12点门"
@@ -215,7 +192,7 @@ time = 14
 walk_mode = 2
 [[this.points.actions]]
 type = "item"
-id = 8
+item = "水晶"
 [[this.points.actions]]
 type = "msg"
 content = "-del"
@@ -228,18 +205,18 @@ time = 1.5
 walk_mode = 0
 [[this.points.actions]]
 type = "skill"
-id = 0  # 轨道炮
+skill = "轨道炮"
 target_coords = [1160, 550]
 [[this.points.actions]]
 type = "skill"
-id = 1  # 舰队信标
+skill = "舰队信标"
 target_coords = [1160, 550]
 [[this.points.actions]]
 type = "skill"
-id = 2  # 相位作战服
+skill = "相位作战服"
 [[this.points.actions]]
 type = "item"
-id = 6
+item = "跳刀"
 coords = [1660, 360]
 
 #[[war3.jiubing2.tasks.endless.endless_single.points]]

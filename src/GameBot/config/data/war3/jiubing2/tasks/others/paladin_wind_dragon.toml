@@ -4,12 +4,26 @@
 # 即施放；冷却中图标变灰不匹配则跳过。被控制吞掉的按键下一轮检测自然补上。
 # 技能面板坐标由 jiubing2.toml 的 [skill_panel]（first_coords + gap_x/gap_y）计算，
 # 因此运行时强制对齐客户区尺寸（war3.client_size，默认 1902x1033）。
+# uv run python -m GameBot.runner.tasks.war3.jiubing2.others.paladin_wind_dragon
 # =============================================================================
-extends = ["war3.jiubing2.heroes.paladin", "kk"]
+extends = [
+    "war3.jiubing2.heroes.paladin", 
+    "war3.jiubing2.scenes.wind_dragon",
+    "kk"
+]
+
+[hero]
+inventory = [
+  {slot = 4, item = "宠物食物"}, 
+]
 
 [this]
 name = "圣骑士风龙"
 description = "圣骑士风龙挂机：检测技能图标就绪即施放，冷却自动跳过。"
+target_player = "善木木"
+pet_feed_interval = 100  # “喂宠物的时间是否到了”的检测间隔（秒），0 关闭；实际喂食间隔由 pet.feeding_interval（分钟）控制
+boss_open_timeout = 10   # 到位后在裂隙区域找图开 boss 的最长等待（秒），超时未找到则跳过直接挂机
+mouse_avoid_pos = [200, 200]  # 找图检测前的鼠标避让位置（防光标/tooltip 遮挡）
 
 skill_gap = 0.8             # 任意两次技能施放之间的最小间隔（秒），等待后摇
 poll_interval = 0.5         # 无技能就绪时的轮询间隔（秒）
@@ -19,7 +33,6 @@ cast_confirm_time = 3     # 施放确认窗口（秒）：按技能后需观察�
 f1_min_interval = 0.6       # 两次 F1 最小间隔（秒），防止被判定双击 F1 镜头跳英雄
 reselect_idle_time = 10      # 连续无技能就绪超过该秒数时按一次 F1（防选中丢失卡死）
 # 大漠窗口绑定模式：foreground / background（后台，用 bind_background 参数）
-#   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
 
 # 技能图标检测参数（冷却时图标变灰，与就绪态图片不匹配）
 icon_sim = 0.95              # 找图相似度
@@ -28,37 +41,26 @@ icon_delta_color = "101010" # 找图色差
 # 注意：检测区域必须大于图标本身（当前图标约 56~64 × 40~45），
 # 区域比图片小时 FindPic 永远无法匹配。默认 40x30 = 80x60 区域。
 icon_search_half = [40, 30]
-is_test_detect = false      # 检测测试模式：只截图+多档相似度试匹配并打日志，不施放技能
 
 # 技能列表：按顺序轮询检测，就绪即放
-#   key           — 技能按键
-#   name          — 技能名（日志/浮窗显示用）
+#   skill         — 技能名，引用英雄技能池（paladin.toml [hero] skills 的 desc）；
+#                   key/image/targeted 由技能池自动带出（targeted = target_type != "self"）
 #   grid          — 技能面板格子 [行, 列]（1-based，由 skill_panel 公式换算坐标）
-#   image         — 就绪态图标文件名（resources/images/ 下），找不到=冷却中
-#   targeted      — 是否指向性技能
-#   target_coords — 指向性技能的目标坐标："center"=客户区中心，或 [x, y]
+#   target_coords — 指向性技能的目标坐标："center"=客户区中心（缺省），或 [x, y]
+#   self_cast     — 可选，true 时 Alt+技能键自我施放（免疫视角偏移）
 
 [[this.skills]]
-key = "q"
-name = "降临"
-grid = [2, 3]
-image = "paladin_skill_q_advent.bmp"
-targeted = false
+skill = "降临"        # Q，自身
+grid = [2, 3]   # 该技能位于技能面板（技能面板默认3行4列）的位置
 
 [[this.skills]]
-key = "w"
-name = "光明礼赞"
+skill = "光明礼赞"    # W，地面目标区域
 grid = [3, 1]
-image = "paladin_skill_w_hymn.bmp"
-targeted = true
-target_coords = "center"
+target_coords = [595,921]
 
 [[this.skills]]
-key = "t"
-name = "神圣复仇"
+skill = "神圣复仇"    # T，自身
 grid = [3, 4]
-image = "paladin_skill_t_vengeance.bmp"
-targeted = false
 
 # 后台绑定：覆盖命名空间级默认值（war3.toml/kk.toml 默认 foreground）
 [war3]

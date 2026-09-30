@@ -1,0 +1,99 @@
+# =============================================================================
+# 升级圣痕变体 — 岁月神偷（多开认领，局内任务：启动时已在游戏内）
+# 继承 upgrade_stigmata 全部配置，[this] 只写差异字段；文件名即启动参数。
+# 启动：uv run python -m GameBot.runner.tasks.war3.jiubing2.others.upgrade_stigmata upgrade_stigmata_岁月神偷
+# =============================================================================
+extends = [
+    "war3.jiubing2.tasks.others.upgrade_stigmata",
+    "war3.jiubing2.heroes.shaman"
+]
+
+
+[this]
+# 多开认领目标玩家名：war3 聊天 token 回显"玩家名：token"判归属
+target_player = "岁月神偷"
+
+# 多开认领必须后台绑定：直接覆盖命名空间级默认值
+[war3]
+bind_mode = "background"
+
+# =============================================================================
+# 城门骚扰路线点覆盖 —— 绝对路径给原子任务节点打补丁（数组整体替换，须写全）。
+# 注意：本任务的 [this.points] 是"守卫队长 ↔ 圣痕NPC"往返路线（2 个点），
+# 与原子任务路线是两个字段；给骚扰路线挂技能必须写下面的完整路径段。
+# =============================================================================
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "小道入口附近"
+mini_coords = [173, 828]
+coords = [1158, 314]
+walk_mode = 1
+time = 12
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points.actions]]
+type = "skill"
+skill = "闪电护盾"
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "石拱门"
+mini_coords = [173, 828]
+coords = [767, 140]
+walk_mode = 1
+time = 4
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "石拱门（避免怪物睡着无法自动攻击）"
+mini_coords = [173, 828]
+coords = [600, 249]
+walk_mode = 1
+time = 2
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "小道出口内"
+mini_coords = [105, 813]
+coords = [1010, 341]
+walk_mode = 1
+time = 9
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "小道出口内（避免怪物睡着无法自动攻击）"
+mini_coords = [105, 813]
+coords = [1081, 503]
+walk_mode = 1
+time = 3
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "小道出口外"
+mini_coords = [105, 813]
+coords = [690, 383]
+walk_mode = 1
+time = 5
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points.actions]]
+type = "skill"
+skill = "闪电护盾"
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "裂隙传送口左方"
+mini_coords = [105, 813]
+coords = [191, 234]
+walk_mode = 1
+time = 6
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "裂隙传送口下方"
+mini_coords = [105, 813]
+coords = [476, 519]
+walk_mode = 1
+time = 5
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "裂隙上方叉口"
+mini_coords = [137, 807]
+coords = [910, 336]
+walk_mode = 1
+time = 6
+
+[[war3.jiubing2.tasks.atomic.blackstone_gate_harassment.points]]
+desc = "黑石城守卫队长附近（交/接任务）"
+mini_coords = [252, 866]
+coords = [969, 406]
+walk_mode = 0
+time = 24

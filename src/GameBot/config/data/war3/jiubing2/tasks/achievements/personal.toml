@@ -9,6 +9,7 @@
 #       因此接取顺序固定为：毒蛇 → 蛇蛋 → 小炎蛇（LV4）
 # 1、英雄初始位置在npc左侧附近
 # 2、别带如辉耀等被动aoe技能，容易提前烫死怪
+# uv run python -m GameBot.runner.tasks.war3.jiubing2.achievements.personal
 # =============================================================================
 extends = [
     "war3.jiubing2.tasks.atomic.venomous_snake",
@@ -23,6 +24,10 @@ task_times = 4150               # 需完成多少次个人任务
 loop_interval_time = 1.5        # 两轮之间的间隔（秒）
 clear_nearby_probability = 0.15  # 每个路线点清理英雄附近物品的概率（0~1），0 = 禁用
 route_complete_timeout = 50    # 路线走完仍未全部完成的兜底超时（秒）
+
+# 后台绑定：覆盖命名空间级默认值（war3.toml/kk.toml 默认 foreground）
+[war3]
+bind_mode = "background"
 
 # ── 原子任务列表（仅引用 key + 走到 NPC 的时间） ──
 # 每轮：接取全部 → 走共享路线 → 弹窗确认全部"已完成" → 依次提交 → 计 N 次

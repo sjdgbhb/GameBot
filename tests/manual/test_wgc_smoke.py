@@ -1,8 +1,8 @@
 """WGC 截图冒烟测试：对任意可见顶级窗口建会话、取一帧、裁客户区、存盘。
 
 用法：
-    .venv\\Scripts\\python tests/manual/test_wgc_smoke.py [--title 子串] [--hwnd N] [--out path]
-    .venv\\Scripts\\python tests/manual/test_wgc_smoke.py --title "Warcraft III" --watch 600
+    uv run python tests/manual/test_wgc_smoke.py [--title 子串] [--hwnd N] [--out path]
+    uv run python tests/manual/test_wgc_smoke.py --title "Warcraft III" --watch 600
 不传参数时用当前前台窗口。
 
 --watch N：持续 N 秒，每 0.25s 采一次"帧龄"并实际调用 grab_client（走完整

@@ -143,7 +143,9 @@ class TestDismissHallPopups(unittest.TestCase):
 
         kk.dismiss_hall_popups(kk.dm)
 
-        kk.dm.close_window_by_x.assert_called_once_with(popup_hwnd, 15, 15)
+        kk.dm.close_window_by_x.assert_called_once_with(
+            popup_hwnd, 15, 15, bind_cfg={"bind_mode": "foreground"}
+        )
 
     # U-09: 不关闭创建房间弹窗（OCR 关键词保护）
     @patch("GameBot.runner.business.base.get_inference_client")

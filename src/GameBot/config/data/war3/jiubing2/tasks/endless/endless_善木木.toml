@@ -1,8 +1,8 @@
 # =============================================================================
 # 多局无尽变体 — 善木木（多开认领，大号）
 # 继承 endless 全部配置，[this] 只写差异字段；文件名即启动参数。
-# 启动：.venv\Scripts\python -m GameBot.runner.tasks.war3.jiubing2.endless.endless endless_善木木
-# 启动要求：账号停留在 KK 房间内（创建好密码房即可运行）；认领失败任务停止
+# 启动：uv run python -m GameBot.runner.tasks.war3.jiubing2.endless.endless endless_善木木
+# 启动要求：创建好自己的密码房即可运行，认领失败任务停止
 # =============================================================================
 extends = ["war3.jiubing2.tasks.endless.endless"]
 
@@ -12,10 +12,7 @@ extends = ["war3.jiubing2.tasks.endless.endless"]
 target_player = "善木木"
 
 [war3.jiubing2.tasks.endless.endless]
-games = 1
-
-[war3.jiubing2.tasks.endless.endless_single]
-max_level = 16
+games = 8
 
 # 多开认领必须后台绑定：直接覆盖命名空间级默认值
 [war3]
@@ -23,13 +20,29 @@ bind_mode = "background"
 [kk]
 bind_mode = "background"
 
-# 神碎配置 —— 大号
-# [hero] 为浅合并，shard 子键整表覆盖继承值，须写全字段
+# 圣痕
+[hero.stigmata]
+is_open = true  # 是否使用圣痕
+use_index = 1  # 使用第几套圣痕
+
+# 卡牌
+[hero.card]
+is_open = true  # 是否装备卡牌
+use_index = [
+    [1, 1],
+    [1, 2],
+    [2, 2],
+    [5, 2],
+    [5, 5],
+    [4, 5],
+]  # 示例：[1, 1] 即第1行第1列的卡牌
+
+# 神碎配置
 [hero.shard]
-is_open = true       # 是否装备神碎
+is_open = true  # 是否装备神碎
 is_resonance = true  # 是否激活神碎共鸣
-is_absorb = true     # 是否吸收覆盖神碎
-max_pages = 3        # 神碎最大可用页数
+is_absorb = true  # 是否吸收覆盖神碎
+max_pages = 3  # 神碎最大可用页数
 use_index = [
    [1, 2],
    [1, 3],
