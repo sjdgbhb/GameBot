@@ -21,6 +21,7 @@ dependencies = [
     "loguru>=0.7.3",
     # ── Windows COM（IDE 静态分析需要；运行时走 bridge 驱动，不直接导入 win32com）──
     "pywin32>=311; sys_platform == 'win32'",
+    "windows-capture==2.0.1",
 ]
 
 [project.scripts]
@@ -40,7 +41,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-minversion = "9.0"
+minversion = "8.3"
 testpaths = ["tests/unit"]
 pythonpath = ["src"]
 addopts = "-ra -q"
@@ -60,7 +61,7 @@ markers = [
 
 [tool.ruff]
 line-length = 120
-target-version = "py38"
+target-version = "py38"  # 按 3.8 检查语法，保护 dm_bridge（3.8 子进程）共享代码；主环境 3.12 语法差异需自行注意
 
 [tool.ruff.lint]
 select = ["F", "I"]

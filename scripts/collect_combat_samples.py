@@ -39,9 +39,9 @@ def main():
     logger.info(f"数据目录: {DATA_DIR}")
     time.sleep(5)
 
-    jiubing2_cfg = config.load_task("jiubing2")["jiubing2"]
-    war3_cfg = config.get("war3", {})
-    combat_cfg = jiubing2_cfg.get("combat_status", {})
+    cfg = config.load_task("war3.jiubing2")
+    war3_cfg = cfg.get("war3", {})
+    combat_cfg = war3_cfg.get("jiubing2", {}).get("combat_status", {})
 
     area = combat_cfg.get("in_combat_area_coords", [19, 56, 88, 103])
     frame_count = combat_cfg.get("frame_count", 10)

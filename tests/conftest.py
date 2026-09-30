@@ -118,17 +118,17 @@ def _populate_standard_config(config_dir: Path) -> Path:
     _write_toml_helper(
         config_dir,
         "base.toml",
-        '\nname = "base"\nextends = []\n[paths]\nlog_path = "logs"\n\n[dm]\nversion = "3.1233"\n',
+        '\nextends = []\n[this.paths]\nlog_path = "logs"\n\n[this.dm]\nversion = "3.1233"\n',
     )
     _write_toml_helper(
         config_dir,
         "war3/war3.toml",
-        '\nname = "war3.war3"\nextends = ["base"]\n\n[war3]\nwindow_class = "War3Class"\nwindow_title = "Warcraft III"\nclient_size = [1902, 1033]\nkey_time = 0.05\ngeneral_time = 0.3\n',
+        '\nextends = ["base"]\n\n[this]\nwindow_class = "War3Class"\nwindow_title = "Warcraft III"\nclient_size = [1902, 1033]\nkey_time = 0.05\ngeneral_time = 0.3\n',
     )
     _write_toml_helper(
         config_dir,
         "war3/jiubing2/jiubing2.toml",
-        '\nname = "war3.jiubing2.jiubing2"\nextends = ["war3"]\n\n[game]\nload_war3_time = 33\n\n[command]\nclear_nearby = "-delh"\n\n[hero]\ninventory = ["A", "B", "C"]\n',
+        '\nextends = ["war3"]\n\n[this.game]\nload_war3_time = 33\n\n[this.command]\nclear_nearby = "-delh"\n\n[hero]\ninventory = ["A", "B", "C"]\n',
     )
     _write_toml_helper(
         config_dir,

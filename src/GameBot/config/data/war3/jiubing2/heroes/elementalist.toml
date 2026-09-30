@@ -1,5 +1,4 @@
 ############## 元素法师 ##############
-name = "war3.jiubing2.heroes.elementalist"
 extends = ["war3.jiubing2"]
 
 

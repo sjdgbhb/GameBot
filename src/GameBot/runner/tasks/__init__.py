@@ -18,14 +18,11 @@ def __getattr__(name):
         "BlackstoneReputationTask",
         "ForestReputationTask",
         "IngameSpecialTask",
+        "PersonalAchievementTask",
     ):
         from GameBot.runner.tasks import war3 as war3_tasks
 
         return getattr(war3_tasks, name)
-    if name == "TeamTaskRunner":
-        from GameBot.runner.tasks.team.team_task import TeamTaskRunner
-
-        return TeamTaskRunner
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -40,5 +37,5 @@ __all__ = [
     "BlackstoneReputationTask",
     "ForestReputationTask",
     "IngameSpecialTask",
-    "TeamTaskRunner",
+    "PersonalAchievementTask",
 ]

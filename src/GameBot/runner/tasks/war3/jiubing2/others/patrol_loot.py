@@ -5,17 +5,17 @@
 
 from __future__ import annotations
 
-import os
-import tempfile
+import sys
 import threading
 import time
 from typing import Optional
 
-from GameBot.config import config
+from GameBot.config import config, get_task_view, resolve_bind_cfg
 from GameBot.inference import get_inference_client
 from GameBot.runner import create_dm_client
 from GameBot.runner.business.war3 import TextMonitor, War3Business
 from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI, get_inventory_hotkey, get_inventory_hotkeys
+from GameBot.runner.driver.wgc_capture import WgcCapture
 from GameBot.runner.ui import run_with_float_window
 from GameBot.utils import StopTaskError, logger, setup_log_file
 from GameBot.utils.exception_handler import setup_global_exception_hook
@@ -24,9 +24,15 @@ from GameBot.utils.exception_handler import setup_global_exception_hook
 class PatrolLootTask:
     """巡逻杀怪 + 宝箱拾取任务。"""
 
-    def __init__(self, cfg: dict, stop_event=None, progress_lines_callback=None, dm=None):
+    def __init__(self, cfg: dict, stop_event=None, progress_lines_callback=None, dm=None, task_name: str = ""):
         self.task_cfg = cfg
-        self.cfg = cfg["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]
+        # task_name 非空时走 get_task_view 沿 extends 链合并（变体节点不在固定路径上），
+        # 为空则按固定路径取基础任务节点
+        self.cfg = (
+            get_task_view(cfg, task_name)
+            if task_name
+            else cfg["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"]
+        )
         self.dm = dm or create_dm_client()
         self._stop_event = stop_event
         self._progress_lines_callback = progress_lines_callback
@@ -35,16 +41,18 @@ class PatrolLootTask:
         hero_cfg = self.task_cfg.get("hero", {})
 
         self.war3 = War3Business(self.dm, war3_cfg)
+        # 多开认领：变体配置的 target_player（后台绑定时 find_game_window 走窗口认领协议）
+        self.war3.target_player = self.cfg.get("target_player", "")
         self.ui = GameUI(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
         self.combat = CombatHelper(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
         self.war3_cfg = war3_cfg
         self.hero_cfg = hero_cfg
 
-        self.chest_cfg = self.task_cfg.get("chest", {})
-        self.item_text_cfg = self.task_cfg.get("item_text", {})
-        self.pickup_cfg = self.task_cfg.get("pickup", {})
+        self.chest_cfg = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("chest", {})
+        self.item_text_cfg = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("item_text", {})
+        self.pickup_cfg = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("pickup", {})
         self.patrol_cfg = self.cfg.get("patrol", {})
-        self.combat_cfg = self.task_cfg.get("combat_status", {})
+        self.combat_cfg = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("combat_status", {})
 
         # 路线点解析：优先使用用户自定义 points，否则从 route_presets 按 route_scheme 选取
         self.route_scheme = self.cfg.get("route_scheme", "")
@@ -75,7 +83,7 @@ class PatrolLootTask:
         self.hover_wait_time = self.chest_cfg.get("hover_wait_time", 1.5)
         self.mouse_avoid_pos = self.cfg.get("mouse_avoid_pos", [200, 200])
         self.feed_only_interval = self.cfg.get("feed_only_interval", 10)
-        self.combat_timeout = self.task_cfg.get("game", {}).get("combat_timeout", 120)
+        self.combat_timeout = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("game", {}).get("combat_timeout", 120)
 
         # 预启动战斗检测线程（与移动等待并行）
         self._combat_check_thread = None
@@ -114,19 +122,21 @@ class PatrolLootTask:
             logger.error("未装备宠物食物（物品 id=9），任务拒绝启动")
             return
 
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
 
-        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
+        # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
+        self.war3.set_client_size(hwnd)
+        with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
             self.run_core(hwnd)
 
     def run_core(self, hwnd, skip_feed_only=False):
-        """核心巡逻循环 — 假设窗口已绑定。供 run() 和组队步骤调用。
+        """核心巡逻循环 — 假设窗口已绑定。
 
         :param hwnd: War3 窗口句柄
-        :param skip_feed_only: True 时跳过储物箱满后的仅喂宠物循环（组队模式用）
+        :param skip_feed_only: True 时跳过储物箱满后的仅喂宠物循环
         """
         self.hwnd = hwnd
         self._stats["start_time"] = time.time()
@@ -159,6 +169,8 @@ class PatrolLootTask:
                         if self.storage_full or self._all_items_satisfied():
                             break
                 except StopTaskError:
+                    if monitor is not None and monitor.error is not None:
+                        raise monitor.error
                     logger.info("用户请求停止，终止巡逻")
                     break
                 self._stats["rounds_completed"] = round_idx
@@ -174,11 +186,18 @@ class PatrolLootTask:
         logger.info("刷装备任务结束")
 
     def _make_monitor(self, hwnd: int):
-        atomic_task_cfg = self.task_cfg.get("atomic_task", {})
+        atomic_task_cfg = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("atomic_task", {})
         interval = atomic_task_cfg.get("monitor_interval", 0.2)
-        monitor = TextMonitor(self.war3, self.task_cfg.get("prompt_text"), interval=interval)
+        # 监测线程截图出错 → set stop_event 让主线程尽快中断，异常由 monitor.stop() 抛出
+        monitor = TextMonitor(
+            self.war3, self.task_cfg.get("war3", {}).get("jiubing2", {}).get("prompt_text"), interval=interval, on_error=self._on_monitor_error
+        )
         monitor.start(hwnd)
         return monitor
+
+    def _on_monitor_error(self, _exc: BaseException):
+        if self._stop_event is not None:
+            self._stop_event.set()
 
     # ── 路线点导航 & 杀怪 ────────────────────────────────
 
@@ -213,36 +232,35 @@ class PatrolLootTask:
     def _start_combat_check(self):
         """启动持续战斗检测线程，在移动等待期间循环检测战斗状态。
 
-        线程会不断调用 capture_and_predict_combat（每轮约 3s），
-        将最新结果存入 _combat_check_result，直到 _stop_combat_check 被调用。
-        如果线程已在运行则不重复启动。
+        线程每轮用 WGC 抓 frame_count 帧头像区域（frame_interval 间隔），
+        送入 ONNX 战斗分类模型，将最新结果存入 _combat_check_result，
+        直到 _stop_combat_check 被调用。如果线程已在运行则不重复启动。
         """
         if self._combat_check_thread is not None and self._combat_check_running:
             return
         cfg = self.combat_cfg
         area = cfg["in_combat_area_coords"]
-        cx, cy, _, _ = self.dm.get_client_rect(self.hwnd)
-        bbox = [cx + area[0], cy + area[1], cx + area[2], cy + area[3]]
         frame_count = cfg.get("frame_count", 10)
         frame_interval = cfg.get("frame_interval", 0.3)
+        wgc_min_interval = self.war3_cfg.get("wgc_min_interval_ms", 100)
 
         self._combat_check_result = None
         self._combat_check_error = None
         self._combat_check_round = 0
         self._combat_check_running = True
-        # 取消信号文件，脱战时创建此文件中断子进程截帧
-        self._combat_cancel_file = os.path.join(tempfile.gettempdir(), "patrol_combat_cancel.tmp")
 
         def _do_check():
+            cap = WgcCapture.for_hwnd(self.hwnd, min_interval_ms=wgc_min_interval)
             while self._combat_check_running:
                 try:
-                    results = get_inference_client().capture_and_predict_combat(
-                        bbox,
-                        frame_count=frame_count,
-                        frame_interval=frame_interval,
-                        cancel_file=self._combat_cancel_file,
-                    )
-                    self._combat_check_result = results
+                    frames = []
+                    for i in range(frame_count):
+                        if not self._combat_check_running:
+                            break
+                        frames.append(cap.grab_client(area))
+                        if i < frame_count - 1:
+                            time.sleep(frame_interval)
+                    self._combat_check_result = get_inference_client().predict_combat_from_arrays(frames)
                     self._combat_check_round += 1
                 except Exception as e:
                     self._combat_check_error = e
@@ -253,16 +271,8 @@ class PatrolLootTask:
         self._combat_check_thread.start()
 
     def _stop_combat_check(self):
-        """停止持续战斗检测线程，通过取消信号中断子进程截帧后等待线程退出。"""
+        """停止持续战斗检测线程，等待线程退出。"""
         self._combat_check_running = False
-        # 创建取消信号文件，中断子进程正在进行的截帧循环
-        cancel_file = getattr(self, "_combat_cancel_file", None)
-        if cancel_file:
-            try:
-                with open(cancel_file, "w") as f:
-                    f.write("1")
-            except OSError:
-                pass
         if self._combat_check_thread is not None:
             self._combat_check_thread.join(timeout=5)
             self._combat_check_thread = None
@@ -365,7 +375,7 @@ class PatrolLootTask:
                 break
 
         if not self.storage_full:
-            self.war3.send_msg(self.task_cfg["command"]["clear_nearby"])
+            self.war3.send_msg(self.task_cfg.get("war3", {}).get("jiubing2", {}).get("command", {}).get("clear_nearby", ""))
             logger.info("已清理地面物品")
 
     def _try_pickup_chest(self, idx, cx, cy, conf, monitor: TextMonitor) -> Optional[bool]:
@@ -472,25 +482,25 @@ class PatrolLootTask:
     # ── 宝箱检测 ──────────────────────────────────────────
 
     def _find_all_chests(self):
-        """全屏AI检测宝箱，返回 [(index, x, y, confidence), ...]，x/y 为宝箱中心坐标。"""
+        """全客户区 AI 检测宝箱（WGC 取帧），返回 [(index, x, y, confidence), ...]，x/y 为宝箱中心坐标。"""
         # 截图前用大漠 MoveTo 移动鼠标到远处，触发 war3 tooltip 消失
         avoid_x, avoid_y = self.mouse_avoid_pos
         self.dm.move_to(avoid_x, avoid_y)
         time.sleep(0.15)
 
-        # 获取客户区屏幕坐标，让子进程直接截屏+检测，无需写读 BMP 文件
-        cx, cy, _, _ = self.dm.get_client_rect(self.hwnd)
-        client_size = self.war3_cfg.get("client_size", [1902, 1033])
-        bbox = [cx, cy, cx + client_size[0], cy + client_size[1]]
+        # WGC 整客户区帧（客户区坐标），检测返回的坐标即客户区坐标
+        wgc_min_interval = self.war3_cfg.get("wgc_min_interval_ms", 100)
+        cap = WgcCapture.for_hwnd(self.hwnd, min_interval_ms=wgc_min_interval)
+        cw, ch = cap.client_size()
+        img = cap.grab_client((0, 0, cw, ch))
         t0 = time.time()
-        detections = get_inference_client().capture_and_detect_chests(bbox)
+        detections = get_inference_client().detect_chests_from_array(img)
         logger.debug(f"宝箱检测耗时: {time.time() - t0:.3f}s，检测到 {len(detections) if detections else 0} 个")
         if not detections:
             return []
 
         results = []
         for i, (x1, y1, x2, y2, confidence) in enumerate(detections):
-            # 子进程返回的坐标是相对截屏区域的，需转为客户区坐标
             cx_pt = (x1 + x2) // 2
             cy_pt = (y1 + y2) // 2
             results.append((i, cx_pt, cy_pt, confidence))
@@ -511,9 +521,7 @@ class PatrolLootTask:
             chest_x + half_w,
             text_y + half_h,
         ]
-        text = self.war3.ocr_text(
-            self.war3.dm, self.hwnd, {"area_coords": area_coords}, bind_cfg=self.war3.war3_cfg.get("bind", {})
-        )
+        text = self.war3.ocr_text(self.hwnd, {"area_coords": area_coords})
         return self.war3._normalize_ocr(text)
 
     # ── 辅助 ──────────────────────────────────────────────
@@ -598,113 +606,34 @@ class PatrolLootTask:
 
 def main():
     setup_global_exception_hook()
-    setup_log_file("刷装备")
-    logger.info("############################# 刷装备任务 #############################")
+    # 命令行参数可指定变体配置名（如 patrol_loot_善木木 认领指定玩家窗口）
+    # 用法：python -m GameBot.runner.tasks.war3.jiubing2.others.patrol_loot patrol_loot_善木木
+    base_task_name = "war3.jiubing2.tasks.others.patrol_loot"
+    task_name = base_task_name
+    if len(sys.argv) > 1:
+        leaf_arg = sys.argv[1]
+        task_name = leaf_arg if "." in leaf_arg else f"war3.jiubing2.tasks.others.{leaf_arg}"
+    cfg = config.load_task(task_name)
 
-    cfg = config.load_task("war3.jiubing2.tasks.others.patrol_loot")
-    route_scheme = cfg["war3"]["jiubing2"]["tasks"]["others"]["patrol_loot"].get("route_scheme", "")
-    title = f"刷装备（{route_scheme}）" if route_scheme else "刷装备"
+    # 显示名动态计算：变体配置带 target_player 时拼上玩家名
+    task_view = get_task_view(cfg, task_name)
+    route_scheme = task_view.get("route_scheme", "")
+    target_player = task_view.get("target_player", "")
+    title = f"刷装备-{target_player}" if target_player else (f"刷装备（{route_scheme}）" if route_scheme else "刷装备")
+
+    setup_log_file(title)
+    logger.info(f"############################# {title} #############################")
+    if task_name != base_task_name:
+        logger.info(f"使用指定配置: {task_name}")
 
     def task_wrapper(stop_event, progress_callback=None, **kwargs):
-        task = PatrolLootTask(cfg, stop_event=stop_event, progress_lines_callback=kwargs.get("progress_lines_callback"))
+        task = PatrolLootTask(
+            cfg, stop_event=stop_event, progress_lines_callback=kwargs.get("progress_lines_callback"), task_name=task_name
+        )
         task.run()
 
-    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
+    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=cfg.get("base", {}).get("float_window", {}))
 
 
 if __name__ == "__main__":
     main()
-
-
-# ── 组队任务步骤 ────────────────────────────────────────────
-
-
-from GameBot.runner.business.war3.jiubing2.team_steps_base import Jiubing2TaskSteps
-
-
-class _PatrolLootSteps(Jiubing2TaskSteps):
-    """刷装备组队步骤 — position_init 导航至巡逻区域，run_task 执行巡逻拾取。"""
-
-    def position_init(self, member, stop_event=None, **kwargs):
-        """就位 — 折叠属性面板 → TP至米奈希尔 → 点击复活石传送至巡逻区域 → 移动到路线最后一个点。
-
-        使用米奈希尔tp -> 点击米奈希尔复活石里的传送至 strange_land/unknown_cave 无延迟 -> 对应路线的最后一个位置。
-        """
-        from GameBot.runner.business.war3.jiubing2.team_steps_base import _build_business_objects
-
-        ui, nav, combat, runner = _build_business_objects(member)
-        patrol_cfg = (
-            member.task_cfg.get("war3", {})
-            .get("jiubing2", {})
-            .get("tasks", {})
-            .get("others", {})
-            .get("patrol_loot", {})
-        )
-
-        if not patrol_cfg:
-            logger.error("position_init 缺少 patrol_loot 配置")
-            member._flow_failed = True
-            return
-
-        route_scheme = patrol_cfg.get("route_scheme", "")
-        points = patrol_cfg.get("points", [])
-        if not points:
-            route_presets = patrol_cfg.get("route_presets", [])
-            for preset in route_presets:
-                if preset.get("name") == route_scheme:
-                    points = preset.get("points", [])
-                    break
-
-        if not points:
-            logger.error(f"路线方案「{route_scheme}」未找到路线点")
-            member._flow_failed = True
-            return
-
-        logger.info(f"组队刷装备就位：路线方案「{route_scheme}」，路线点 {len(points)} 个")
-        ui.switch_attribute_panel(is_fold=True)
-        # TP至米奈希尔 → 点击复活石传送至巡逻区域
-        nav.tp_to_patrol_area(route_scheme, stop_event)
-        # 移动到路线最后一个点（靠近裂隙，方便后续巡逻循环从第一个点开始）
-        last_pt = points[-1]
-        member.war3.move_to_minimap_point(
-            last_pt.get("mini_coords"),
-            last_pt.get("coords"),
-            last_pt.get("walk_mode", 1),
-            last_pt.get("time", 3),
-            stop_event=stop_event,
-        )
-        logger.info("组队刷装备就位完成")
-
-    def run_task(self, member, stop_event=None, **kwargs):
-        """巡逻杀怪 + 宝箱拾取主循环。"""
-        # 校验必须携带宠物食物（id=9），否则宠物会逃亡
-        if not get_inventory_hotkeys(member.hero_cfg, 9):
-            logger.error("未装备宠物食物（物品 id=9），任务拒绝启动")
-            member._flow_failed = True
-            return
-
-        task = PatrolLootTask(member.task_cfg, stop_event=stop_event, dm=member.dm)
-        hwnd = member._current_war3_hwnd
-        if not hwnd:
-            logger.error("run_task 无可用 War3 窗口句柄")
-            member._flow_failed = True
-            return
-        try:
-            task.run_core(hwnd, skip_feed_only=True)
-        except StopTaskError:
-            logger.info("用户请求停止刷装备")
-            raise
-        except Exception as e:
-            logger.error(f"刷装备任务异常: {e}")
-            member._flow_failed = True
-
-    def pre_exit(self, member, stop_event: Optional[threading.Event] = None, **kwargs) -> None:
-        """退出前无需额外操作（存档由路线点 action 触发）。"""
-        pass
-
-
-_steps = _PatrolLootSteps()
-preparation = _steps.preparation
-position_init = _steps.position_init
-pre_exit = _steps.pre_exit
-run_task = _steps.run_task

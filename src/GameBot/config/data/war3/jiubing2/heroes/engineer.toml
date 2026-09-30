@@ -1,5 +1,4 @@
 ############## 构造师 ##############
-name = "war3.jiubing2.heroes.engineer"
 extends = ["war3.jiubing2"]
 
 
@@ -8,7 +7,7 @@ name = "构造师"
 floor_key = "P"
 # ------------------------------ 物品栏配置（背包1-6格） ------------------------------
 # slot: 格子编号 0~5 对应第 1~6 格
-# item: 物品名（映射表在 jiubing2.toml 的 items 中），也可用 item_id = 数字
+# item: 物品名（映射表在 jiubing2.toml 的 items 中）
 # 快捷键从 kk.toml 的 inventory_slots 查找
 inventory = [
   {slot = 0, item = "血瓶"},
@@ -20,7 +19,7 @@ inventory = [
 # 默认学习的技能
 
 # ------------------------------ 技能池 ------------------------------
-# id: 技能唯一标识，路线点通过 id 引用技能
+# id: 技能池内序号（仅兼容旧引用）；desc 为技能名，路线点/任务用 skill = "desc" 引用
 # key: 游戏内快捷键
 # target_type: self(自身/无指向) | ground(地面目标) | enemy(锁头敌方) | ally(锁头友军)
 # position: target_area(目标区域) 、target（目标），具体坐标需自行抓取后在路线点设置

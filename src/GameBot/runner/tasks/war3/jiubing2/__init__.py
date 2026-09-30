@@ -18,6 +18,10 @@ def __getattr__(name):
         from GameBot.runner.tasks.war3.jiubing2.others.patrol_loot import PatrolLootTask
 
         return PatrolLootTask
+    if name == "GameCountTask":
+        from GameBot.runner.tasks.war3.jiubing2.others.game_count import GameCountTask
+
+        return GameCountTask
     if name == "PaladinWindDragonTask":
         from GameBot.runner.tasks.war3.jiubing2.others.paladin_wind_dragon import PaladinWindDragonTask
 
@@ -42,6 +46,10 @@ def __getattr__(name):
         from GameBot.runner.tasks.war3.jiubing2.festival.ingame_special import IngameSpecialTask
 
         return IngameSpecialTask
+    if name == "PersonalAchievementTask":
+        from GameBot.runner.tasks.war3.jiubing2.achievements.personal import PersonalAchievementTask
+
+        return PersonalAchievementTask
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -50,10 +58,12 @@ __all__ = [
     "EndlessTask",
     "EndlessSingleTask",
     "PatrolLootTask",
+    "GameCountTask",
     "PaladinWindDragonTask",
     "UpgradeStigmataTask",
     "DailyReputationTask",
     "BlackstoneReputationTask",
     "ForestReputationTask",
     "IngameSpecialTask",
+    "PersonalAchievementTask",
 ]

@@ -9,10 +9,12 @@
 
 import copy
 import re
+import sys
 import time
 
-from GameBot.config import config
+from GameBot.config import config, get_task_view, resolve_bind_cfg
 from GameBot.inference import get_inference_client
+from GameBot.runner.driver.wgc_capture import WgcCapture
 from GameBot.runner.tasks.war3.jiubing2.atomic.blackstone_gate_harassment import GateHarassmentTask
 from GameBot.runner.tasks.war3.jiubing2.base import AtomicLoopTask
 from GameBot.runner.ui import run_with_float_window
@@ -24,6 +26,10 @@ _ATOMIC_RETRYABLE_EXC = (DmError, RuntimeError, TimeoutError, OSError)
 
 # 词条缩写和位置标签从 stigmata 配置读取（term_short / pos_labels）
 
+# 圣痕面板词条 token：中文名 + 分隔符（+/：/; 等）+ 数字，或无分隔符直接跟数字；
+# 分隔符在而数字缺失（行尾被 OCR 裁掉）时保留占位，维持词条索引与技能板列号对齐
+_TERM_RE = re.compile(r"([一-龥]+?)\s*(?:[+：:；;，,]\s*(\d+\.?\d*)?|(\d+\.?\d*))")
+
 
 class UpgradeStigmataTask(AtomicLoopTask):
     """升级圣痕 — 交替执行城门骚扰(获取机会)与圣痕升级，直到所有词条达标。"""
@@ -33,8 +39,8 @@ class UpgradeStigmataTask(AtomicLoopTask):
     task_config_path = ("war3", "jiubing2", "tasks", "others", "upgrade_stigmata")
     atomic_config_path = ("war3", "jiubing2", "tasks", "atomic", "blackstone_gate_harassment")
 
-    def __init__(self, cfg: dict):
-        super().__init__(cfg)
+    def __init__(self, cfg: dict, task_name: str = ""):
+        super().__init__(cfg, task_name=task_name)
         self.upgrade_cfg = self.cfg  # 别名，与既有代码保持一致
 
     @property
@@ -69,7 +75,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
     @property
     def _ocr_cfg(self) -> dict:
         # 复用游戏底层的提示检测区域（升级成功/失败提示同区域、出现很快）
-        return self.full_cfg.get("prompt_text")
+        return self.full_cfg.get("war3", {}).get("jiubing2", {}).get("prompt_text")
 
     def _interruptible_wait(self, seconds: float):
         """可被停止信号中断的等待，检测到停止时抛出 StopTaskError。"""
@@ -131,7 +137,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
         walk_to_stigmata = points[0] if len(points) > 0 else {}
         walk_to_guard = points[1] if len(points) > 1 else {}
 
-        stigmata_cfg = self.full_cfg.get("stigmata", {})
+        stigmata_cfg = self.full_cfg.get("war3", {}).get("jiubing2", {}).get("stigmata", {})
         term_limit = stigmata_cfg.get("term_limit", {})
         if not term_limit:
             logger.error("未配置 stigmata.term_limit，无法判断升级目标")
@@ -139,25 +145,28 @@ class UpgradeStigmataTask(AtomicLoopTask):
 
         logger.info(f"{self.task_name}开始：词条上限配置 {term_limit}")
 
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
 
-        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
-            self.war3.set_client_size(hwnd)
+        # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
+        self.war3.set_client_size(hwnd)
+        with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
             get_inference_client(load_chest=False, load_combat=False)  # 预热 OCR 子进程（仅需 OCR，不加载 AI 模型）
             # 启动持续文字监测线程（整段脚本运行期间常驻，城门骚扰完成与升级结果共用）
             monitor = self._make_monitor(hwnd)
             try:
                 attempts = 0
+                stats = {}  # 升级失败时词条数值未变，复用上次面板数据，跳过 F2+OCR
                 while True:
                     # 1) 读取圣痕面板，找到未达上限的词条
-                    stats = self.read_stigmata_stats(hwnd)
                     if not stats:
-                        logger.warning("读取圣痕面板失败，重试")
-                        self._interruptible_sleep(loop_interval)
-                        continue
+                        stats = self.read_stigmata_stats(hwnd)
+                        if not stats:
+                            logger.warning("读取圣痕面板失败，重试")
+                            self._interruptible_sleep(loop_interval)
+                            continue
 
                     target = self._pick_upgrade_target(stats, term_limit)
                     self._update_float_lines(stats, term_limit, target)
@@ -185,16 +194,20 @@ class UpgradeStigmataTask(AtomicLoopTask):
                     matched = self._upgrade_once(pos, idx, success_text, fail_text, monitor)
                     if matched == success_text:
                         logger.info(f"升级成功：{pos} {term_name}")
+                        stats = {}  # 数值已变，下一轮重新读面板
                     elif matched == fail_text:
-                        logger.warning(f"升级失败：{pos} {term_name}（机会已消耗）")
+                        logger.warning(f"升级失败：{pos} {term_name}（机会已消耗，数值未变跳过读面板）")
                     else:
                         logger.info(f"未检测到成功/失败提示：{pos} {term_name}")
+                        stats = {}  # 状态不确定（可能已升满或提示漏检），重读面板确认
 
                     # 5) 返回守卫队长旁，为下一轮城门骚扰做准备
                     self._walk_to_point(walk_to_guard)
 
                     self._interruptible_sleep(loop_interval)
             except StopTaskError:
+                if monitor is not None and monitor.error is not None:
+                    raise monitor.error
                 logger.info("用户请求停止，终止圣痕升级")
             finally:
                 if monitor is not None:
@@ -269,10 +282,13 @@ class UpgradeStigmataTask(AtomicLoopTask):
             label = pos_labels.get(pos, pos)
             parts = []
             for name, val in terms:
+                if name not in term_limit:
+                    continue  # 未配置上限的词条仅占位对齐列号，不显示
                 short = term_short.get(name, name)
                 limit = term_limit.get(name, "?")
-                parts.append(f"{short}{int(val)}/{limit}")
-            lines.append(f"{label}: {' '.join(parts)}")
+                parts.append(f"{short}{int(val) if val is not None else '?'}/{limit}")
+            if parts:
+                lines.append(f"{label}: {' '.join(parts)}")
         self._progress_lines(lines)
 
     # ── 圣痕面板 OCR 读取 ──────────────────────────────────
@@ -281,9 +297,12 @@ class UpgradeStigmataTask(AtomicLoopTask):
     def _parse_stigmata_text(full_text: str, term_limit: dict) -> dict:
         """解析圣痕面板 OCR 全文，提取各位置词条数值。
 
+        每个位置的词条列表保留全部词条（含未配置上限的），顺序即面板显示顺序、
+        与圣痕 NPC 技能板列号一致（idx 0 = 第 1 列）。
+
         :param full_text: OCR 识别的完整文本（多行合并）
         :param term_limit: 词条上限配置 {term_name: limit, ...}
-        :return: {"upper": [(term_name, value), ...], "core": [...], ...}
+        :return: {"upper": [(term_name, value|None), ...], "core": [...], ...}
         """
         pos_keywords = {"上位": "upper", "核心": "core", "中位": "middle", "下位": "lower"}
         result = {}
@@ -300,18 +319,19 @@ class UpgradeStigmataTask(AtomicLoopTask):
                 continue
             if current_pos is None:
                 continue
-            # 在段中按出现顺序查找各词条名及其数值
-            found = []
-            for term_name in term_limit:
-                pos_in_seg = seg.find(term_name)
-                if pos_in_seg >= 0:
-                    after = seg[pos_in_seg + len(term_name) :]
-                    m = re.search(r"(\d+\.?\d*)", after)
-                    if m:
-                        found.append((pos_in_seg, term_name, float(m.group(1))))
-            found.sort(key=lambda x: x[0])
-            for _, name, val in found:
-                result[current_pos].append((name, val))
+            # 段内按显示顺序解析全部词条（含未配置上限的，如"物理攻击"）：
+            # 列表索引即技能板列号-1，未跟踪词条仅占位、不参与升级选择；
+            # "上位圣痕"的位置前缀可能并入首个词条名（"圣痕物理攻击"），
+            # 归一化按 term_limit 键的子串匹配（"力量属性"→"力量"），未命中保留原名占位
+            for m in _TERM_RE.finditer(seg):
+                raw_name = m.group(1)
+                raw_val = m.group(2) or m.group(3)
+                if raw_name in term_limit:
+                    name = raw_name
+                else:
+                    cands = [k for k in term_limit if k in raw_name]
+                    name = max(cands, key=len) if cands else raw_name
+                result[current_pos].append((name, float(raw_val) if raw_val is not None else None))
 
         return result
 
@@ -323,32 +343,29 @@ class UpgradeStigmataTask(AtomicLoopTask):
                  term_name 对应 term_limit 的 key，value 为当前数值；
                  列表顺序与技能格列号一致（idx 0=第1列）。
         """
-        stigmata_cfg = self.full_cfg.get("stigmata", {})
+        stigmata_cfg = self.full_cfg.get("war3", {}).get("jiubing2", {}).get("stigmata", {})
         num_coords = stigmata_cfg.get("num_coords")
         hotkey = stigmata_cfg.get("switch_hotkey", "F2")
         if not num_coords:
             logger.warning("未配置 stigmata.num_coords，无法 OCR 圣痕面板")
             return {}
 
-        # 客户区坐标转屏幕坐标（OCR 子进程用 ImageGrab.grab 是屏幕坐标）
-        cx, cy, _, _ = self.dm.get_client_rect(hwnd)
-        screen_bbox = [cx + num_coords[0], cy + num_coords[1], cx + num_coords[2], cy + num_coords[3]]
-
         # 按 F2 打开圣痕面板
         self.dm.key_press_char(hotkey)
         self._interruptible_wait(self.war3_cfg.get("small_window_response_time", 0.5))
 
-        # OCR 读取圣痕词条区域
+        # OCR 读取圣痕词条区域（WGC 截图，num_coords 即客户区坐标）
+        wgc_min_interval = self.war3_cfg.get("wgc_min_interval_ms", 100)
+        cap = WgcCapture.for_hwnd(hwnd, min_interval_ms=wgc_min_interval)
         client = get_inference_client()
-        lines = client.ocr_lines(screen_bbox)
+        x1, y1, x2, y2 = num_coords
+        lines = client.ocr_lines_from_array(cap.grab_client_rgb((x1, y1, x2, y2)))
         logger.debug(f"圣痕面板 OCR 原始行(首次): {lines}")
 
         # 行数不足 4 时，对下半部分单独二次 OCR（RapidOCR 可能漏检底部行）
         if len(lines) < 4:
-            x1, y1, x2, y2 = screen_bbox
             mid_y = y1 + (y2 - y1) // 2
-            lower_bbox = [x1, mid_y, x2, y2]
-            lower_lines = client.ocr_lines(lower_bbox)
+            lower_lines = client.ocr_lines_from_array(cap.grab_client_rgb((x1, mid_y, x2, y2)))
             # 二次 OCR 的 y 坐标是相对于子区域的，需加上偏移
             for line in lower_lines:
                 line["y_center"] = line.get("y_center", 0) + (mid_y - y1)
@@ -384,6 +401,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
         """选择差距最大的未达上限词条。
 
         :return: (pos, idx, term_name, current_val, limit_val) 或 None（全部达上限）。
+            idx 是面板全部词条中的索引（含未跟踪占位词条），即技能板列号-1。
         """
         best = None
         best_gap = 0.0
@@ -391,7 +409,7 @@ class UpgradeStigmataTask(AtomicLoopTask):
             terms = stats.get(pos, [])
             for idx, (term_name, current_val) in enumerate(terms):
                 limit_val = term_limit.get(term_name)
-                if limit_val is not None and current_val < limit_val:
+                if limit_val is not None and current_val is not None and current_val < limit_val:
                     gap = limit_val - current_val
                     if gap > best_gap:
                         best_gap = gap
@@ -401,20 +419,33 @@ class UpgradeStigmataTask(AtomicLoopTask):
 
 def main():
     setup_global_exception_hook()
-    setup_log_file("升级圣痕")
-    logger.info("############################# 升级圣痕 #############################")
+    # 命令行参数可指定变体配置名（如 upgrade_stigmata_善木木 认领指定玩家窗口）
+    # 用法：python -m GameBot.runner.tasks.war3.jiubing2.others.upgrade_stigmata upgrade_stigmata_善木木
+    base_task_name = "war3.jiubing2.tasks.others.upgrade_stigmata"
+    task_name = base_task_name
+    if len(sys.argv) > 1:
+        leaf_arg = sys.argv[1]
+        task_name = leaf_arg if "." in leaf_arg else f"war3.jiubing2.tasks.others.{leaf_arg}"
+    task_cfg = config.load_task(task_name)
 
-    task_cfg = config.load_task("war3.jiubing2.tasks.others.upgrade_stigmata")
+    # 显示名动态计算：变体配置带 target_player 时拼上玩家名
+    target_player = get_task_view(task_cfg, task_name).get("target_player", "")
+    title = f"升级圣痕-{target_player}" if target_player else "升级圣痕"
+
+    setup_log_file(title)
+    logger.info(f"############################# {title} #############################")
+    if task_name != base_task_name:
+        logger.info(f"使用指定配置: {task_name}")
 
     def task_wrapper(stop_event, progress_callback=None, progress_lines_callback=None):
-        task = UpgradeStigmataTask(task_cfg)
+        task = UpgradeStigmataTask(task_cfg, task_name=task_name)
         task.run(stop_event=stop_event, progress_lines_callback=progress_lines_callback)
 
     run_with_float_window(
-        "升级圣痕",
+        title,
         task_wrapper,
         countdown_seconds=5,
-        float_cfg=task_cfg.get("float_window", {}),
+        float_cfg=task_cfg.get("base", {}).get("float_window", {}),
     )
 
 

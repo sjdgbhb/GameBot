@@ -2,11 +2,22 @@
 
 原子任务是可被其他任务复用的最底层任务单元。每个原子任务完成一次完整的"接取 → 执行 → 提交"流程。
 
+源码位于 `src/GameBot/runner/tasks/war3/jiubing2/atomic/`，
+配置位于 `config/data/war3/jiubing2/tasks/atomic/`。
+
+## 通用特性（AtomicTaskBase）
+
+- **事件中断移动**：`move_to_minimap_point` 接受 `stop_event` 参数，OCR 检测到完成立即中断
+- **放弃遗留任务**：接取被拒且提示区命中 `atomic_task.already_accepted_text`
+  （"已经接取"，上次遗留未完成）时，自动 `-rw` 打开任务弹窗 → 点击任务名 →
+  点击确认弹窗"放弃"按钮（`task_popup.abandon_keyword`）→ 等待
+  `atomic_task.abandon_wait_time` 秒后重接一次；非"已接取"原因直接判失败
+
 ## 迅猛野兽
 
 - **类名**：`SwiftBeastTask`
-- **源码**：`src/GameBot/runner/tasks/atomic/swift_beast.py`
-- **配置**：`config/data/tasks/atomic/swift_beast.toml`
+- **源码**：`src/GameBot/runner/tasks/war3/jiubing2/atomic/swift_beast.py`
+- **配置**：`config/data/war3/jiubing2/tasks/atomic/swift_beast.toml`
 - **场景**：森之城
 - **NPC**：月之女祭司狄安娜
 
@@ -17,15 +28,11 @@
 3. 沿路线点推进，后台 OCR 实时监测"前往任务发布者处完成任务"提示
 4. 检测到完成后立即中断移动，返回最后一个路线点（NPC 附近）自动提交任务
 
-### 关键特性
-
-- **事件中断移动**：`move_to_minimap_point` 接受 `stop_event` 参数，OCR 检测到完成立即中断
-
 ## 城门骚扰
 
 - **类名**：`GateHarassmentTask`
-- **源码**：`src/GameBot/runner/tasks/atomic/blackstone_gate_harassment.py`
-- **配置**：`config/data/tasks/atomic/blackstone_gate_harassment.toml`
+- **源码**：`src/GameBot/runner/tasks/war3/jiubing2/atomic/blackstone_gate_harassment.py`
+- **配置**：`config/data/war3/jiubing2/tasks/atomic/blackstone_gate_harassment.toml`
 - **场景**：黑石城
 - **NPC**：守卫队长
 
@@ -43,8 +50,8 @@
 ## 毒蛇
 
 - **类名**：`VenomousSnakeTask`
-- **源码**：`src/GameBot/runner/tasks/atomic/venomous_snake.py`
-- **配置**：`config/data/tasks/atomic/venomous_snake.toml`
+- **源码**：`src/GameBot/runner/tasks/war3/jiubing2/atomic/venomous_snake.py`
+- **配置**：`config/data/war3/jiubing2/tasks/atomic/venomous_snake.toml`
 - **场景**：卡米村
 - **NPC**：村民杰菲特
 - **技能格**：`[1, 1]`
@@ -57,8 +64,8 @@
 ## 蛇蛋
 
 - **类名**：`SnakeEggTask`
-- **源码**：`src/GameBot/runner/tasks/atomic/snake_egg.py`
-- **配置**：`config/data/tasks/atomic/snake_egg.toml`
+- **源码**：`src/GameBot/runner/tasks/war3/jiubing2/atomic/snake_egg.py`
+- **配置**：`config/data/war3/jiubing2/tasks/atomic/snake_egg.toml`
 - **场景**：卡米村
 - **NPC**：村民杰菲特
 - **技能格**：`[1, 2]`
@@ -75,8 +82,8 @@
 ## 小炎蛇（LV4）
 
 - **类名**：`LittleFlameSnakeTask`
-- **源码**：`src/GameBot/runner/tasks/atomic/little_flame_snake.py`
-- **配置**：`config/data/tasks/atomic/little_flame_snake.toml`
+- **源码**：`src/GameBot/runner/tasks/war3/jiubing2/atomic/little_flame_snake.py`
+- **配置**：`config/data/war3/jiubing2/tasks/atomic/little_flame_snake.toml`
 - **场景**：卡米村
 - **NPC**：村民杰菲特
 - **技能格**：`[1, 3]`

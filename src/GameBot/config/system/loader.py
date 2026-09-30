@@ -4,6 +4,7 @@
 命名空间根集合发现、可继承/命名空间节点拆分。
 """
 
+import logging
 import sys
 
 if sys.version_info >= (3, 11):
@@ -13,7 +14,7 @@ else:
 from pathlib import Path
 from typing import FrozenSet, Tuple
 
-from .base import ConfigurationError
+from .base import NAMESPACE_ROOTS, ConfigurationError
 
 
 class ConfigLoaderMixin:
@@ -73,20 +74,27 @@ class ConfigLoaderMixin:
         return data
 
     def _reject_old_namespace_sections(self, raw: dict, config_name: str, filepath: Path):
-        """拒绝旧格式 TOML：顶层直接出现命名空间根键（如 [war3]、[tasks.xxx]）。
+        """旧格式拦截：禁止用完整路径段定义文件**自身**命名空间。
 
-        所有文件统一用 [this] 表示自己的命名空间。
+        判定：按 config_name 的点路径在 raw 中逐层下钻，能走到自身节点即命中
+        （如 config_name=war3.jiubing2.tasks.x.y 的文件写了 [war3.jiubing2.tasks.x.y]
+        或更深路径）—— 请改用 [this] / [this.x]。
+
+        **跨层覆盖放行**：一级命名空间根下的**其他**路径不拦截——
+        任何文件都可以写 [war3.xxx] / [kk.xxx] / [war3.jiubing2.tasks.others.fishing] 等
+        绝对路径，对闭包内其他节点打补丁（含祖先路径，如编排任务调子任务参数）。
+        只有"写自身命名空间根"（如 war3.toml 写 [war3]）才拦截，防旧格式回潮。
         """
-        roots = self.namespace_roots
-        for key in raw:
-            if key in self._CONTROL_KEYS:
-                continue
-            if key == "this":
-                continue
-            if key in roots:
-                raise ConfigurationError(
-                    f"{config_name} ({filepath}): 请使用 [this] 简写，不要直接写 [{key}]（旧命名空间格式已废弃）"
-                )
+        parts = config_name.split(".")
+        node = raw
+        for p in parts:
+            if not isinstance(node, dict) or p not in node:
+                return  # 未触及自身路径，放行
+            node = node[p]
+        raise ConfigurationError(
+            f"{config_name} ({filepath}): 请使用 [this] 简写定义自身命名空间，"
+            f"不要写完整路径 [{config_name}]（如需给其他节点打补丁，写目标的完整路径段即可）"
+        )
 
     @staticmethod
     def _place_at_path(raw: dict, path: str, value):
@@ -106,46 +114,58 @@ class ConfigLoaderMixin:
         d[last] = value
 
     def _expand_shorthand(self, raw: dict, config_name: str) -> dict:
-        """将 [this] 简写展开为以 name（或 config_name）为路径的完整命名空间。
+        """将 [this] 简写展开为完整命名空间路径。
 
-        这样任务 TOML 不需要重复写 [war3.jiubing2.tasks.xxx.yyy] 完整路径。
+        展开路径由加载名（文件路径）推导，无需在 TOML 里声明顶层 name。
         无 [this] 的文件直接返回（如 jiubing2.toml 等纯可继承配置）。
         """
         if "this" not in raw:
             return raw
-        layer_name = raw.get("name", config_name)
-        self._place_at_path(raw, layer_name, raw.pop("this"))
+        self._place_at_path(raw, config_name, raw.pop("this"))
         return raw
 
     @property
     def namespace_roots(self) -> FrozenSet[str]:
-        """命名空间根集合：config 目录下的一级文件夹名与顶层 *.toml 文件名（去后缀）。
+        """命名空间根集合：显式注册表 NAMESPACE_ROOTS（不随目录扫描变化）。
 
-        只扫描一级目录和顶层 .toml 文件，不递归子目录。
-        这样一级目录名（如 war3、team）和顶层文件名（如 base、kk、web）是命名空间根，
-        而子目录名（如 tasks、atomic、heroes、scenes）不参与判定——
-        新建子目录不会改变现有 TOML 的合并语义。
-        TOML 顶层键命中命名空间根 → 不可继承（保留在路径下）；
-        未命中 → 可继承（提升到结果顶层）。
+        只登记一级领域名（war3/kk/base/web）；war3 内部的 tasks/heroes/scenes
+        等子目录不参与判定——新增任务/英雄/场景/变体文件无需登记。
+        config_dir 下出现未登记的一级目录或顶层 .toml 时告警：其顶层键会被当作
+        命名空间节点保留在路径下（多半不是预期），新增一级命名空间请登记 NAMESPACE_ROOTS。
+        TOML 顶层键命中命名空间根 → 保留在路径下（命名空间节点）；
+        hero → 顶层键（局内唯一英雄，任务横向覆盖英雄层的通道）；
+        其余裸键 → 报错（旧"共享区"已废弃，请用 [this.xxx] 归入命名空间）。
         """
         if self._ns_roots is None:
-            roots = set()
             if self.config_dir.is_dir():
                 for entry in self.config_dir.iterdir():
                     if entry.is_dir():
-                        # 一级子目录名是命名空间根（如 war3/、team/）
-                        roots.add(entry.name)
+                        name = entry.name
                     elif entry.suffix == ".toml":
-                        # 顶层 .toml 文件名（去后缀）也是命名空间根（如 base、kk、web）
-                        roots.add(entry.stem)
-            self._ns_roots = frozenset(roots)
+                        name = entry.stem
+                    else:
+                        continue
+                    if name not in NAMESPACE_ROOTS:
+                        logging.getLogger(__name__).warning(
+                            "配置目录存在未登记的一级条目 %s：不会作为命名空间根"
+                            "（其顶层键将提升为可继承共享键）；如需新增一级命名空间，"
+                            "请登记到 config/system/base.py 的 NAMESPACE_ROOTS",
+                            entry.name,
+                        )
+            self._ns_roots = NAMESPACE_ROOTS
         return self._ns_roots
 
     def _split_sections(self, raw: dict) -> Tuple[dict, dict]:
-        """按命名空间约定拆分文件顶层节点（规则 2）。
+        """按命名空间约定拆分文件顶层节点。
 
-        :param raw: 单个配置文件解析后的原始字典
-        :return: (可继承节点, 命名空间节点)，控制键（name/extends 等）被剔除
+        :param raw: 单个配置文件解析后的原始字典（[this] 已展开为完整路径）
+        :return: (顶层键, 命名空间节点)，控制键（name/extends 等）被剔除
+
+        规则：
+        - hero → 顶层键（局内唯一英雄，任务层横向覆盖英雄层的通道）
+        - 命名空间根键（war3/kk/base/web）→ 命名空间节点，保留在路径下
+        - 其余裸键 → 报错：请用 [this.xxx] 归入自身命名空间
+          （旧设计把这些键提升到顶层"共享区"，已废弃——所有配置必须归属命名空间）
         """
         inheritable, namespaced = {}, {}
         roots = self.namespace_roots
@@ -153,10 +173,16 @@ class ConfigLoaderMixin:
             # 控制键（dependencies/inherit）不参与合并，直接跳过
             if key in self._CONTROL_KEYS:
                 continue
-            if key in roots:
+            if key == "hero":
+                # hero 是唯一保留的顶层键：局内唯一英雄，任务层横向覆盖英雄层
+                inheritable[key] = value
+            elif key in roots:
                 # 键名命中命名空间根 → 不可继承，保留在命名空间路径下
                 namespaced[key] = value
             else:
-                # 键名不在命名空间根 → 可继承，提升到顶层
-                inheritable[key] = value
+                # 旧设计的"共享区"已废弃：裸键不再提升到顶层
+                raise ConfigurationError(
+                    f"顶层裸键 [{key}] 不再支持：请用 [this.{key}] 归入自身命名空间，"
+                    f"或用 [hero] 写英雄配置（hero 是唯一保留的顶层键）"
+                )
         return inheritable, namespaced

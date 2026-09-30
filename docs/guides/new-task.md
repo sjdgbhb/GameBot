@@ -15,7 +15,6 @@
 
 基本结构：
 ```toml
-name = "war3.jiubing2.tasks.{类别}.{task_name}"
 extends = ["war3.jiubing2", "war3.jiubing2.heroes.{hero_name}"]   # 指定继承的英雄和基础配置
 
 [this]
@@ -25,7 +24,7 @@ name = "{中文名称}"
 ```
 
 注意事项：
-- `name` 必须与本文件的点分路径一致
+- **不要写顶层 `name`**——`[this]` 展开的命名空间由文件路径自动推导（文件名即配置名）
 - `extends` 必须声明，通常包含 `war3.jiubing2.heroes.{hero_name}` 来继承英雄配置和 `war3.jiubing2`
 - `[this]` 直接展开为 `war3.jiubing2.tasks.{类别}.{task_name}`，是当前任务的数据节点
 - 不带前缀的节点（如 `[chest]`、`[pickup]`）可继承自 jiubing2.toml，按需覆盖
@@ -40,12 +39,16 @@ name = "{中文名称}"
 """{任务描述}"""
 import time
 
-from GameBot.utils import logger
-from GameBot.config import config
-from GameBot.utils.exception_handler import setup_global_exception_hook
-from GameBot.runner.driver import create_dm_client
+from GameBot.config import config, get_task_view
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import GameUI, CombatHelper
+from GameBot.runner import create_dm_client
+from GameBot.runner.ui import run_with_float_window
+from GameBot.utils import logger, setup_log_file
+from GameBot.utils.exception_handler import setup_global_exception_hook
+
+# 任务名（完整命名空间路径，与 TOML 文件路径对应）
+TASK_NAME = "war3.jiubing2.tasks.{类别}.{task_name}"
 
 
 class {TaskName}Task:
@@ -53,7 +56,6 @@ class {TaskName}Task:
 
     def __init__(self, cfg: dict):
         self.task_cfg = cfg
-        self.cfg = cfg["tasks"]["{task_name}"]
         self.dm = create_dm_client()
 
         war3_cfg = self.task_cfg.get("war3", {})
@@ -62,19 +64,29 @@ class {TaskName}Task:
         self.war3 = War3Business(self.dm, war3_cfg)
         self.ui = GameUI(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
         self.combat = CombatHelper(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
+        # 任务视图：沿 extends 链深合并（基任务 → 变体），变体不写的参数自动从基任务继承
+        self.cfg = get_task_view(cfg, TASK_NAME)
 
-    def run(self):
+    def run(self, stop_event=None, progress_callback=None):
         # 任务主逻辑
         pass
 
 
 def main():
     setup_global_exception_hook()
+    setup_log_file("{任务名称}")
     logger.info("############################# {任务名称} #############################")
-    time.sleep(5)
-    cfg = config.load_task("tasks.{task_name}")
-    task = {TaskName}Task(cfg)
-    task.run()
+    cfg = config.load_task(TASK_NAME)
+
+    def task_wrapper(stop_event, progress_callback=None):
+        {TaskName}Task(cfg).run(stop_event=stop_event, progress_callback=progress_callback)
+
+    run_with_float_window(
+        "{任务名称}",
+        task_wrapper,
+        countdown_seconds=5,
+        float_cfg=cfg.get("base", {}).get("float_window", {}),
+    )
 
 
 if __name__ == "__main__":
@@ -100,10 +112,28 @@ if __name__ == "__main__":
 | 多原子任务 | `MultiAtomicLoopTask` | 一次接取多个，走共享路线，依次提交 |
 | 独立流程 | 无基类 | 自己实现 run()，参考 EndlessTask/FishingTask |
 
-## 6. 验证
+## 6. 多开变体（可选）
 
-- 检查 TOML 配置的 `name` 和 `extends` 是否正确
-- 检查 Python 文件的 import 是否完整
+同一台机器多个账号各跑各的同一任务时，为任务加变体支持：
+
+1. `main()` 解析 `sys.argv[1]` 为变体名（叶子名拼上任务命名空间前缀，
+   或直接用完整配置名），`load_task(task_name)` 后把 `task_name` 传给任务类
+2. 任务类用 `get_task_view(cfg, task_name)` 取自身配置（变体节点不在固定
+   路径上），并把 `target_player` 注入 `war3.target_player` 供窗口认领链路读取
+3. 创建变体文件 `tasks/<组>/<任务>_<玩家名>.toml`：`extends` 基任务，
+   `[this]` 写 `target_player`，`[war3]`/`[kk]` 段写 `bind_mode="background"`
+   （多开必须后台绑定），按需加 `[hero.xxx]` 账号差异覆盖、`[base.float_window]`
+   错开浮窗位置
+
+参考实现：`endless.py`（多局，加载页只读认领）、`endless_single.py` /
+`fishing.py` / `patrol_loot.py` / `upgrade_stigmata.py`（局内，聊天 token 认领）。
+
+## 7. 验证
+
+- 检查 TOML 配置的 `extends` 是否正确（不要写顶层 `name`，文件名即配置名）
+- 检查 Python 文件的 import 是否完整，`TASK_NAME` 与 TOML 文件路径对应
+- 可用 `python -m GameBot.config lint` 校验全部 TOML 结构
+- 可用 `python -m GameBot.config order war3.jiubing2.tasks.{类别}.{task_name}` 查看依赖加载顺序
 - 确认运行命令：`uv run python -m GameBot.runner.tasks.war3.jiubing2.{类别}.{task_name}`
 
 ## 相关文档

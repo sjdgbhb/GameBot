@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from GameBot.runner.driver.base import DmClientBase as DmClient
-
 from ..base import BasePlatform
 from .hall_manager import HallManagerMixin
 from .join_room import JoinRoomMixin
 from .multi_instance import MultiInstanceMixin
 from .room_manager import RoomManagerMixin
+
+if TYPE_CHECKING:
+    from GameBot.runner.driver.base import DmClientBase as DmClient
 
 
 class KKBusiness(BasePlatform, RoomManagerMixin, HallManagerMixin, MultiInstanceMixin, JoinRoomMixin):
@@ -24,10 +24,9 @@ class KKBusiness(BasePlatform, RoomManagerMixin, HallManagerMixin, MultiInstance
         self.dm = dm
         self.kk_cfg = kk_cfg
 
-    def ocr_kk_lines(self, dm: DmClient, hwnd: int, ocr_cfg: dict, merge_lines: bool = True) -> list:
-        """OCR KK 窗口区域，返回逐行结果。委托 Base.ocr_lines，传入 KK bind 配置。"""
-        bind_cfg = self.kk_cfg.get("bind", {})
-        return self.ocr_lines(dm, hwnd, ocr_cfg, bind_cfg=bind_cfg, merge_lines=merge_lines)
+    def ocr_kk_lines(self, hwnd: int, ocr_cfg: dict, merge_lines: bool = True) -> list:
+        """OCR KK 窗口区域，返回逐行结果（WGC 截图，无需绑定）。"""
+        return self.ocr_lines(hwnd, ocr_cfg, merge_lines=merge_lines)
 
 
 __all__ = ["KKBusiness"]

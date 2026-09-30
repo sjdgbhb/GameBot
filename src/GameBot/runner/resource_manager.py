@@ -22,7 +22,10 @@ class ResourceManager:
     def _ensure_initialized(self):
         if self._resources_dir is not None:
             return
-        self._resources_dir = config.get_path("paths.resources_path")
+        base_cfg = config.load_task("base").get("base", {})
+        self._resources_dir = config.resolve_path(
+            base_cfg.get("paths", {}).get("resources_path") or "src/GameBot/resources"
+        )
         self._images_dir = self._resources_dir / "images"
         self._fonts_dir = self._resources_dir / "fonts"
         self._images_dir.mkdir(parents=True, exist_ok=True)

@@ -2,10 +2,11 @@
 钓鱼任务
 """
 
+import sys
 import time
 from typing import TYPE_CHECKING, Optional
 
-from GameBot.config import config as config
+from GameBot.config import config, get_task_view, resolve_bind_cfg
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import NearbyCleaner, get_inventory_hotkey
 from GameBot.runner.driver import create_dm_client
@@ -19,16 +20,26 @@ if TYPE_CHECKING:
 class FishingTask:
     __doc__ = "钓鱼业务"
 
-    def __init__(self, cfg: dict, stop_event=None, progress_callback=None, dm: Optional["DmClientBase"] = None):
+    def __init__(
+        self,
+        cfg: dict,
+        task_name: str = "war3.jiubing2.tasks.others.fishing",
+        stop_event=None,
+        progress_callback=None,
+        dm: Optional["DmClientBase"] = None,
+    ):
         self.task_cfg = cfg
         self.dm: "DmClientBase" = dm or create_dm_client()
         self._stop_event = stop_event
         self._progress_callback = progress_callback or (lambda text: None)
         self.war3_cfg = cfg.get("war3", {})
         self.war3 = War3Business(self.dm, self.war3_cfg)
-        self.fishing_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("tasks", {}).get("others", {}).get("fishing", {})
+        # 任务视图：沿 extends 链深合并（fishing → 变体），变体不写的参数自动从基任务继承
+        # target_player 在变体 [this] 里配置，注入 war3 做多开窗口认领
+        self.fishing_cfg = get_task_view(cfg, task_name)
+        self.war3.target_player = self.fishing_cfg.get("target_player", "")
         self.check_cfg = self.fishing_cfg.get("check", {})
-        self.prompt_cfg = cfg.get("prompt_text", {})
+        self.prompt_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("prompt_text", {})
         self.hero_cfg = cfg.get("hero", {})
         self.fishing_hotkey = get_inventory_hotkey(self.hero_cfg, 7)
         self._last_success_text = ""
@@ -40,7 +51,7 @@ class FishingTask:
         self.nearby_cleaner = (
             NearbyCleaner(
                 self.war3,
-                cfg.get("command", {}),
+                cfg.get("war3", {}).get("jiubing2", {}).get("command", {}),
                 probability=clear_nearby_probability,
             )
             if clear_nearby_probability > 0
@@ -242,54 +253,41 @@ class FishingTask:
 
     def run(self):
         """钓鱼主入口 — 查找窗口、绑定、运行钓鱼循环。"""
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
 
-        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
-            self.war3.set_client_size(hwnd)
+        # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
+        self.war3.set_client_size(hwnd)
+        with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
             self.run_fishing_loop()
 
 
 def main():
     setup_global_exception_hook()
-    setup_log_file("钓鱼")
-    logger.info("############################# 钓鱼任务 #############################")
-    cfg = config.load_task("war3.jiubing2.tasks.others.fishing")
+    # 第一个命令行参数可指定任务配置名（变体配置，如 fishing_player_a 认领指定玩家窗口）
+    # 用法：python -m GameBot.runner.tasks.war3.jiubing2.others.fishing fishing_player_a
+    task_name = "war3.jiubing2.tasks.others.fishing"
+    if len(sys.argv) > 1:
+        leaf_arg = sys.argv[1]
+        task_name = leaf_arg if "." in leaf_arg else f"war3.jiubing2.tasks.others.{leaf_arg}"
+    cfg = config.load_task(task_name)
+
+    # 显示名动态计算：变体配置带 target_player 时拼上玩家名，如"钓鱼-玩家A"
+    target_player = get_task_view(cfg, task_name).get("target_player", "")
+    title = f"钓鱼-{target_player}" if target_player else "钓鱼"
+
+    setup_log_file(title)
+    logger.info(f"############################# {title} #############################")
+    if task_name != "war3.jiubing2.tasks.others.fishing":
+        logger.info(f"使用指定配置: {task_name}")
 
     def task_wrapper(stop_event, progress_callback):
-        FishingTask(cfg, stop_event=stop_event, progress_callback=progress_callback).run()
+        FishingTask(cfg, task_name=task_name, stop_event=stop_event, progress_callback=progress_callback).run()
 
-    run_with_float_window("钓鱼", task_wrapper, countdown_seconds=5, float_cfg=(cfg.get("float_window", {})))
+    run_with_float_window(title, task_wrapper, countdown_seconds=5, float_cfg=(cfg.get("base", {}).get("float_window", {})))
 
 
 if __name__ == "__main__":
     main()
-
-
-# ── 组队任务步骤 ────────────────────────────────────────────
-
-
-from GameBot.runner.business.war3.jiubing2.team_steps_base import Jiubing2TaskSteps
-
-
-class _FishingSteps(Jiubing2TaskSteps):
-    """钓鱼组队步骤 — preparation 继承九兵通用流程，run_task 执行钓鱼循环。"""
-
-    def run_task(self, member, stop_event=None, **kwargs):
-        """钓鱼主循环（窗口已由 _game_phase 绑定，直接使用 member.dm）。"""
-        fishing_task = FishingTask(
-            member.task_cfg,
-            stop_event=stop_event,
-            progress_callback=member.task_ctx._progress_callback,
-            dm=member.dm,
-        )
-        fishing_task.run_fishing_loop()
-
-
-_steps = _FishingSteps()
-preparation = _steps.preparation
-position_init = _steps.position_init
-pre_exit = _steps.pre_exit
-run_task = _steps.run_task

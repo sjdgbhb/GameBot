@@ -38,6 +38,10 @@ class WindowLostError(GameBotError):
     """游戏窗口消失异常（掉线、崩溃等情况）。"""
 
 
+class CaptureError(GameBotError):
+    """WGC 窗口截图异常（会话未启动、帧流停止、窗口关闭、裁剪越界等）。"""
+
+
 def retry(
     max_attempts: int = 3,
     delay: float = 1.0,

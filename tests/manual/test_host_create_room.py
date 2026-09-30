@@ -26,7 +26,7 @@ import copy
 import sys
 import time
 
-from GameBot.config import config
+from GameBot.config import config, resolve_bind_cfg
 from GameBot.runner.business.kk import KKBusiness
 from GameBot.runner.driver import create_dm_client
 from GameBot.utils import logger, setup_log_file
@@ -41,7 +41,7 @@ def main():
         type=str,
         default="foreground",
         choices=["foreground", "background"],
-        help="绑定模式：foreground(前台 bind) / background(后台 bind_multi)，与生产代码 team/base.py 逻辑一致",
+        help="绑定模式：foreground(前台 bind) / background(后台 bind_background)，与生产代码 team/base.py 逻辑一致",
     )
     parser.add_argument(
         "--player",
@@ -64,15 +64,11 @@ def main():
     cfg = config.load_task("kk")
     kk_cfg = cfg.get("kk", {})
 
-    # 绑定配置选择逻辑与生产代码（team/base.py）一致：
-    # foreground 用 bind（前台），background 用 bind_multi（后台）
+    # 绑定配置选择逻辑与生产代码一致：按 kk.bind_mode 选 bind_foreground/bind_background
     if args.bind_mode == "background":
-        if "bind_multi" in kk_cfg:
-            kk_cfg = copy.deepcopy(kk_cfg)
-            kk_cfg["bind"] = kk_cfg["bind_multi"]
-            logger.info(f"bind-mode=background，已切换到后台绑定: {kk_cfg['bind']}")
-    else:
-        logger.info(f"bind-mode=auto，使用前台绑定: {kk_cfg.get('bind', {})}")
+        kk_cfg = copy.deepcopy(kk_cfg)
+        kk_cfg["bind_mode"] = "background"
+    logger.info(f"bind-mode={kk_cfg.get('bind_mode', 'foreground')}，绑定配置: {resolve_bind_cfg(kk_cfg)}")
 
     dm = create_dm_client()
     logger.info(f"大漠版本: {dm.version}")

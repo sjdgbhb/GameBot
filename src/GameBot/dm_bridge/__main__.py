@@ -57,7 +57,8 @@ def _register():
     from GameBot.config import config
     from GameBot.runner.driver.registrar import DmRegistrar
 
-    dm_cfg = config.get("dm", {})
+    # 子进程无共享配置状态，自行显式加载 base 闭包
+    dm_cfg = config.load_task("base").get("base", {}).get("dm", {})
     version = dm_cfg.get("version", "3.1233")
     dll_path = config.project_root / dm_cfg.get("dll_path", "external/dm") / "dm.dll"
     DmRegistrar.ensure_registered(version, dll_path)

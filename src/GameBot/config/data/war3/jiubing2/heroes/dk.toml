@@ -1,5 +1,4 @@
 ############## 死骑 ##############
-name = "war3.jiubing2.heroes.dk"
 extends = ["war3.jiubing2"]
 
 

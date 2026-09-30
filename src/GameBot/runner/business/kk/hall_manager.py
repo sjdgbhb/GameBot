@@ -8,6 +8,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Optional, Set
 
+from GameBot.config import resolve_bind_cfg
 from GameBot.utils import StopTaskError, logger
 
 if TYPE_CHECKING:
@@ -77,7 +78,6 @@ class HallManagerMixin:
                     if x2 - x1 < min_width or y2 - y1 < min_height:
                         continue
                     lines = self.ocr_kk_lines(
-                        dm,
                         hwnd,
                         {"area_coords": [0, 0, x2 - x1, y2 - y1]},
                     )
@@ -92,7 +92,7 @@ class HallManagerMixin:
 
                 attempted_hwnds.add(hwnd)
                 logger.warning(f"检测到 KK 弹窗: hwnd={hwnd}，尝试关闭")
-                if dm.close_window_by_x(hwnd, offset_x, offset_y):
+                if dm.close_window_by_x(hwnd, offset_x, offset_y, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
                     time.sleep(0.3)
                     closed_any = True
                     break
@@ -123,7 +123,7 @@ class HallManagerMixin:
         第一轮结束后再回头重试被跳过的窗口。
 
         :param target_player: 目标玩家 ID
-        :param hall_owner_cache: TeamIPC 实例，用于共享已认领窗口信息
+        :param hall_owner_cache: 可选跨进程归属缓存（提供 read_hall_owner/write_hall_owner 接口）
         :param busy_retry: 被跳过的正忙窗口的重试轮数
         :param busy_wait: 每轮重试间隔秒数
         :return: (大厅句柄, 进程 PID)，未找到返回 (0, 0)
@@ -326,7 +326,7 @@ class HallManagerMixin:
                 round(ocr_area[2] * scale_x),
                 round(ocr_area[3] * scale_y),
             ]
-            lines = self.ocr_kk_lines(dm, hwnd, {"area_coords": scaled_ocr_area})
+            lines = self.ocr_kk_lines(hwnd, {"area_coords": scaled_ocr_area})
             button_text = " ".join(line.get("text", "").strip() for line in lines)
             return any(keyword in button_text for keyword in keywords)
         except Exception:
@@ -379,7 +379,6 @@ class HallManagerMixin:
                 ):
                     return hwnd
                 lines = self.ocr_kk_lines(
-                    dm,
                     hwnd,
                     {"area_coords": [0, 0, width, height]},
                 )
@@ -429,7 +428,7 @@ class HallManagerMixin:
             logger.warning("大厅实际尺寸与目标差异过大，坐标可能偏移")
 
         # 2. 点击搜索输入框，清空并输入地图名
-        with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+        with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
             dm.move_to(*main_cfg["search_input_coords"])
             time.sleep(0.3)
             dm.left_click()
@@ -449,7 +448,7 @@ class HallManagerMixin:
         self.dismiss_hall_popups(dm, exclude_hwnds={hall_hwnd}, owner_pid=owner_pid)
 
         # 3. 点击搜索图标
-        with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+        with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
             dm.move_to(*main_cfg["search_map_coords"])
             time.sleep(0.3)
             dm.left_click()
@@ -465,7 +464,7 @@ class HallManagerMixin:
         # OCR 检测搜索结果列表
         ocr_area = main_cfg.get("map_result_ocr_area_coords", [0, 0, 0, 0])
         logger.info(f"OCR 搜索结果区域: {ocr_area}")
-        lines = self.ocr_kk_lines(dm, hall_hwnd, {"area_coords": ocr_area}, merge_lines=False)
+        lines = self.ocr_kk_lines(hall_hwnd, {"area_coords": ocr_area}, merge_lines=False)
         # 按行排序：y_center 接近的视为同一行，同行内按 x_center 排序
         # 避免网格布局中 y 微小差异导致顺序错乱
         sorted_lines = sorted(lines, key=lambda l: (round(l.get("y_center", 0) / 20), l.get("x_center", 0)))
@@ -493,7 +492,7 @@ class HallManagerMixin:
         if not target_line:
             logger.error(f"搜索结果中未找到地图：{map_name}")
             # 保存搜索结果区域的 GDI2 后台截图用于诊断
-            with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+            with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
                 dm.save_screenshot(tuple(ocr_area), label="create_room_search_gdi", force=True)
             dm.save_screenshot(label="create_room_map_not_found", force=True)
             return 0
@@ -502,7 +501,7 @@ class HallManagerMixin:
         click_x = int(target_line["x_center"]) + ocr_area[0]
         click_y = int(target_line["y_center"]) + ocr_area[1]
         logger.info(f"点击搜索结果: {target_line['text']} 坐标=({click_x},{click_y})")
-        with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+        with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
             dm.move_to(click_x, click_y)
             time.sleep(0.3)
             dm.left_click()
@@ -515,7 +514,7 @@ class HallManagerMixin:
         self.dismiss_hall_popups(dm, exclude_hwnds={hall_hwnd}, owner_pid=owner_pid)
 
         # 7. 点击创建房间按钮
-        with dm.bind_window(hall_hwnd, bind_cfg=self.kk_cfg.get("bind", {})):
+        with dm.bind_window(hall_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
             dm.move_to(*main_cfg["create_button_coords"])
             time.sleep(0.3)
             dm.left_click()
@@ -548,7 +547,7 @@ class HallManagerMixin:
         logger.info(f"创建房间弹窗: hwnd={dialog_hwnd}, 尺寸=({actual_w},{actual_h})")
 
         # 9. 在创建房间弹窗中输入密码并创建
-        bind_cfg = self.kk_cfg.get("bind", {})
+        bind_cfg = resolve_bind_cfg(self.kk_cfg)
         password = create_cfg.get("password", "")
         # 第一段 bind：点击密码框 → 输入密码
         with dm.bind_window(dialog_hwnd, bind_cfg=bind_cfg):
@@ -560,12 +559,10 @@ class HallManagerMixin:
             dm.key_press_char("ctrl+a")
             time.sleep(0.2)
             if password:
-                dm.send_string2(password, hwnd=dialog_hwnd)
+                dm.send_string(password, hwnd=dialog_hwnd)
                 logger.info(f"已输入房间密码: {password}")
                 time.sleep(0.3)
-        # 输入密码后刷新弹窗（layered window 后台输入后画面不刷新）。
-        # force_refresh 会取消/恢复 WS_EX_LAYERED，可能破坏大漠后台绑定状态，
-        # 因此放在 bind 上下文之外，刷新后重新 bind 再点击创建。
+        # 输入密码后刷新弹窗（layered window 后台输入后画面不刷新），再重新 bind 点击创建。
         if password:
             dm.force_refresh_layered(dialog_hwnd)
             dm.save_screenshot(label="password_input_check", force=True)

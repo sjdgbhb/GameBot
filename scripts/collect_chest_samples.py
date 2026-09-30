@@ -26,8 +26,8 @@ INTERVAL = random.randint(1, 10)  # 截图间隔（秒）
 
 
 def main():
-    config.load_task("war3.jiubing2.tasks.others.patrol_loot")
-    war3_cfg = config.get("war3", {})
+    cfg = config.load_task("war3.jiubing2.tasks.others.patrol_loot")
+    war3_cfg = cfg.get("war3", {})
     hwnd_title = war3_cfg.get("window_title", "Warcraft III")
 
     dm = create_dm_client()

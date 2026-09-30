@@ -28,7 +28,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageStat
 
-from GameBot.config import config
+from GameBot.config import config, resolve_bind_cfg
 from GameBot.runner.driver import create_dm_client
 from GameBot.utils import logger, setup_log_file
 
@@ -416,7 +416,9 @@ def main():
     parser.add_argument(
         "--input-mouse", type=str, default=None, help="输入阶段单独指定 mouse 模式（如 windows / windows3 / normal）"
     )
-    parser.add_argument("--mode", type=int, default=None, help="输入阶段单独指定大漠 mode（默认读取 bind_multi.mode）")
+    parser.add_argument(
+        "--mode", type=int, default=None, help="输入阶段单独指定大漠 mode（默认读取 bind_background.mode）"
+    )
     parser.add_argument(
         "--dialog-open",
         action="store_true",
@@ -434,9 +436,9 @@ def main():
         type=str,
         default="foreground",
         choices=["foreground", "background"],
-        help="绑定模式：foreground(前台 bind) / background(后台 bind_multi)",
+        help="绑定模式：foreground(前台 bind) / background(后台 bind_background)",
     )
-    parser.add_argument("--bind-multi", action="store_true", help="强制使用 bind_multi（模拟后台）")
+    parser.add_argument("--bind-multi", action="store_true", help="强制使用 bind_background（模拟后台）")
     args = parser.parse_args()
 
     setup_log_file("测试创建房间")
@@ -451,15 +453,11 @@ def main():
     cfg = config.load_task("kk")
     kk_cfg = cfg.get("kk", {})
 
-    # 绑定配置选择逻辑与生产代码（team/base.py）一致：
-    # foreground 用 bind（前台），background 或 --bind-multi 用 bind_multi（后台）
+    # 绑定配置选择逻辑与生产代码一致：按 kk.bind_mode 选 bind_foreground/bind_background
     bind_mode = args.bind_mode
-    if bind_mode == "background" or args.bind_multi:
-        bind_cfg = copy.deepcopy(kk_cfg.get("bind_multi", {}))
-        if not bind_cfg:
-            bind_cfg = copy.deepcopy(kk_cfg.get("bind", {}))
-    else:
-        bind_cfg = copy.deepcopy(kk_cfg.get("bind", {}))
+    if bind_mode == "background" or args.bind_background:
+        kk_cfg = {**kk_cfg, "bind_mode": "background"}
+    bind_cfg = resolve_bind_cfg(kk_cfg)
     logger.info(f"bind_mode={bind_mode}, 使用绑定配置: {bind_cfg}")
 
     main_cfg = kk_cfg.get("main", {})

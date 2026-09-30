@@ -13,6 +13,7 @@ def __getattr__(name):
         "BlackstoneReputationTask",
         "ForestReputationTask",
         "IngameSpecialTask",
+        "PersonalAchievementTask",
     ):
         from GameBot.runner.tasks.war3 import jiubing2
 
@@ -31,4 +32,5 @@ __all__ = [
     "BlackstoneReputationTask",
     "ForestReputationTask",
     "IngameSpecialTask",
+    "PersonalAchievementTask",
 ]

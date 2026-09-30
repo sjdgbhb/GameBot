@@ -31,19 +31,18 @@ class InputControllerMixin:
         time.sleep(seconds)
         return False
 
-    def send_msg(
-        self, msg: str, is_english: bool = True, is_all: bool = False, stop_event: Optional[threading.Event] = None
-    ):
+    def send_msg(self, msg: str, is_all: bool = False, stop_event: Optional[threading.Event] = None):
         """
-        向游戏里发送消息
-        :param msg:
-        :param is_english: 默认发送英文
+        向游戏里发送消息。文本用大漠 SendString 一次性投递到绑定窗口，
+        是消息级注入，不经过系统输入法，也不受前台/后台绑定模式影响。
+        :param msg: 消息文本（如 -delh）
         :param is_all: 默认发送给盟友
         :param stop_event: 停止事件，设置时中断等待
         :return:
         """
-        if is_english:
-            self.set_english_input()
+        # 给前一个按键（如收竿 s）留出被游戏处理的时间：
+        # 后台模式下消息投递有延迟，若开聊天框时该按键才被消化，会误入聊天框
+        self.interruptible_wait(self.war3_cfg["interface_switch_time"], stop_event)
         if is_all:
             self.dm.key_down_char("shift")
             self.interruptible_wait(0.1, stop_event)
@@ -55,9 +54,12 @@ class InputControllerMixin:
         else:
             self.dm.key_press_char("enter")
         self.interruptible_wait(0.1, stop_event)
-        for char in msg:
-            self.dm.key_press_char(char)
-            self.interruptible_wait(0.05, stop_event)
+        # 清除聊天框内可能残留的误入字符（退格对未打开的聊天框无副作用）
+        for _ in range(5):
+            self.dm.key_press_char("back")
+            self.interruptible_wait(0.03, stop_event)
+        self.dm.send_string(msg)
+        self.interruptible_wait(0.1, stop_event)
         self.dm.key_press_char("enter")
 
     def center_hero(self, char: str = "F1"):

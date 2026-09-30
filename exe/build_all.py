@@ -1,9 +1,9 @@
 """
 九种兵器2 自动化工具 — 统一打包脚本
 
-将钓鱼、刷装备、每日声望、升级圣痕四个任务打包到同一目录。
-主 EXE 为 64 位 Python 3.12（进程内推理），大漠 COM 经 32 位 dm_bridge 子进程调用。
-四个主 EXE 共享 dm/、dm_bridge/、resources/ 和 _internal/。
+将多局无尽、单局无尽两个任务打包到同一目录。
+主 EXE 为 64 位 Python 3.12（进程内 OCR 推理），大漠 COM 经 32 位 dm_bridge 子进程调用。
+两个主 EXE 共享 dm/、dm_bridge/、resources/ 和 _internal/。
 
 用法（单步构建，自动分两步调用对应环境）：
 
@@ -16,66 +16,43 @@
     uv run python exe/build_all.py --update <任务名>
 """
 
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+# 无尽任务共用图片：属性面板折叠图标、卡牌检测、结算页检测、小地图信号（游戏内检测）
+_ENDLESS_IMAGES = [
+    "attribute_panel_fold_icon.bmp",
+    "attribute_panel_unfold_icon.bmp",
+    "card_show.bmp",
+    "end_war3_statistics.bmp",
+    "mini_map_signal_icon.bmp",
+]
+
 # ── 任务定义 ──────────────────────────────────────────────────────────
 TASKS = [
     {
-        "name": "钓鱼",
-        "spec": "exe/fishing/fishing_exe.spec",
-        "config_src": "exe/fishing/config.toml",
-        "config_dst": "钓鱼_config.toml",
+        "name": "多局无尽",
+        "spec": "exe/endless/endless_exe.spec",
+        "config_src": "exe/endless/config.toml",
+        "config_dst": "多局无尽.toml",
         "needs_inference": True,
         "needs_models": False,
         "needs_images": True,
-        "images": ["hook_status.bmp"],
+        "images": _ENDLESS_IMAGES,
         "external_task_toml": None,
     },
     {
-        "name": "刷装备",
-        "spec": "exe/patrol_loot/patrol_loot_exe.spec",
-        "config_src": "exe/patrol_loot/config.toml",
-        "config_dst": "刷装备_config.toml",
-        "needs_inference": True,
-        "needs_models": True,
-        "needs_images": False,
-        "images": [],
-        "external_task_toml": None,
-    },
-    {
-        "name": "每日声望",
-        "spec": "exe/reputation/reputation_exe.spec",
-        "config_src": "exe/reputation/config.toml",
-        "config_dst": "每日声望_config.toml",
+        "name": "单局无尽",
+        "spec": "exe/endless_single/endless_single_exe.spec",
+        "config_src": "exe/endless_single/config.toml",
+        "config_dst": "单局无尽.toml",
         "needs_inference": True,
         "needs_models": False,
-        "needs_images": False,
-        "images": [],
-        "external_task_toml": None,
-    },
-    {
-        "name": "升级圣痕",
-        "spec": "exe/upgrade_stigmata/upgrade_stigmata_exe.spec",
-        "config_src": "exe/upgrade_stigmata/config.toml",
-        "config_dst": "升级圣痕_config.toml",
-        "needs_inference": True,
-        "needs_models": False,
-        "needs_images": False,
-        "images": [],
-        "external_task_toml": None,
-    },
-    {
-        "name": "游戏中点我测试",
-        "spec": "exe/coords_test/coords_test_exe.spec",
-        "config_src": None,
-        "config_dst": None,
-        "needs_inference": True,
-        "needs_models": False,
-        "needs_images": False,
-        "images": [],
+        "needs_images": True,
+        "images": _ENDLESS_IMAGES,
         "external_task_toml": None,
     },
 ]
@@ -182,8 +159,8 @@ def assemble(project_root: Path, exe_dir: Path):
         shutil.rmtree(pkg_dir)
     pkg_dir.mkdir(parents=True)
 
-    # 3.1 复制四个 EXE + 合并 _internal/
-    # 以第一个任务（钓鱼）的 _internal/ 作为基础，其余任务的 _internal/ 合并补充
+    # 3.1 复制各任务 EXE + 合并 _internal/
+    # 以第一个任务的 _internal/ 作为基础，其余任务的 _internal/ 合并补充
     base_internal = None
     for task in TASKS:
         task_dist = exe_dir / "dist" / task["name"]
@@ -212,15 +189,18 @@ def assemble(project_root: Path, exe_dir: Path):
                 _merge_internal(task_internal, base_internal)
                 print(f"  合并: _internal/ ({task['name']})")
 
-    # 3.1.1 用主仓库完整的 config/data/ 覆盖包目录中的精简版
-    # 各任务 spec 打包时用的是 exe/<task>/data/ 下的精简配置，
-    # 合并后可能缺少其他任务需要的配置段（如钓鱼的 jiubing2.toml 没有 stigmata）
+    # 3.1.1 用主仓库完整的 config/data/ 覆盖包目录中的版本
+    # 各任务 spec 已打包完整 config/data（含变体 TOML），此处再以主仓库为准覆盖一次，
+    # 保证多个任务合并后配置齐全且为最新
     full_config_data = project_root / "src" / "GameBot" / "config" / "data"
     pkg_config_data = pkg_dir / "_internal" / "config" / "data"
     if full_config_data.exists() and pkg_config_data.exists():
         shutil.rmtree(pkg_config_data)
         shutil.copytree(full_config_data, pkg_config_data)
         print("  覆盖: _internal/config/data/ (主仓库完整配置)")
+
+    # 3.1.2 修正 VC 运行库版本（PyInstaller 打包的旧版会导致 onnxruntime 初始化失败）
+    _fix_vc_runtime(pkg_dir / "_internal")
 
     # 3.2 复制 dm/ 目录
     dm_src = project_root / "external" / "dm"
@@ -256,19 +236,20 @@ def assemble(project_root: Path, exe_dir: Path):
     resources_dst = pkg_dir / "resources"
     resources_dst.mkdir(parents=True, exist_ok=True)
 
-    # 模型文件（刷装备需要）
-    models_src = project_root / "src" / "GameBot" / "resources" / "models"
-    models_dst = resources_dst / "models"
-    if models_src.exists():
-        models_dst.mkdir(parents=True, exist_ok=True)
-        for model_file in ("chest_detector.onnx", "combat_status.onnx"):
-            src = models_src / model_file
-            if src.exists():
-                shutil.copy2(src, models_dst / model_file)
-                size_mb = src.stat().st_size / 1024 / 1024
-                print(f"  复制: resources/models/{model_file} ({size_mb:.0f} MB)")
+    # 模型文件（仅打包声明 needs_models 的任务才复制，如刷装备的宝箱检测模型）
+    if any(t.get("needs_models") for t in TASKS):
+        models_src = project_root / "src" / "GameBot" / "resources" / "models"
+        models_dst = resources_dst / "models"
+        if models_src.exists():
+            models_dst.mkdir(parents=True, exist_ok=True)
+            for model_file in ("chest_detector.onnx", "combat_status.onnx"):
+                src = models_src / model_file
+                if src.exists():
+                    shutil.copy2(src, models_dst / model_file)
+                    size_mb = src.stat().st_size / 1024 / 1024
+                    print(f"  复制: resources/models/{model_file} ({size_mb:.0f} MB)")
 
-    # 图片文件（钓鱼需要）
+    # 图片文件（按各任务 images 列表复制）
     images_src = project_root / "src" / "GameBot" / "resources" / "images"
     images_dst = resources_dst / "images"
     if images_src.exists():
@@ -280,7 +261,7 @@ def assemble(project_root: Path, exe_dir: Path):
                     shutil.copy2(src, images_dst / fname)
                     print(f"  复制: resources/images/{fname}")
 
-    # 3.5 复制各任务的配置文件
+    # 3.5 复制各任务的配置文件（config.toml → <任务名>.toml；同目录其余 toml 为变体配置，原名复制）
     for task in TASKS:
         if not task.get("config_src"):
             continue
@@ -288,8 +269,13 @@ def assemble(project_root: Path, exe_dir: Path):
         if config_src.exists():
             shutil.copy2(config_src, pkg_dir / task["config_dst"])
             print(f"  复制: {task['config_dst']}")
+            for extra in sorted(config_src.parent.glob("*.toml")):
+                if extra.name == config_src.name:
+                    continue
+                shutil.copy2(extra, pkg_dir / extra.name)
+                print(f"  复制: {extra.name}")
 
-        # 外部任务配置（刷装备的 patrol_loot.toml）
+        # 外部任务配置（external_task_toml，如刷装备的 patrol_loot.toml）
         ext = task.get("external_task_toml")
         if ext:
             ext_src = project_root / ext[0]
@@ -326,6 +312,44 @@ def _merge_internal(src: Path, dst: Path):
             if not target.exists():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(item, target)
+
+
+# PyInstaller 会从 Python 安装目录打包 VC 运行库，版本可能过旧（实测 14.28），
+# 冻结进程优先加载 _internal/ 中的旧版，会导致 onnxruntime_pybind11_state 等
+# 新编译扩展初始化失败（"DLL 初始化例程失败"）。组装时用 System32 的较新版本覆盖。
+_VC_RUNTIME_DLLS = ("msvcp140.dll", "msvcp140_1.dll", "vcruntime140.dll", "vcruntime140_1.dll")
+
+
+def _file_version(path: Path) -> tuple:
+    """读取文件版本号，失败返回 (0,0,0,0)。"""
+    try:
+        import win32api
+
+        info = win32api.GetFileVersionInfo(str(path), "\\")
+        return (
+            win32api.HIWORD(info["FileVersionMS"]),
+            win32api.LOWORD(info["FileVersionMS"]),
+            win32api.HIWORD(info["FileVersionLS"]),
+            win32api.LOWORD(info["FileVersionLS"]),
+        )
+    except Exception:
+        return (0, 0, 0, 0)
+
+
+def _fix_vc_runtime(internal_dir: Path):
+    """用 System32 中较新版本的 VC 运行库覆盖 _internal/ 中的旧版。"""
+    if not internal_dir.exists():
+        return
+    sys32 = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+    for name in _VC_RUNTIME_DLLS:
+        src = sys32 / name
+        dst = internal_dir / name
+        if not src.exists() or not dst.exists():
+            continue
+        src_ver, dst_ver = _file_version(src), _file_version(dst)
+        if src_ver > dst_ver:
+            shutil.copy2(src, dst)
+            print(f"  更新 VC 运行库: {name} ({'.'.join(map(str, dst_ver))} -> {'.'.join(map(str, src_ver))})")
 
 
 def _print_tree(path: Path, prefix: str = "", max_depth: int = 2, depth: int = 0):
@@ -394,6 +418,7 @@ def update_task(project_root: Path, exe_dir: Path, task_name: str):
     if task_internal.exists():
         pkg_internal = pkg_dir / "_internal"
         _update_internal(task_internal, pkg_internal)
+        _fix_vc_runtime(pkg_internal)
         print(f"  更新: _internal/ ({task['name']})")
 
     # 3.1 用主仓库完整的 config/data/ 覆盖（确保配置段齐全）
@@ -412,6 +437,17 @@ def update_task(project_root: Path, exe_dir: Path, task_name: str):
         if config_src.exists():
             shutil.copy2(config_src, pkg_dir / task["config_dst"])
             print(f"  更新: {task['config_dst']}")
+            # 同目录其余 toml 为变体配置（<任务名>_<玩家>.toml），原名复制
+            for extra in sorted(config_src.parent.glob("*.toml")):
+                if extra.name == config_src.name:
+                    continue
+                shutil.copy2(extra, pkg_dir / extra.name)
+                print(f"  更新: {extra.name}")
+        # 清理旧命名遗留：<任务名>_config.toml 已改为 <任务名>.toml
+        legacy = pkg_dir / f"{task['name']}_config.toml"
+        if legacy.exists():
+            legacy.unlink()
+            print(f"  删除旧配置: {legacy.name}")
 
     # 5. 更新该任务需要的资源文件
     if task.get("needs_images"):

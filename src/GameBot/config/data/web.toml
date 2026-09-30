@@ -1,5 +1,4 @@
 # Web 服务器配置
-name = "web"
 extends = []
 [this]
 host = "127.0.0.1"

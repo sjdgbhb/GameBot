@@ -10,19 +10,21 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from GameBot.runner.driver.base import DmClientBase as DmClient
-from GameBot.utils import logger
+from GameBot.config import resolve_bind_cfg
+from GameBot.utils import StopTaskError, logger
 
 
 class RoomManagerMixin:
     """KK 房间操作 mixin。依赖 self.dm（DmClient）和 self.kk_cfg（dict）。"""
 
-    def start_game(self, dm: DmClient, room_hwnd: int = 0) -> bool:
+    def start_game(self, dm: DmClient, room_hwnd: int = 0, stop_event=None) -> bool:
         """在KK房间中点击开始游戏按钮。
 
         先关闭挡在前面的 KK 弹窗（弹窗会导致开始按钮无法点击），
         找到房间窗口后 OCR 验证按钮文本为"开始游戏"再点击。
 
         :param room_hwnd: 已知的房间句柄，传入时跳过 dismiss_room_popups 检测
+        :param stop_event: 停止事件，点击开始后的等待期间设置时抛 StopTaskError
         :return: True=成功点击开始游戏, False=按钮文本不是"开始游戏"
         """
         room_cfg = self.kk_cfg.get("room", {})
@@ -45,12 +47,11 @@ class RoomManagerMixin:
         ocr_area = room_cfg.get("start_button_ocr_area_coords", [0, 0, 0, 0])
         start_coords = room_cfg.get("start_button_coords", [0, 0])
 
-        bind_cfg = self.kk_cfg.get("bind", {})
+        bind_cfg = resolve_bind_cfg(self.kk_cfg)
         with dm.bind_window(room_hwnd, bind_cfg=bind_cfg):
             # OCR 验证按钮文本是否为"开始游戏"
             if ocr_area != [0, 0, 0, 0]:
                 lines = self.ocr_kk_lines(
-                    dm,
                     room_hwnd,
                     {"area_coords": ocr_area},
                 )
@@ -69,7 +70,11 @@ class RoomManagerMixin:
             time.sleep(0.2)
             dm.left_click()
         logger.debug("已点击开始游戏，等待进入war3")
-        time.sleep(room_cfg["start_wait_time"])
+        if stop_event is not None:
+            if stop_event.wait(room_cfg["start_wait_time"]):
+                raise StopTaskError("用户请求停止任务")
+        else:
+            time.sleep(room_cfg["start_wait_time"])
         return True
 
     def dismiss_room_popups(self, dm: DmClient, room_size: tuple = None, owner_pid: int = 0) -> int:
@@ -108,7 +113,6 @@ class RoomManagerMixin:
             try:
                 x1, y1, x2, y2 = dm.get_client_rect(popup_hwnd)
                 lines = self.ocr_kk_lines(
-                    dm,
                     popup_hwnd,
                     {"area_coords": [0, 0, x2 - x1, y2 - y1]},
                 )
@@ -123,36 +127,76 @@ class RoomManagerMixin:
 
             attempted_hwnds.add(popup_hwnd)
             logger.warning(f"检测到 KK 弹窗: hwnd={popup_hwnd}，尝试点击右上角 X 关闭")
-            if not dm.close_window_by_x(popup_hwnd, offset_x, offset_y):
+            if not dm.close_window_by_x(popup_hwnd, offset_x, offset_y, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
                 break
             time.sleep(0.3)
 
         return self._find_room_window(dm, owner_pid=owner_pid)
 
-    def _find_room_window(self, dm: DmClient, owner_pid: int = 0) -> int:
-        """按 PID、类名和原生客户区尺寸查找房间窗口。"""
-        room_cfg = self.kk_cfg.get("room", {})
-        room_size = tuple(room_cfg.get("window_size", [1224, 904]))
-        size_tolerance = room_cfg.get("size_tolerance", 30)
+    def find_room_windows(self, dm: DmClient, owner_pid: int = 0) -> list:
+        """按 PID、类名枚举候选窗口，OCR 左上角"房间号：xxx"区域确认房间窗口。
+
+        KK 大厅和房间类名/标题相同，尺寸过滤不严谨（窗口可能被拉伸），
+        以房间特有的"房间号"文本为准；尺寸仅用于把基准 OCR 区域按比例换算。
+        """
         window_class = self.kk_cfg.get("window_class", "")
-        min_width, min_height = self.kk_cfg.get("min_business_window_size", [200, 200])
-        if not window_class:
-            return 0
+        id_area = self.kk_cfg.get("room", {}).get("room_id_ocr_area_coords", [0, 0, 0, 0])
+        if not window_class or id_area == [0, 0, 0, 0]:
+            return []
 
         window_title = self.kk_cfg.get("window_title", "")
-        for w in dm.find_windows(window_class, window_title, owner_pid):
-            hwnd = w["hwnd"]
-            try:
-                x1, y1, x2, y2 = dm.get_client_rect(hwnd)
-                width, height = x2 - x1, y2 - y1
-                if width < min_width or height < min_height:
-                    continue
-                if abs(width - room_size[0]) <= size_tolerance and abs(height - room_size[1]) <= size_tolerance:
-                    logger.debug(f"识别到 KK 房间窗口: hwnd={hwnd}, size=({width}x{height})")
-                    return hwnd
-            except Exception as e:
-                logger.debug(f"识别 KK 房间候选窗口 {hwnd} 失败: {e}")
-        return 0
+        return [
+            w["hwnd"]
+            for w in dm.find_windows(window_class, window_title, owner_pid)
+            if self._check_room_window(dm, w["hwnd"])
+        ]
+
+    def _check_room_window(self, dm: DmClient, hwnd: int) -> bool:
+        """OCR 候选窗口左上角"房间号：xxx"区域判断是否为房间窗口。
+
+        结果按 hwnd 缓存（_room_verdicts）：同一 hwnd 只会是房间或不是房间，
+        验过一次的窗口在后续枚举/认领重扫中不再重复取帧。
+        """
+        room_cfg = self.kk_cfg.get("room", {})
+        room_size = tuple(room_cfg.get("window_size", [1224, 904]))
+        id_area = room_cfg.get("room_id_ocr_area_coords", [0, 0, 0, 0])
+        id_keyword = room_cfg.get("room_id_keyword", "房间号")
+        min_width, min_height = self.kk_cfg.get("min_business_window_size", [200, 200])
+        if id_area == [0, 0, 0, 0]:
+            return False
+        verdicts = getattr(self, "_room_verdicts", None)
+        if verdicts is None:
+            verdicts = self._room_verdicts = {}
+        if hwnd in verdicts:
+            return verdicts[hwnd]
+        try:
+            x1, y1, x2, y2 = dm.get_client_rect(hwnd)
+            width, height = x2 - x1, y2 - y1
+            if width < min_width or height < min_height:
+                return False
+            # 候选窗口尺寸未必等于基准尺寸，按比例缩放 OCR 区域
+            scale_x = width / room_size[0]
+            scale_y = height / room_size[1]
+            scaled_area = [
+                round(id_area[0] * scale_x),
+                round(id_area[1] * scale_y),
+                round(id_area[2] * scale_x),
+                round(id_area[3] * scale_y),
+            ]
+            lines = self.ocr_kk_lines(hwnd, {"area_coords": scaled_area})
+            text = " ".join(line.get("text", "") for line in lines)
+            verdicts[hwnd] = id_keyword in text
+            if verdicts[hwnd]:
+                logger.debug(f"识别到 KK 房间窗口: hwnd={hwnd}, size=({width}x{height})")
+            return verdicts[hwnd]
+        except Exception as e:
+            logger.debug(f"识别 KK 房间候选窗口 {hwnd} 失败: {e}")
+            return False
+
+    def _find_room_window(self, dm: DmClient, owner_pid: int = 0) -> int:
+        """枚举房间窗口并返回第一个（识别规则见 find_room_windows）。"""
+        rooms = self.find_room_windows(dm, owner_pid=owner_pid)
+        return rooms[0] if rooms else 0
 
     def handle_disconnect_dialog(self, dm: DmClient, owner_pid: int = 0) -> bool:
         """检测并处理 KK 掉线重连弹窗。
@@ -187,9 +231,11 @@ class RoomManagerMixin:
         except Exception as e:
             logger.warning(f"设置掉线弹窗尺寸失败: {e}")
         coords = dialog_cfg.get("cancel_button_coords", [317, 192])
-        dm.move_to(*coords)
-        time.sleep(0.2)
-        dm.left_click()
+        # 必须在 bind 上下文内点击：未绑定时 MoveTo 按屏幕坐标解释，客户区坐标会落空
+        with dm.bind_window(target_hwnd, bind_cfg=resolve_bind_cfg(self.kk_cfg)):
+            dm.move_to(*coords)
+            time.sleep(0.2)
+            dm.left_click()
         logger.info("已点击取消重连按钮，等待回到房间")
         time.sleep(dialog_cfg.get("cancel_wait_time", 3))
         return True

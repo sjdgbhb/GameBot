@@ -4,13 +4,12 @@
 # 1、抛竿后，英雄附近出现一排未填充的圈圈和三角形（其中三角形只有2个且相邻，可以出现在任意位置）
 # 2、从左至右依次填充（圆圈填充为蓝色，三角形填充为红色），当填充到三角形时，需立刻收竿，钓鱼就会成功
 # =============================================================================
-name = "war3.jiubing2.tasks.others.fishing"
 extends = ["war3.jiubing2", "kk"]   # war3.jiubing2 传递依赖 war3，提供游戏指令和 OCR 区域配置；kk 提供物品栏快捷键
 
 # ------------------------------ 物品栏配置（背包1-6格） ------------------------------
 # 钓鱼不依赖特定英雄，但需要物品栏配置（鱼竿）
 # slot: 格子编号 0~5 对应第 1~6 格
-# item: 物品名（映射表在 jiubing2.toml 的 items 中），也可用 item_id = 数字
+# item: 物品名（映射表在 jiubing2.toml 的 items 中）
 # 快捷键从 kk.toml 的 inventory_slots 查找
 [hero]
 inventory = [
@@ -20,12 +19,11 @@ inventory = [
 [this]
 name = "钓鱼"
 max_times = 10000  # 抛竿次数
-fishing_interval_time = 1  # 钓鱼间隔
+fishing_interval_time = 1.5  # 钓鱼间隔
 clear_nearby_probability = 0  # 每次收竿后清理英雄附近物品的概率（0~1），0 = 禁用
 mode = 0  # 以何种方法检测中钩，0找色（红色三角形填充），1找图
-hook_coords = [943, 554]  # 鱼钩位置
+hook_coords = [943, 520]  # 鱼钩位置
 is_test_check = false  # 是否测试中钩区域
-
 [this.check]
 # 预判收竿：填充循环周期稳定（实测 ~3.1s），用红色出现时刻+周期推算下次出现时刻，
 # 提前 retract_lead_time 秒按键，补偿按键到游戏执行的固有延迟（约 100~200ms）。
@@ -41,3 +39,9 @@ hook_color = 'ff0000'  # 中钩三角形填充的颜色
 hook_attempts = 200  # 一次钓鱼的检测次数
 hook_check_interval = 0.005  # 轮询间隔（秒），忙循环时不使用
 hook_timeout = 15  # 一次钓鱼等待中钩的超时时间（秒）
+
+# 后台绑定：覆盖命名空间级默认值（war3.toml/kk.toml 默认 foreground）
+[war3]
+bind_mode = "background"
+[kk]
+bind_mode = "background"

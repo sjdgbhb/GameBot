@@ -1,6 +1,6 @@
 """窗口操作 Mixin — 窗口绑定、查找、枚举（基于 _com_call 原语组合）。
 
-含 layered window 强制刷新（取消 WS_EX_LAYERED → RedrawWindow → 恢复），
+含 layered window 强制刷新（1px 尺寸扰动触发 WM_SIZE 强制 Qt 重绘重推），
 解决 Qt 5.15.2 layered window 后台输入后画面不刷新的问题。
 """
 
@@ -19,6 +19,9 @@ WS_EX_LAYERED = 0x00080000
 RDW_INVALIDATE = 0x0001
 RDW_UPDATENOW = 0x0100
 RDW_ALLCHILDREN = 0x0080
+SWP_NOMOVE = 0x0002
+SWP_NOZORDER = 0x0004
+SWP_NOACTIVATE = 0x0010
 
 
 def scale_client_point(dm, hwnd: int, point, base_size) -> tuple[int, int]:
@@ -90,15 +93,14 @@ class WindowMixin:
         # 绑定后延时等待后台生效（大漠文档建议 1~2 秒）
         if bind_delay > 0:
             time.sleep(bind_delay)
-        # 记录当前绑定的窗口句柄和参数，供 capture_region 判断是否走 PrintWindow 路径
-        # 以及临时解绑后重新绑定
+        # 记录当前绑定的窗口句柄，供 WGC 取帧（visual/screenshot）确定目标窗口；
+        # _last_bind_hwnd 解绑后仍保留，供绑定外的诊断截图找到最近的绑定目标
         self._current_bind_hwnd = hwnd
-        self._current_bind_params = (display, mouse, keypad, public, mode)
+        self._last_bind_hwnd = hwnd
         try:
             yield
         finally:
             self._current_bind_hwnd = 0
-            self._current_bind_params = None
             try:
                 self._com_call("UnBindWindow")
             except Exception as e:
@@ -114,6 +116,13 @@ class WindowMixin:
         return int(getattr(self, "_current_bind_hwnd", 0) or 0)
 
     def set_client_size(self, hwnd: int, width: int, height: int) -> bool:
+        # 已是目标尺寸时跳过：layered 窗口（KK）无谓 resize 会产生黑边
+        try:
+            x1, y1, x2, y2 = self.get_client_rect(hwnd)
+            if (x2 - x1, y2 - y1) == (width, height):
+                return True
+        except Exception:
+            pass  # 查询失败仍尝试设置
         ret = self._com_call("SetClientSize", hwnd, width, height)
         if ret != 1:
             raise DmError(f"设置客户区大小失败，返回值: {ret}")
@@ -208,7 +217,7 @@ class WindowMixin:
             )
         return results
 
-    def close_window_by_x(self, hwnd: int, offset_x: int = 15, offset_y: int = 15) -> bool:
+    def close_window_by_x(self, hwnd: int, offset_x: int = 15, offset_y: int = 15, bind_cfg: dict = None) -> bool:
         """点击窗口右上角 X 关闭按钮。
 
         通过绑定目标窗口并移动鼠标到客户区右上角偏移位置实现，
@@ -217,6 +226,8 @@ class WindowMixin:
         :param hwnd: 待关闭窗口句柄
         :param offset_x: 距右侧边界偏移（像素）
         :param offset_y: 距上侧边界偏移（像素）
+        :param bind_cfg: 绑定模式配置字典；缺省用 normal 前台绑定（物理点击，
+                         弹窗被遮挡时落空），后台运行任务须显式传入
         :return: 是否成功点击
         """
         if not hwnd:
@@ -235,7 +246,7 @@ class WindowMixin:
             return False
 
         try:
-            with self.bind_window(hwnd):
+            with self.bind_window(hwnd, bind_cfg=bind_cfg):
                 self.move_to(click_x, click_y)
                 time.sleep(0.1)
                 self.left_click()
@@ -427,16 +438,33 @@ class WindowMixin:
             return False
 
     @staticmethod
+    def _nudge_window(user32, hwnd: int) -> bool:
+        """1px 尺寸扰动：w-1 → w，触发 WM_SIZE 强制 Qt 全量重绘。
+
+        layered 窗口收到真实尺寸变化时 Qt 必须重排重绘，flush 走
+        UpdateLayeredWindow 重推带透明通道的帧——等价于取消/恢复 layered
+        的刷新效果，且全程保持 layered 不产生黑边。
+        """
+        rect = ctypes.wintypes.RECT()
+        if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+            return False
+        flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
+        w, h = rect.right - rect.left, rect.bottom - rect.top
+        user32.SetWindowPos(hwnd, 0, 0, 0, w - 1, h, flags)
+        time.sleep(0.15)
+        user32.SetWindowPos(hwnd, 0, 0, 0, w, h, flags)
+        return True
+
+    @staticmethod
     def force_refresh_layered(hwnd: int, wait: float = 0.8) -> bool:
         """对 layered window 执行强制刷新，解决后台输入/点击后画面不更新的问题。
 
         KK 的 Qt 5.15.2 弹窗是 WS_EX_LAYERED 窗口，渲染走 UpdateLayeredWindow，
-        RedrawWindow(WM_PAINT) 对它无效。临时取消 layered 属性后 RedrawWindow
-        能触发 Qt 正常重绘并 flush 到 DWM 合成表面，恢复 layered 后再 RedrawWindow
-        一次确保内容完整，避免黑边或残留旧画面。
+        RedrawWindow(WM_PAINT) 对它无效。用 1px 尺寸扰动触发 WM_SIZE 让 Qt
+        全量重绘并重推 layered 帧，全程保持 layered 不产生黑边。
 
         :param hwnd: 目标窗口句柄
-        :param wait: 取消 layered 后等待 Qt 重绘的时间（秒）
+        :param wait: 扰动后等待 Qt 重绘重推的时间（秒）
         :return: 是否成功执行刷新流程
         """
         if not hwnd:
@@ -449,19 +477,15 @@ class WindowMixin:
                 ctypes.c_void_p,
                 ctypes.wintypes.UINT,
             ]
-            original_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            if not (original_style & WS_EX_LAYERED):
+            ex_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            if not (ex_style & WS_EX_LAYERED):
                 # 非 layered 窗口直接 RedrawWindow
                 user32.RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN)
                 return True
-            # 取消 layered → RedrawWindow → 等待 Qt 重绘 → 恢复 layered → 等待 DWM 合成
-            user32.SetWindowLongW(hwnd, GWL_EXSTYLE, original_style & ~WS_EX_LAYERED)
-            user32.RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN)
+            if not WindowMixin._nudge_window(user32, hwnd):
+                return False
             time.sleep(wait)
-            user32.SetWindowLongW(hwnd, GWL_EXSTYLE, original_style)
-            # 恢复 layered 后等待 DWM 自动合成，不再调 RedrawWindow（对 layered 窗口无效）
-            time.sleep(0.2)
-            logger.debug(f"force_refresh_layered: hwnd={hwnd} 刷新完成")
+            logger.debug(f"force_refresh_layered: hwnd={hwnd} 尺寸扰动刷新完成")
             return True
         except Exception as e:
             logger.warning(f"force_refresh_layered 失败: hwnd={hwnd}, {e}")

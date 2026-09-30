@@ -1,5 +1,4 @@
 ############## 枪斗 ##############
-name = "war3.jiubing2.heroes.lancer"
 extends = ["war3.jiubing2"]
 
 
@@ -8,7 +7,7 @@ name = "枪斗"
 floor_key = "P"
 # ------------------------------ 物品栏配置（背包1-6格） ------------------------------
 # slot: 格子编号 0~5 对应第 1~6 格
-# item: 物品名（映射表在 jiubing2.toml 的 items 中），也可用 item_id = 数字
+# item: 物品名（映射表在 jiubing2.toml 的 items 中）
 # 快捷键从 kk.toml 的 inventory_slots 查找
 inventory = [
   {slot = 0, item = "血瓶"},

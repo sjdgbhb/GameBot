@@ -120,8 +120,8 @@ class TestStartTaskEdge:
     def test_start_task_reads_python_path_from_base_toml(
         self, services_config_dir, services_project_root, services_web_config, monkeypatch
     ):
-        """当 _WEB_CONFIG 未配置 dm_python_path 时，应从 jiubing2.toml [dm].python_path 读取。"""
-        _write_base(services_config_dir, '[dm]\npython_path = "custom/python.exe"\n')
+        """当 _WEB_CONFIG 未配置 dm_python_path 时，应从 base.toml [this.dm].python_path 读取。"""
+        (services_config_dir / "base.toml").write_text('[this.dm]\npython_path = "custom/python.exe"\n', encoding="utf-8")
 
         expected_path = str(services_project_root / "custom" / "python.exe")
 

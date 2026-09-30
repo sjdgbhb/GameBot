@@ -5,7 +5,7 @@
 - 合并构建（可继承覆盖、命名空间深度合并、英雄互斥）
 - deep_merge
 - load_task 缓存
-- get / get_section / __contains__ 访问
+- load_task 返回字典的访问方式（无全局 _config）
 - 单例模式
 - 配置文件不存在异常
 - user_config 覆盖（inventory / desired_items / patrol_rounds / chest / points）
@@ -21,6 +21,7 @@ import pytest
 
 from GameBot.config import Config, ConfigurationError
 from tests.common.config_helpers import ConfigTestBase as TestConfigBase
+from tests.common.config_helpers import write_toml as _write_toml
 
 pytestmark = [pytest.mark.unit, pytest.mark.config]
 
@@ -60,13 +61,14 @@ class TestSplitSections(TestConfigBase):
     """测试可继承/命名空间节点拆分。"""
 
     def test_inheritable_vs_namespaced(self):
-        """jiubing2.toml 中 [game]/[command]/[hero] 可继承，[tasks.*] 不可继承。"""
+        """jiubing2.toml 中 [hero] 可继承，[this.*] 展开为 war3.jiubing2.* 命名空间。"""
         raw = self.cfg._load_file("war3.jiubing2")
         inheritable, namespaced = self.cfg._split_sections(raw)
-        # 可继承节点
-        self.assertIn("game", inheritable)
-        self.assertIn("command", inheritable)
+        # hero 是唯一保留的可继承顶层键；[this.game]/[this.command] 归入 war3 命名空间
         self.assertIn("hero", inheritable)
+        self.assertIn("war3", namespaced)
+        self.assertIn("game", namespaced["war3"]["jiubing2"])
+        self.assertIn("command", namespaced["war3"]["jiubing2"])
         # 不应包含 name/extends（控制键）
         self.assertNotIn("name", inheritable)
         self.assertNotIn("extends", inheritable)
@@ -94,31 +96,26 @@ class TestBuild(TestConfigBase):
         self.assertEqual(result["hero"]["attack"], 100)
 
     def test_namespaced_deep_merge(self):
-        """不同任务的命名空间节点共存于各自路径下。"""
-        # 先加载 fishing
-        self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
-        # 再加载 patrol_loot（会重建全局 _config）
-        self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
-        result = self.cfg._config
-        # 两个任务的命名空间路径都应存在
-        tasks_ns = result.get("war3", {}).get("jiubing2", {}).get("tasks", {})
-        self.assertIn("fishing", tasks_ns.get("others", {}))
-        self.assertIn("patrol_loot", tasks_ns.get("others", {}))
+        """多次 load_task 各自返回独立闭包，互不污染。"""
+        fishing_result = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
+        patrol_result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
+        # 各自的命名空间路径只含本任务依赖闭包内的节点
+        fishing_tasks = fishing_result["war3"]["jiubing2"]["tasks"]["others"]
+        patrol_tasks = patrol_result["war3"]["jiubing2"]["tasks"]["others"]
+        self.assertIn("fishing", fishing_tasks)
+        self.assertIn("patrol_loot", patrol_tasks)
+        self.assertNotIn("patrol_loot", fishing_tasks)
 
     def test_hero_exclusivity(self):
-        """英雄互斥：后加载的英雄替换前一英雄的可继承节点。"""
+        """英雄互斥：各任务闭包内只生效自己声明的英雄。"""
         # fishing 依赖 heroes.mk，patrol_loot 依赖 heroes.lancer
-        # 先加载 fishing
-        self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
-        # 再加载 patrol_loot
-        self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
-        result = self.cfg._config
-        # 全局 _config 中英雄应为 lancer（后加载）
-        self.assertEqual(result["hero"]["inventory"], ["G", "H", "I"])
-        self.assertEqual(result["hero"]["attack"], 80)
-        self.assertEqual(result["hero"]["defense"], 50)
-        # mk 的 attack=100 不应残留
-        # lancer 没有 attack=100 的覆盖，但有 attack=80
+        fishing_result = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
+        patrol_result = self.cfg.load_task("war3.jiubing2.tasks.others.patrol_loot")
+        # fishing 的 hero 为 mk（attack=100），patrol_loot 的为 lancer（attack=80）
+        self.assertEqual(fishing_result["hero"]["attack"], 100)
+        self.assertEqual(patrol_result["hero"]["inventory"], ["G", "H", "I"])
+        self.assertEqual(patrol_result["hero"]["attack"], 80)
+        self.assertEqual(patrol_result["hero"]["defense"], 50)
 
     def test_hero_exclusivity_cleans_previous(self):
         """换英雄时前一英雄独有的可继承节点应被清除。"""
@@ -165,9 +162,9 @@ class TestLoadTask(TestConfigBase):
         result = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
         # 任务自身命名空间
         self.assertEqual(result["war3"]["jiubing2"]["tasks"]["others"]["fishing"]["name"], "钓鱼")
-        # 依赖的可继承节点
-        self.assertIn("game", result)
-        self.assertIn("command", result)
+        # 依赖的命名空间节点（[this.*] 归入 war3.jiubing2.*）与可继承 hero
+        self.assertIn("game", result["war3"]["jiubing2"])
+        self.assertIn("command", result["war3"]["jiubing2"])
         self.assertIn("hero", result)
         # 英雄应为 mk
         self.assertEqual(result["hero"]["inventory"], ["D", "E", "F"])
@@ -178,11 +175,10 @@ class TestLoadTask(TestConfigBase):
         result2 = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
         self.assertIs(result1, result2)
 
-    def test_load_task_syncs_global_config(self):
-        """load_task 后全局 _config 应同步更新。"""
+    def test_load_task_no_global_config(self):
+        """load_task 只返回合并字典，不产生全局 _config 状态。"""
         self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
-        self.assertIn("game", self.cfg._config)
-        self.assertIn("hero", self.cfg._config)
+        self.assertFalse(hasattr(self.cfg, "_config"))
 
     def test_load_task_with_different_heroes(self):
         """不同任务依赖不同英雄，各自结果应使用自己的英雄。"""
@@ -196,39 +192,25 @@ class TestLoadTask(TestConfigBase):
 
 
 class TestAccessMethods(TestConfigBase):
-    """测试 get / get_section / __contains__ 访问方法。"""
+    """测试 load_task 返回字典的访问方式（配置即普通 dict，无单例读接口）。"""
 
-    def test_get_dot_path(self):
-        self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
-        self.assertEqual(self.cfg.get("hero.inventory"), ["D", "E", "F"])
-        self.assertEqual(self.cfg.get("hero.attack"), 100)
-        self.assertEqual(self.cfg.get("war3.jiubing2.tasks.others.fishing.name"), "钓鱼")
+    def test_returned_dict_access(self):
+        cfg = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
+        self.assertEqual(cfg["hero"]["inventory"], ["D", "E", "F"])
+        self.assertEqual(cfg["hero"]["attack"], 100)
+        self.assertEqual(cfg["war3"]["jiubing2"]["tasks"]["others"]["fishing"]["name"], "钓鱼")
 
-    def test_get_default(self):
-        self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
-        self.assertIsNone(self.cfg.get("nonexistent"))
-        self.assertEqual(self.cfg.get("nonexistent", "fallback"), "fallback")
-
-    def test_get_section(self):
-        self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
-        game = self.cfg.get_section("game")
+    def test_returned_dict_section(self):
+        cfg = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
+        game = cfg["war3"]["jiubing2"]["game"]
         self.assertIsInstance(game, dict)
         self.assertEqual(game["load_war3_time"], 33)
 
-    def test_get_section_missing(self):
-        self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
-        result = self.cfg.get_section("nonexistent")
-        self.assertEqual(result, {})
-
-    def test_contains(self):
-        self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
-        self.assertIn("hero", self.cfg)
-        self.assertIn("game", self.cfg)
-        self.assertNotIn("nonexistent", self.cfg)
-
-    def test_getitem(self):
-        self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
-        self.assertEqual(self.cfg["hero"]["inventory"], ["D", "E", "F"])
+    def test_missing_key_raises(self):
+        cfg = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
+        self.assertNotIn("nonexistent", cfg)
+        with self.assertRaises(KeyError):
+            cfg["nonexistent"]
 
 
 class TestSingleton(TestConfigBase):
@@ -381,8 +363,8 @@ class TestUserConfig(TestConfigBase):
             user_cfg_path.write_text(json.dumps({"chest": {"enable": True, "items": ["gem"]}}), encoding="utf-8")
 
             result = self.cfg.load_task("war3.jiubing2.tasks.others.fishing")
-            self.assertTrue(result["chest"]["enable"])
-            self.assertEqual(result["chest"]["items"], ["gem"])
+            self.assertTrue(result["war3"]["jiubing2"]["chest"]["enable"])
+            self.assertEqual(result["war3"]["jiubing2"]["chest"]["items"], ["gem"])
         finally:
             shutil.rmtree(fake_root, ignore_errors=True)
 
@@ -520,17 +502,27 @@ class TestFilePathMapping(TestConfigBase):
 
 
 class TestNamespaceRoots(TestConfigBase):
-    """测试命名空间根集合（只扫描一级目录和顶层 .toml 文件名）。"""
+    """测试命名空间根集合（显式注册表 NAMESPACE_ROOTS，不随目录扫描变化）。"""
 
     def test_roots_include_top_level_dirs_and_toml_files(self):
-        """namespace_roots 应包含 config 目录下的一级文件夹名和顶层 .toml 文件名，不递归子目录。"""
+        """namespace_roots 为注册表内容；war3 内部子目录名（heroes/tasks/scenes）不参与。"""
         roots = self.cfg.namespace_roots
-        self.assertIn("war3", roots)  # 一级文件夹
-        self.assertIn("base", roots)  # 顶层 .toml 文件
+        self.assertIn("war3", roots)  # 一级领域
+        self.assertIn("base", roots)  # 一级领域（顶层 .toml）
         # 子目录名不应出现在 roots 中
         self.assertNotIn("heroes", roots)
         self.assertNotIn("tasks", roots)
         self.assertNotIn("scenes", roots)
+
+    def test_unregistered_top_level_entry_warns(self):
+        """config 目录下未登记的一级条目应告警（不静默改变合并语义）。"""
+        _write_toml(self.config_dir, "unreg/unreg.toml", 'extends = []\n')
+        with self.assertLogs("GameBot.config.system.loader", level="WARNING") as cm:
+            self.cfg._ns_roots = None  # 清缓存触发重扫
+            self.cfg.namespace_roots
+        self.assertTrue(any("unreg" in m for m in cm.output))
+        # 未登记条目不在 roots 中
+        self.assertNotIn("unreg", self.cfg.namespace_roots)
 
 
 if __name__ == "__main__":

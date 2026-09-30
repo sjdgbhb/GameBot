@@ -2,12 +2,16 @@
 
 模型加载通过 inference.model_loader 统一管理，后处理工具（_letterbox / _nms）
 复用 inference.worker 中的实现。
+
+截图来源统一为 WGC（Windows Graphics Capture）：所有推理入口接收 ndarray
+（BGRA 或 RGB），不再有任何 ImageGrab / 大漠截图路径。
 """
 
 import os
 from typing import List, Tuple
 
-from PIL import Image, ImageGrab
+import numpy as np
+from PIL import Image
 
 from GameBot.config import config
 from GameBot.utils import logger
@@ -30,22 +34,25 @@ class LocalInferenceClient:
         self._cfg = self._build_config()
 
     def _build_config(self) -> dict:
-        """从项目配置中提取推理参数。"""
-        inf_cfg = config.get("inference", {})
+        """从项目配置中提取推理参数（显式加载 war3.jiubing2 闭包，含 base）。"""
+        cfg = config.load_task("war3.jiubing2")
+        inf_cfg = cfg.get("base", {}).get("inference", {})
+        chest_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("chest", {})
+        combat_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("combat_status", {})
         models_dir = inf_cfg.get("models_dir", "src/GameBot/resources/models")
         models_abs = os.path.join(config.project_root, models_dir)
 
         return {
-            "ocr_device": str(config.get("inference.device", "cpu") or "cpu"),
-            "ai_device": str(config.get("inference.device", "cpu") or "cpu"),
+            "ocr_device": str(inf_cfg.get("device", "cpu") or "cpu"),
+            "ai_device": str(inf_cfg.get("device", "cpu") or "cpu"),
             "chest_model_path": os.path.join(models_abs, "chest_detector.onnx"),
             "combat_model_path": os.path.join(models_abs, "combat_status.onnx"),
-            "chest_input_size": int(config.get("chest.ai_input_size", 1280)),
-            "chest_conf": float(config.get("chest.ai_conf", 0.5)),
-            "chest_iou": float(config.get("chest.ai_iou", 0.5)),
-            "combat_img_w": int(config.get("combat_status.ai_img_w", 87)),
-            "combat_img_h": int(config.get("combat_status.ai_img_h", 61)),
-            "combat_threshold": float(config.get("combat_status.ai_threshold", 0.5)),
+            "chest_input_size": int(chest_cfg.get("ai_input_size", 1280)),
+            "chest_conf": float(chest_cfg.get("ai_conf", 0.5)),
+            "chest_iou": float(chest_cfg.get("ai_iou", 0.5)),
+            "combat_img_w": int(combat_cfg.get("ai_img_w", 87)),
+            "combat_img_h": int(combat_cfg.get("ai_img_h", 61)),
+            "combat_threshold": float(combat_cfg.get("ai_threshold", 0.5)),
         }
 
     def start(self):
@@ -89,48 +96,45 @@ class LocalInferenceClient:
             params["EngineConfig.onnxruntime.use_cuda"] = False
             return RapidOCR(params=params)
 
-    def _ocr_screen(self, bbox):
-        import numpy as np
-
+    def _ocr_from_file_impl(self, img_path: str):
+        """从图片文件加载并 OCR，返回 RapidOCR result 对象。"""
         if self._ocr is None:
             self._ocr = self._build_ocr()
-        img = ImageGrab.grab(bbox=tuple(bbox), all_screens=True)
-        result = self._ocr(np.array(img))
-        return result
+        img = Image.open(img_path).convert("RGB")
+        return self._ocr(np.array(img))
 
-    def ocr_screen(self, bbox) -> str:
-        """对屏幕区域 bbox=[x1,y1,x2,y2] 截屏并 OCR，返回识别文字。"""
+    def _ocr_from_array_impl(self, img):
+        """对内存图像 OCR，返回 RapidOCR result 对象。
+
+        :param img: ndarray，BGRA（WGC 帧，4 通道）或 RGB（3 通道）
+        """
+        if self._ocr is None:
+            self._ocr = self._build_ocr()
+        arr = np.asarray(img)
+        if arr.ndim == 3 and arr.shape[2] == 4:
+            arr = np.ascontiguousarray(arr[:, :, [2, 1, 0]])  # BGRA → RGB
+        return self._ocr(arr)
+
+    def ocr_from_array(self, img) -> str:
+        """对内存图像（WGC 帧裁剪区域）OCR，返回识别文字。"""
         try:
-            result = self._ocr_screen(bbox)
+            result = self._ocr_from_array_impl(img)
             txts = getattr(result, "txts", None)
             if not txts:
                 return ""
             return "".join(t for t in txts if t)
         except Exception as e:
-            logger.debug(f"OCR 识别异常: {e}")
+            logger.debug(f"OCR 数组识别异常: {e}")
             return ""
 
-    def ocr_lines(self, bbox, merge_lines: bool = True) -> list:
-        """对屏幕区域截屏并 OCR，返回逐行结果（含 y 坐标）。
-
-        :param merge_lines: True 时合并同一行的多个文字框（适用于单列文本）；
-                            False 时保持每个文字框独立（适用于网格布局，如搜索结果）。
-        """
+    def ocr_lines_from_array(self, img, merge_lines: bool = True) -> list:
+        """对内存图像 OCR 逐行结果，参数含义同 ocr_lines_from_file。"""
         try:
-            result = self._ocr_screen(bbox)
+            result = self._ocr_from_array_impl(img)
             return self._merge_ocr_result(result, merge_lines=merge_lines)
         except Exception as e:
-            logger.debug(f"OCR 逐行识别异常: {e}")
+            logger.debug(f"OCR 数组逐行识别异常: {e}")
             return []
-
-    def _ocr_from_file_impl(self, img_path: str):
-        """从图片文件加载并 OCR，返回 RapidOCR result 对象。"""
-        import numpy as np
-
-        if self._ocr is None:
-            self._ocr = self._build_ocr()
-        img = Image.open(img_path).convert("RGB")
-        return self._ocr(np.array(img))
 
     def ocr_from_file(self, img_path: str) -> str:
         """从图片文件 OCR（大漠截图存盘后读图），支持后台窗口截图识别。"""
@@ -287,15 +291,13 @@ class LocalInferenceClient:
             logger.error(f"宝箱检测异常: {e}")
             return []
 
-    def capture_and_detect_chests(self, bbox) -> List[Tuple[int, int, int, int, float]]:
-        """截屏 + 宝箱检测，无需写临时文件。"""
+    def detect_chests_from_array(self, img) -> List[Tuple[int, int, int, int, float]]:
+        """对内存图像（WGC 帧，BGRA 或 RGB）做宝箱检测。"""
         try:
-            if bbox:
-                img = ImageGrab.grab(bbox=tuple(bbox), all_screens=True)
-            else:
-                img = ImageGrab.grab(all_screens=True)
-            img = img.convert("RGB")
-            return self._run_chest_detection(img)
+            arr = np.asarray(img)
+            if arr.ndim == 3 and arr.shape[2] == 4:
+                arr = arr[:, :, [2, 1, 0]]  # BGRA → RGB
+            return self._run_chest_detection(Image.fromarray(arr))
         except Exception as e:
             logger.error(f"宝箱检测异常: {e}")
             return []
@@ -312,23 +314,23 @@ class LocalInferenceClient:
             logger.info(f"战斗状态模型已加载: {model_path}")
         return self._combat_session
 
-    def predict_combat_batch(self, img_paths: List[str]) -> List[bool]:
-        """对多张头像图片批量预测战斗状态。"""
-        if not img_paths:
+    def predict_combat_from_arrays(self, imgs) -> List[bool]:
+        """对一组内存图像（WGC 帧区域，BGRA 或 RGB）批量预测战斗状态。"""
+        if not imgs:
             return []
         try:
-            import numpy as np
-
             session = self._get_combat_session()
             img_w = int(self._cfg.get("combat_img_w", 87))
             img_h = int(self._cfg.get("combat_img_h", 61))
             threshold = float(self._cfg.get("combat_threshold", 0.5))
 
             batch = []
-            for path in img_paths:
-                img = Image.open(path).convert("RGB").resize((img_w, img_h))
-                arr = np.array(img).transpose(2, 0, 1).astype(np.float32) / 255.0
-                batch.append(arr)
+            for img in imgs:
+                arr = np.asarray(img)
+                if arr.ndim == 3 and arr.shape[2] == 4:
+                    arr = arr[:, :, [2, 1, 0]]  # BGRA → RGB
+                pil = Image.fromarray(arr).resize((img_w, img_h))
+                batch.append(np.array(pil).transpose(2, 0, 1).astype(np.float32) / 255.0)
             batch = np.stack(batch)
 
             result = session.run(["output"], {"input": batch})
@@ -336,45 +338,4 @@ class LocalInferenceClient:
             return [bool(p > threshold) for p in probs]
         except Exception as e:
             logger.error(f"战斗检测异常: {e}")
-            return [False] * len(img_paths)
-
-    def capture_and_predict_combat(
-        self, bbox, frame_count: int = 10, frame_interval: float = 0.3, cancel_file: str = ""
-    ) -> List[bool]:
-        """截屏 + 战斗检测，无需写临时文件。"""
-        try:
-            import time as _time
-
-            import numpy as np
-
-            session = self._get_combat_session()
-            img_w = int(self._cfg.get("combat_img_w", 87))
-            img_h = int(self._cfg.get("combat_img_h", 61))
-            threshold = float(self._cfg.get("combat_threshold", 0.5))
-
-            batch = []
-            for i in range(frame_count):
-                if cancel_file and os.path.exists(cancel_file):
-                    break
-                img = ImageGrab.grab(bbox=tuple(bbox), all_screens=True)
-                img = img.convert("RGB").resize((img_w, img_h))
-                arr = np.array(img).transpose(2, 0, 1).astype(np.float32) / 255.0
-                batch.append(arr)
-                if i < frame_count - 1 and not (cancel_file and os.path.exists(cancel_file)):
-                    _time.sleep(frame_interval)
-            if cancel_file and os.path.exists(cancel_file):
-                try:
-                    os.remove(cancel_file)
-                except OSError:
-                    pass
-                return [False] * max(len(batch), 1)
-            if not batch:
-                return [False] * frame_count
-            batch = np.stack(batch)
-
-            result = session.run(["output"], {"input": batch})
-            probs = result[0].flatten()
-            return [bool(p > threshold) for p in probs]
-        except Exception as e:
-            logger.error(f"战斗检测异常: {e}")
-            return [False] * frame_count
+            return [False] * len(imgs)

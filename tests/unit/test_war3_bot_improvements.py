@@ -64,7 +64,7 @@ def _make_dm_client():
 
 
 class TestDmClientScreenshot(unittest.TestCase):
-    """DmClientBase 截图相关方法边界测试。"""
+    """DmClientBase 截图相关方法边界测试（WGC 实现）。"""
 
     def setUp(self):
         self._orig = _mock_dm_modules()
@@ -74,31 +74,39 @@ class TestDmClientScreenshot(unittest.TestCase):
         _restore_dm_modules(self._orig)
         _TestDmClient._last_screenshot_time = 0
 
-    @patch.object(_TestDmClient, "_screenshot_dir")
-    def test_save_screenshot_success(self, mock_dir):
-        """正常截图应返回文件路径。"""
-        tmp = Path(__file__).parent
-        mock_dir.return_value = tmp
-        dm = _make_dm_client()
-        dm._com.Capture.return_value = 1
+    @staticmethod
+    def _wgc_mock():
+        """构造 WgcCapture mock：for_hwnd 返回带 client_size/save 的会话对象。"""
+        cap = MagicMock()
+        cap.client_size.return_value = (100, 100)
+        wgc = MagicMock()
+        wgc.for_hwnd.return_value = cap
+        return wgc, cap
 
-        with patch("GameBot.runner.driver.screenshot.time") as mock_time:
+    def test_save_screenshot_success(self):
+        """正常截图应返回文件路径。"""
+        dm = _make_dm_client()
+        dm.get_foreground_window = MagicMock(return_value=123)
+        wgc, cap = self._wgc_mock()
+        with patch.object(_TestDmClient, "_screenshot_dir", return_value=Path(__file__).parent), \
+             patch("GameBot.runner.driver.screenshot.WgcCapture", wgc), \
+             patch("GameBot.runner.driver.screenshot.time") as mock_time:
             mock_time.time.return_value = 1000
             result = dm.save_screenshot((0, 0, 100, 100), label="test")
 
         self.assertIsNotNone(result)
         self.assertIn("test_", result.name)
-        self.assertTrue(str(result).endswith(".bmp"))
+        self.assertTrue(str(result).endswith(".png"))
+        cap.save.assert_called_once()
 
-    @patch.object(_TestDmClient, "_screenshot_dir")
-    def test_save_screenshot_min_interval(self, mock_dir):
+    def test_save_screenshot_min_interval(self):
         """两次截图间隔小于最小间隔时，第二次应返回 None。"""
-        tmp = Path(__file__).parent
-        mock_dir.return_value = tmp
         dm = _make_dm_client()
-        dm._com.Capture.return_value = 1
-
-        with patch("GameBot.runner.driver.screenshot.time") as mock_time:
+        dm.get_foreground_window = MagicMock(return_value=123)
+        wgc, _ = self._wgc_mock()
+        with patch.object(_TestDmClient, "_screenshot_dir", return_value=Path(__file__).parent), \
+             patch("GameBot.runner.driver.screenshot.WgcCapture", wgc), \
+             patch("GameBot.runner.driver.screenshot.time") as mock_time:
             mock_time.time.side_effect = [1000, 1000.5]
             result1 = dm.save_screenshot(label="test")
             result2 = dm.save_screenshot(label="test2")
@@ -106,60 +114,46 @@ class TestDmClientScreenshot(unittest.TestCase):
         self.assertIsNotNone(result1)
         self.assertIsNone(result2)
 
-    @patch.object(_TestDmClient, "_screenshot_dir")
-    def test_save_screenshot_invalid_bbox(self, mock_dir):
-        """无效截图区域应返回 None。"""
-        tmp = Path(__file__).parent
-        mock_dir.return_value = tmp
+    def test_save_screenshot_capture_failed(self):
+        """WGC 取帧失败（CaptureError）时应返回 None。"""
+        from GameBot.utils.exception_handler import CaptureError
+
         dm = _make_dm_client()
-
-        result = dm.save_screenshot((100, 100, 50, 50), label="test")
-
-        self.assertIsNone(result)
-        dm._com.Capture.assert_not_called()
-
-    @patch.object(_TestDmClient, "_screenshot_dir")
-    def test_save_screenshot_capture_failed(self, mock_dir):
-        """大漠 Capture 返回非 1 时应返回 None。"""
-        tmp = Path(__file__).parent
-        mock_dir.return_value = tmp
-        dm = _make_dm_client()
-        dm._com.Capture.return_value = 0
-
-        with patch("GameBot.runner.driver.screenshot.time") as mock_time:
+        dm.get_foreground_window = MagicMock(return_value=123)
+        wgc, _ = self._wgc_mock()
+        wgc.for_hwnd.side_effect = CaptureError("窗口最小化")
+        with patch.object(_TestDmClient, "_screenshot_dir", return_value=Path(__file__).parent), \
+             patch("GameBot.runner.driver.screenshot.WgcCapture", wgc), \
+             patch("GameBot.runner.driver.screenshot.time") as mock_time:
             mock_time.time.return_value = 1000
             result = dm.save_screenshot((0, 0, 100, 100), label="test")
 
         self.assertIsNone(result)
 
-    @patch.object(_TestDmClient, "get_foreground_window")
-    @patch.object(_TestDmClient, "get_window_rect")
-    @patch.object(_TestDmClient, "save_screenshot")
-    def test_save_active_window_screenshot(self, mock_save, mock_rect, mock_fg):
-        """有前台窗口时应按窗口矩形截图。"""
+    def test_save_active_window_screenshot(self):
+        """有前台窗口时应截图保存并返回路径。"""
         dm = _make_dm_client()
-        mock_fg.return_value = 123
-        mock_rect.return_value = (10, 10, 110, 110)
-        mock_save.return_value = Path("/tmp/active.bmp")
+        dm.get_foreground_window = MagicMock(return_value=123)
+        wgc, cap = self._wgc_mock()
+        with patch.object(_TestDmClient, "_screenshot_dir", return_value=Path(__file__).parent), \
+             patch("GameBot.runner.driver.screenshot.WgcCapture", wgc):
+            result = dm.save_active_window_screenshot(label="active")
 
-        result = dm.save_active_window_screenshot(label="active")
+        self.assertIsNotNone(result)
+        wgc.for_hwnd.assert_called_once_with(123)
+        cap.save.assert_called_once()
 
-        self.assertEqual(result, Path("/tmp/active.bmp"))
-        mock_rect.assert_called_once_with(123)
-        mock_save.assert_called_once_with((10, 10, 110, 110), "active")
-
-    @patch.object(_TestDmClient, "get_foreground_window")
-    @patch.object(_TestDmClient, "save_screenshot")
-    def test_save_active_window_screenshot_no_hwnd(self, mock_save, mock_fg):
-        """无前台窗口时应回退到全屏截图。"""
+    def test_save_active_window_screenshot_no_hwnd(self):
+        """无前台窗口时应返回 None。"""
         dm = _make_dm_client()
-        mock_fg.return_value = 0
-        mock_save.return_value = Path("/tmp/fullscreen.bmp")
+        dm.get_foreground_window = MagicMock(return_value=0)
+        wgc, cap = self._wgc_mock()
+        with patch.object(_TestDmClient, "_screenshot_dir", return_value=Path(__file__).parent), \
+             patch("GameBot.runner.driver.screenshot.WgcCapture", wgc):
+            result = dm.save_active_window_screenshot(label="no_window")
 
-        result = dm.save_active_window_screenshot(label="no_window")
-
-        self.assertEqual(result, Path("/tmp/fullscreen.bmp"))
-        mock_save.assert_called_once_with(label="no_window")
+        self.assertIsNone(result)
+        cap.save.assert_not_called()
 
 
 class TestDmClientNewMethods(unittest.TestCase):
@@ -244,15 +238,14 @@ class TestDmClientNewMethods(unittest.TestCase):
         self.assertEqual(result, 0)
 
     # U-01: save_screenshot force=True 绕过频率限制
-    @patch.object(_TestDmClient, "_screenshot_dir")
-    def test_save_screenshot_force_bypasses_min_interval(self, mock_dir):
+    def test_save_screenshot_force_bypasses_min_interval(self):
         """force=True 时间隔小于 1 秒仍应截图。"""
-        tmp = Path(__file__).parent
-        mock_dir.return_value = tmp
         dm = _make_dm_client()
-        dm._com.Capture.return_value = 1
-
-        with patch("GameBot.runner.driver.screenshot.time") as mock_time:
+        dm.get_foreground_window = MagicMock(return_value=123)
+        wgc, _ = TestDmClientScreenshot._wgc_mock()
+        with patch.object(_TestDmClient, "_screenshot_dir", return_value=Path(__file__).parent), \
+             patch("GameBot.runner.driver.screenshot.WgcCapture", wgc), \
+             patch("GameBot.runner.driver.screenshot.time") as mock_time:
             mock_time.time.side_effect = [1000, 1000.5]
             result1 = dm.save_screenshot(label="first")
             result2 = dm.save_screenshot(label="second", force=True)
@@ -269,20 +262,6 @@ class TestDmClientWindowRectAndClose(unittest.TestCase):
 
     def tearDown(self):
         _restore_dm_modules(self._orig)
-
-    @patch.object(_TestDmClient, "get_screen_rect")
-    def test_get_window_rect_through_active_screenshot(self, mock_screen):
-        """get_window_rect 通过与 save_active_window_screenshot 集成验证："""
-        dm = _make_dm_client()
-        dm.get_foreground_window = MagicMock(return_value=123)
-        dm.get_window_rect = MagicMock(return_value=(10, 10, 110, 110))
-        dm.save_screenshot = MagicMock(return_value=Path("/tmp/active.bmp"))
-
-        result = dm.save_active_window_screenshot(label="active")
-
-        self.assertEqual(result, Path("/tmp/active.bmp"))
-        dm.get_window_rect.assert_called_once_with(123)
-        dm.save_screenshot.assert_called_once_with((10, 10, 110, 110), "active")
 
     def test_get_screen_rect(self):
         """应通过大漠 GetScreenWidth/GetScreenHeight 返回主屏幕矩形。"""
@@ -373,16 +352,16 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
 
     def setUp(self):
         self._orig = _mock_dm_modules()
-        # 避免 OCR 客户端真实加载模型，测试中统一 mock
+        # OCR 走 WGC 帧 → ocr_lines_from_array，测试中统一 mock，避免真实取帧/加载模型
+        self._wgc_patch = patch("GameBot.runner.business.base.WgcCapture")
+        self._wgc_patch.start()
         self._ocr_patch = patch("GameBot.runner.business.base.get_inference_client")
         self._ocr_mock = self._ocr_patch.start()
-        self._ocr_mock.return_value.ocr_lines_from_file.return_value = []
-        self._remove_patch = patch("os.remove")
-        self._remove_patch.start()
+        self._ocr_mock.return_value.ocr_lines_from_array.return_value = []
 
     def tearDown(self):
-        self._remove_patch.stop()
         self._ocr_patch.stop()
+        self._wgc_patch.stop()
         _restore_dm_modules(self._orig)
 
     def _make_kk(self, kk_cfg=None):
@@ -391,7 +370,6 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
         dm = MagicMock()
         dm.get_client_rect.return_value = (0, 0, 1328, 945)
         dm.find_windows.return_value = []
-        dm.capture_to_temp.return_value = "/tmp/test_ocr.bmp"
         if kk_cfg is None:
             kk_cfg = {
                 "window_class": "KKClass",
@@ -399,6 +377,8 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
                 "create_room_window_class": "CreateClass",
                 "room": {
                     "window_size": [1328, 945],
+                    "room_id_ocr_area_coords": [111, 109, 274, 142],
+                    "room_id_keyword": "房间号",
                     "start_button_coords": [1100, 900],
                     "start_button_ocr_area_coords": [800, 850, 1200, 930],
                     "start_game_keyword": "开始游戏",
@@ -416,11 +396,12 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
         return KKBusiness(dm, kk_cfg)
 
     def test_dismiss_room_popups_room_on_top(self):
-        """房间尺寸匹配时直接返回句柄。"""
+        """窗口 OCR 到"房间号"时直接返回句柄。"""
         kk = self._make_kk()
         kk.dm.find_windows.return_value = [
             {"hwnd": 123, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1328, 945)}
         ]
+        self._ocr_mock.return_value.ocr_lines_from_array.return_value = [{"text": "房间号：12345"}]
 
         result = kk.dismiss_room_popups(kk.dm)
 
@@ -428,9 +409,9 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
         kk.dm.close_window_by_x.assert_not_called()
 
     def test_dismiss_room_popups_large_main_window_breaks(self):
-        """顶层窗口大于房间面积比例时视为大厅，不关闭。"""
+        """窗口 OCR 不到"房间号"时视为大厅，不关闭、不返回。"""
         kk = self._make_kk()
-        # 1600x945 面积大于 1328*945*0.85
+        # 大厅窗口（OCR 默认返回 []，无"房间号"关键词）
         kk.dm.get_client_rect.return_value = (0, 0, 1600, 945)
         kk.dm.find_windows.side_effect = lambda window_class, *args: (
             [{"hwnd": 123, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1600, 945)}]
@@ -455,21 +436,26 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
         ]
         kk.dm.get_client_rect.side_effect = lambda hwnd: (0, 0, 400, 300) if hwnd == popup_hwnd else (0, 0, 1328, 945)
         kk.dm.close_window_by_x.return_value = True
-        self._ocr_mock.return_value.ocr_lines_from_file.side_effect = [[], [{"text": "开始游戏"}]]
+        self._ocr_mock.return_value.ocr_lines_from_array.side_effect = [[], [{"text": "房间号：12345"}]]
 
         result = kk.dismiss_room_popups(kk.dm)
 
         self.assertEqual(result, room_hwnd)
         kk.dm.close_window_by_x.assert_called_once()
 
-    def test_dismiss_room_popups_finds_room_by_size(self):
-        """同类同标题窗口应按客户区尺寸区分房间。"""
+    def test_dismiss_room_popups_finds_room_by_ocr(self):
+        """同类同标题窗口应按"房间号"OCR 区分房间（尺寸不可靠）。"""
         kk = self._make_kk()
         kk.dm.find_windows.return_value = [
             {"hwnd": 111, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1000, 700)},
             {"hwnd": 222, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1328, 945)},
         ]
         kk.dm.get_client_rect.side_effect = lambda hwnd: (0, 0, 1000, 700) if hwnd == 111 else (0, 0, 1328, 945)
+        # 第一个窗口无"房间号"（大厅），第二个有
+        self._ocr_mock.return_value.ocr_lines_from_array.side_effect = [
+            [{"text": "好友列表"}],
+            [{"text": "房间号：12345"}],
+        ]
 
         result = kk.dismiss_room_popups(kk.dm)
 
@@ -489,7 +475,7 @@ class TestKKBusinessPopupDismiss(unittest.TestCase):
         """找到房间后设置尺寸、绑定并点击开始。"""
         kk = self._make_kk()
         kk.dismiss_room_popups = MagicMock(return_value=123)
-        self._ocr_mock.return_value.ocr_lines_from_file.return_value = [{"text": "开始游戏"}]
+        self._ocr_mock.return_value.ocr_lines_from_array.return_value = [{"text": "开始游戏"}]
 
         kk.start_game(kk.dm)
 
@@ -554,7 +540,7 @@ class TestWindowManagerMixin(unittest.TestCase):
         """等待进入游戏时窗口消失应抛 WindowLostError 并截图。"""
         war3 = self._make_war3()
         war3.is_in_game = MagicMock(return_value=False)
-        war3.dm.get_active_window.return_value = 0
+        war3.dm.find_window.return_value = 0
         war3.interruptible_wait = MagicMock()
 
         task = MagicMock()
@@ -566,7 +552,7 @@ class TestWindowManagerMixin(unittest.TestCase):
 
 
 class TestAtomicLoopTaskClosePopup(unittest.TestCase):
-    """AtomicLoopTask._close_popup 右上角 X 模式测试。"""
+    """MultiAtomicLoopTask._close_popup 关闭弹窗测试。"""
 
     def setUp(self):
         self._orig = _mock_dm_modules()
@@ -583,26 +569,18 @@ class TestAtomicLoopTaskClosePopup(unittest.TestCase):
         task.dm = MagicMock()
         return task
 
-    def test_close_popup_by_x(self):
-        """task_popup.close_by_x=true 时点击 area_coords 右上角偏移。"""
-        task = self._make_task(
-            {
-                "task_popup": {
-                    "close_by_x": True,
-                    "area_coords": [600, 200, 1300, 600],
-                    "close_offset": [15, 15],
-                },
-            }
-        )
+    def test_close_popup_none_escape(self):
+        """close_coords 为 None 时按 Escape 兜底关闭。"""
+        task = self._make_task({"war3": {"jiubing2": {}}})
 
         task._close_popup(None)
 
-        task.dm.move_to.assert_called_once_with(1285, 215)
-        task.dm.left_click.assert_called_once()
-        task.dm.key_press_char.assert_not_called()
+        task.dm.key_press_char.assert_called_once_with("Escape")
+        task.dm.move_to.assert_not_called()
+        task.dm.left_click.assert_not_called()
 
     def test_close_popup_by_coords(self):
-        """close_by_x=false 时点击 close_coords。"""
+        """传入有效 close_coords 时点击该坐标。"""
         task = self._make_task(
             {
                 "task_popup": {"close_by_x": False},
@@ -616,7 +594,7 @@ class TestAtomicLoopTaskClosePopup(unittest.TestCase):
         task.dm.key_press_char.assert_not_called()
 
     def test_close_popup_escape_fallback(self):
-        """close_by_x=false 且 close_coords 无效时按 Escape。"""
+        """close_coords 无效（0,0）时按 Escape。"""
         task = self._make_task(
             {
                 "task_popup": {"close_by_x": False},
@@ -644,15 +622,19 @@ class TestEndlessTaskDoKK(unittest.TestCase):
         task.dm = MagicMock()
         task.kk = MagicMock()
         task.task_cfg = {"game": {"map_name": "九种兵器2诸神战场"}}
+        task.target_player = ""
+        task.room_hwnd = 0
+        task.owner_pid = 0
+        task._stop_event = None
         return task
 
     def test_do_kk_calls_start_game(self):
         """do_kk 找到房间后应调用 kk.start_game(dm, room_hwnd=...)。"""
         task = self._make_task()
         task.kk.dismiss_room_popups.return_value = 123
-        task.do_kk()
+        self.assertTrue(task.do_kk())
         task.kk.dismiss_room_popups.assert_called_once_with(task.dm)
-        task.kk.start_game.assert_called_once_with(task.dm, room_hwnd=123)
+        task.kk.start_game.assert_called_once_with(task.dm, room_hwnd=123, stop_event=None)
         task.kk.dismiss_hall_popups.assert_not_called()
         task.kk.create_room.assert_not_called()
 
@@ -661,19 +643,42 @@ class TestEndlessTaskDoKK(unittest.TestCase):
         task = self._make_task()
         task.kk.dismiss_room_popups.return_value = 0
         task.kk.create_room.return_value = 456
-        task.do_kk()
+        self.assertTrue(task.do_kk())
         task.kk.dismiss_hall_popups.assert_called_once_with(task.dm)
         task.kk.create_room.assert_called_once_with(task.dm, map_name="九种兵器2诸神战场")
-        task.kk.start_game.assert_called_once_with(task.dm, room_hwnd=456)
+        task.kk.start_game.assert_called_once_with(task.dm, room_hwnd=456, stop_event=None)
 
     def test_do_kk_create_room_fails_skips(self):
         """do_kk 创建房间失败时跳过本局，不调用 start_game。"""
         task = self._make_task()
         task.kk.dismiss_room_popups.return_value = 0
         task.kk.create_room.return_value = 0
-        task.do_kk()
+        self.assertFalse(task.do_kk())
         task.kk.dismiss_hall_popups.assert_called_once_with(task.dm)
         task.kk.create_room.assert_called_once_with(task.dm, map_name="九种兵器2诸神战场")
+        task.kk.start_game.assert_not_called()
+
+    def test_do_kk_multi_instance_filters_by_owner_pid(self):
+        """多开模式：do_kk 先认领本账号房间，弹窗按 PID 过滤并在认领窗口点开始。"""
+        task = self._make_task()
+        task.target_player = "Player1"
+        task.room_hwnd = 100
+        task.owner_pid = 456
+        task._claim_kk_room = MagicMock()
+        self.assertTrue(task.do_kk())
+        task._claim_kk_room.assert_called_once()
+        task.kk.dismiss_room_popups.assert_called_once_with(task.dm, owner_pid=456)
+        task.kk.start_game.assert_called_once_with(task.dm, room_hwnd=100, stop_event=None)
+
+    def test_do_kk_multi_instance_claim_fail_raises(self):
+        """多开模式：认领房间失败时抛错终止，不做无 PID 过滤的 KK 操作。"""
+        task = self._make_task()
+        task.target_player = "Player1"
+        task._claim_kk_room = MagicMock(side_effect=RuntimeError("未认领到 KK 房间"))
+        self.assertRaises(RuntimeError, task.do_kk)
+        task.kk.dismiss_room_popups.assert_not_called()
+        task.kk.dismiss_hall_popups.assert_not_called()
+        task.kk.create_room.assert_not_called()
         task.kk.start_game.assert_not_called()
 
 

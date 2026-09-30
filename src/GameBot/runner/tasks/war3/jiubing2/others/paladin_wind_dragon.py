@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import time
 
-from GameBot.config import config
+from GameBot.config import config, resolve_bind_cfg
 from GameBot.runner.business.war3 import War3Business
-from GameBot.runner.business.war3.jiubing2 import GameUI
+from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI, get_inventory_hotkeys
 from GameBot.runner.driver import create_dm_client
 from GameBot.runner.ui import run_with_float_window
 from GameBot.utils import StopTaskError, logger, setup_global_exception_hook, setup_log_file
@@ -43,8 +43,9 @@ class PaladinWindDragonTask:
         self.hero_cfg = cfg.get("hero", {})
         self.war3 = War3Business(self.dm, self.war3_cfg)
         self.ui = GameUI(self.dm, self.war3_cfg, self.hero_cfg, self.task_cfg, self.war3)
+        self.combat = CombatHelper(self.dm, self.war3_cfg, self.hero_cfg, self.task_cfg, self.war3)
 
-        self.skills = self.cfg.get("skills", [])
+        self.skills = self._resolve_skills()
         self.skill_gap = self.cfg.get("skill_gap", 0.3)
         self.poll_interval = self.cfg.get("poll_interval", 0.2)
         # 施放确认窗口（秒）：按键到图标变灰存在延迟（含施法前摇），施放后必须观察到
@@ -55,6 +56,13 @@ class PaladinWindDragonTask:
         self.icon_sim = self.cfg.get("icon_sim", 0.9)
         self.icon_delta_color = self.cfg.get("icon_delta_color", "202020")
         self.icon_search_half = self.cfg.get("icon_search_half", [40, 30])
+        # "喂宠物的时间是否到了"的检测间隔（秒），0 表示关闭；实际喂食间隔
+        # 由 jiubing2.toml [pet].feeding_interval（分钟）控制
+        self.pet_feed_interval = self.cfg.get("pet_feed_interval", 0)
+        # 找图检测前的鼠标避让位置（防光标/tooltip 遮挡）
+        self.mouse_avoid_pos = self.cfg.get("mouse_avoid_pos", [200, 200])
+        self.pet_feed_time = time.time()
+        self._feed_count = 0
 
         self._last_f1 = 0.0  # 上次按 F1 时刻（防双击跳镜头）
         self._last_cast = 0.0  # 上次施放成功时刻
@@ -67,7 +75,44 @@ class PaladinWindDragonTask:
         self._confirm_deadline = {}
         self.client_center = None  # 客户区中心（target_coords="center" 用）
 
+    @property
+    def _npc(self) -> dict:
+        """风龙裂隙配置（scenes/wind_dragon.toml [this.npcs.wind_dragon]）。"""
+        return (
+            self.task_cfg.get("war3", {})
+            .get("jiubing2", {})
+            .get("scenes", {})
+            .get("wind_dragon", {})
+            .get("npcs", {})
+            .get("wind_dragon", {})
+        )
+
     # ── 基础 ─────────────────────────────────────────────
+
+    def _resolve_skills(self) -> list:
+        """任务技能列表与英雄技能池合并：this.skills 按 skill（技能名，对应 hero.skills
+        的 desc）引用，key/name/image/targeted 自动带出，任务侧只需写 grid、
+        target_coords 等差异项；旧格式的数值 id 仍兼容。"""
+        pool = self.hero_cfg.get("skills", [])
+        by_name = {s.get("desc"): s for s in pool if s.get("desc")}
+        by_id = {s.get("id"): s for s in pool if s.get("id") is not None}
+        skills = []
+        for s in self.cfg.get("skills", []):
+            base = by_name.get(s.get("skill"), {})
+            if not base and s.get("id") is not None:
+                base = by_id.get(s["id"], {})  # 兼容旧数值 id 引用
+            if not base and not (s.get("key") and s.get("image") and s.get("grid")):
+                logger.warning(f'技能 "{s.get("skill") or s.get("id")}" 未在英雄技能池中找到，且缺少 key/image/grid，跳过')
+                continue
+            merged = {**base, **s}
+            merged["key"] = str(merged.get("key", "")).lower()
+            merged["name"] = merged.get("name") or merged.get("desc") or merged["key"].upper()
+            merged["targeted"] = merged.get("targeted", merged.get("target_type", "self") != "self")
+            skills.append(merged)
+        no_image = [s["name"] for s in skills if not s.get("image")]
+        if no_image:
+            logger.warning(f"以下技能缺少就绪态图标 image，无法检测将永远不就绪：{no_image}")
+        return skills
 
     def _interruptible_wait(self, seconds: float):
         """可被停止信号中断的等待，检测到停止时抛出 StopTaskError。"""
@@ -151,6 +196,18 @@ class PaladinWindDragonTask:
         self._confirm_deadline[key] = self._last_cast + self.cast_confirm_time
         logger.info(f"施放 {skill.get('name', key.upper())}（第 {self._cast_counts[key]} 次）")
 
+    def _feed_pet(self):
+        """喂宠物（实际间隔由 jiubing2.toml [pet].feeding_interval 控制）。
+
+        先按 F1 确保英雄选中——背包物品快捷键要求持有物品的 Unit 处于选中状态。
+        """
+        self._reselect_hero()
+        old_feed_time = self.pet_feed_time
+        self.combat.feed_pet(self, self._stop_event)
+        # feed_pet 内部更新 pet_feed_time，通过时间变化判断是否实际喂食
+        if self.pet_feed_time != old_feed_time:
+            self._feed_count += 1
+
     def _report_lines(self):
         """刷新浮窗多行状态：各技能施放次数。"""
         if not self._progress_lines_callback:
@@ -159,70 +216,91 @@ class PaladinWindDragonTask:
             f"{skill.get('name', skill['key'].upper())}：{self._cast_counts.get(skill['key'], 0)} 次"
             for skill in self.skills
         ]
+        if self.pet_feed_interval > 0:
+            lines.append(f"喂宠物：{self._feed_count} 次")
         self._progress_lines_callback(lines)
-
-    # ── 检测测试 ────────────────────────────────────────
-
-    def test_detect_icons(self):
-        """检测测试：对每个技能格截图存 BMP + 多档相似度试匹配，用于排查图标匹配问题。
-
-        截图输出到 logs/paladin_wind_dragon_detect/，日志打印各档 sim 的 find_pic 结果：
-        - 截图中图标不在区域中央/区域不对 → grid 或 skill_panel 坐标有问题
-        - 仅低 sim 匹配 → 截图与就绪态图片不一致（分辨率、灰度、扫层等）
-        - 所有 sim 均不匹配 → 图片内容与屏幕完全不同
-        """
-        import tempfile
-        from pathlib import Path
-
-        out_dir = Path(tempfile.gettempdir()) / "paladin_wind_dragon_detect"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"检测测试模式：截图输出到 {out_dir}")
-
-        for skill in self.skills:
-            key = skill["key"]
-            x1, y1, x2, y2 = self._icon_area(skill)
-            logger.info(f"{skill.get('name', key.upper())} 检测区域 [{x1},{y1},{x2},{y2}]")
-
-            # 截取当前技能格区域，便于人工核对坐标是否对准图标
-            bmp = out_dir / f"icon_{key}.bmp"
-            ok = self.dm.capture_region(x1, y1, x2, y2, str(bmp))
-            logger.info(f"  区域截图 {'已保存 ' + str(bmp) if ok else '失败'}")
-
-            # 多档相似度试匹配
-            for sim in (0.9, 0.8, 0.7, 0.6, 0.5):
-                index, px, py = self.dm.find_pic(
-                    x1,
-                    y1,
-                    x2,
-                    y2,
-                    skill["image"],
-                    sim=sim,
-                    delta_color=self.icon_delta_color,
-                )
-                logger.info(f"  sim={sim} → index={index}" + (f" 命中于 ({px},{py})" if index != -1 else ""))
-
-        logger.info("检测测试完成，请查看上述日志与截图")
 
     # ── 主流程 ──────────────────────────────────────────
 
+    def _walk_to_start(self):
+        """回到起始位置：小地图切视角 → 走到裂隙附近（npc.coords + walk_offset）。"""
+        npc = self._npc
+        if not npc:
+            logger.warning("未找到风龙场景配置（scenes.wind_dragon.npcs.wind_dragon），跳过走位")
+            return
+        coords = npc["coords"]
+        offset = npc.get("walk_offset", [0, 0])
+        self._reselect_hero()
+        self.war3.move_to_minimap_point(
+            npc.get("mini_coords"),
+            [coords[0] + offset[0], coords[1] + offset[1]],
+            mode=npc.get("walk_mode", 1),
+            wait_time=npc.get("time", 5),
+            stop_event=self._stop_event,
+        )
+        logger.info("已走到风龙裂隙附近")
+
+    def _open_boss(self):
+        """开启 boss：在 boss_rift_coords 区域内找裂隙图，命中后右击返回坐标。"""
+        npc = self._npc
+        region = npc.get("boss_rift_coords")
+        if not region:
+            logger.warning("风龙场景未配置 boss_rift_coords，跳过开 boss")
+            return
+        # 裂隙图为通用机制（jiubing2.toml [boss_rift]），场景侧只配区域
+        rift_cfg = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("boss_rift", {})
+        image = rift_cfg.get("image", "rift.bmp")
+        offset = rift_cfg.get("click_offset", [0, 0])
+        sim = rift_cfg.get("sim", 0.9)
+        delta_color = rift_cfg.get("delta_color", "000000")
+        timeout = self.cfg.get("boss_open_timeout", 10)
+        deadline = time.monotonic() + timeout
+        while True:
+            # 找图前把鼠标挪开，避免光标/tooltip 遮挡裂隙图
+            self.dm.move_to(*self.mouse_avoid_pos)
+            self._interruptible_wait(0.15)
+            index, x, y = self.dm.find_pic(
+                region[0], region[1], region[2], region[3], image, sim=sim, delta_color=delta_color
+            )
+            if index != -1:
+                cx, cy = x + offset[0], y + offset[1]
+                self.dm.move_to(cx, cy)
+                self._interruptible_wait(self.war3_cfg.get("general_time", 0.3))
+                self.dm.right_click()
+                logger.info(f"已右击裂隙 ({cx},{cy}) 开启 boss")
+                return
+            if time.monotonic() >= deadline:
+                logger.warning(f"{timeout}s 内未在裂隙区域找到 {image}，跳过开 boss 直接进入挂机")
+                return
+            self._interruptible_wait(self.poll_interval)
+
     def run_core(self, hwnd):
-        """核心挂机循环 — 假设窗口已绑定。供 run() 和组队步骤调用。"""
+        """核心挂机循环 — 假设窗口已绑定。"""
         self.war3.set_client_size(hwnd)
         x1, y1, x2, y2 = self.dm.get_client_rect(hwnd)
         self.client_center = [(x2 - x1) // 2, (y2 - y1) // 2]
         self._last_cast = time.monotonic()
 
-        if self.cfg.get("is_test_detect", False):
-            self.test_detect_icons()
-            return
+        # 挂机前准备：走到风龙裂隙附近 → 找图开 boss → 进入施法循环
+        self._walk_to_start()
+        self._open_boss()
+
+        # 喂宠物计时从进挂机循环起算，首次喂食在 feeding_interval 后触发
+        self.pet_feed_time = time.time()
+        feed_timer = time.time()
 
         skill_names = "、".join(f"{s['key'].upper()}{s.get('name', '')}" for s in self.skills)
         logger.info(f"圣骑士风龙挂机开始：技能 {skill_names}，客户区中心 {self.client_center}")
-        self._progress_callback(f"挂机中：{skill_names}")
 
         while True:
             if self._stop_event is not None and self._stop_event.is_set():
                 raise StopTaskError("用户请求停止任务")
+
+            # 定时喂宠物：pet_feed_interval 为"是否到喂食时间"的检测间隔，
+            # 实际喂食间隔由 jiubing2.toml [pet].feeding_interval（分钟）控制
+            if self.pet_feed_interval > 0 and time.time() - feed_timer >= self.pet_feed_interval:
+                self._feed_pet()
+                feed_timer = time.time()
 
             casted = False
             for skill in self.skills:
@@ -265,18 +343,15 @@ class PaladinWindDragonTask:
                 self._interruptible_wait(self.poll_interval)
 
     def _bind_cfg(self) -> dict:
-        """按任务配置选择前台/后台绑定参数（background 用 war3.bind_multi 配置）。"""
-        if self.cfg.get("bind_mode") == "background":
-            bind_cfg = self.war3_cfg.get("bind_multi") or self.war3_cfg.get("bind", {})
+        """绑定参数（按 war3.bind_mode 选择前台/后台参数表）。"""
+        bind_cfg = resolve_bind_cfg(self.war3_cfg)
+        if bind_cfg.get("bind_mode") == "background":
             logger.info(f"使用后台绑定: {bind_cfg}")
-            return bind_cfg
-        return self.war3_cfg.get("bind", {})
+        return bind_cfg
 
     def _find_war3_hwnd(self) -> int:
-        """查找 war3 窗口。后台模式不要求 war3 是活动窗口，直接按类名+标题找。"""
-        if self.cfg.get("bind_mode") == "background":
-            return self.dm.find_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"]) or 0
-        return self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        """查找 war3 窗口（委托 War3Business.find_game_window 按绑定模式选择）。"""
+        return self.war3.find_game_window()
 
     def run(self):
         """主入口 — 查找窗口、绑定、统一窗口尺寸、运行挂机循环。"""
@@ -284,11 +359,16 @@ class PaladinWindDragonTask:
             logger.error("未配置技能列表（this.skills）")
             return
 
+        if self.pet_feed_interval > 0 and not get_inventory_hotkeys(self.hero_cfg, 9):
+            logger.warning("未装备宠物食物（物品 id=9），定时喂宠物将不会生效")
+
         hwnd = self._find_war3_hwnd()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
 
+        # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
+        self.war3.set_client_size(hwnd)
         with self.dm.bind_window(hwnd, bind_cfg=self._bind_cfg()):
             self.run_core(hwnd)
 
@@ -310,42 +390,8 @@ def main():
             progress_lines_callback=kwargs.get("progress_lines_callback"),
         ).run()
 
-    run_with_float_window("圣骑士风龙", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("float_window", {}))
+    run_with_float_window("圣骑士风龙", task_wrapper, countdown_seconds=5, float_cfg=cfg.get("base", {}).get("float_window", {}))
 
 
 if __name__ == "__main__":
     main()
-
-
-# ── 组队任务步骤 ────────────────────────────────────────────
-
-
-from GameBot.runner.business.war3.jiubing2.team_steps_base import Jiubing2TaskSteps
-
-
-class _PaladinWindDragonSteps(Jiubing2TaskSteps):
-    """风龙挂机组队步骤 — preparation 继承九兵通用流程，run_task 执行挂机循环。"""
-
-    def run_task(self, member, stop_event=None, **kwargs):
-        """挂机主循环（窗口已由 _game_phase 绑定，直接使用 member.dm）。"""
-        task = PaladinWindDragonTask(member.task_cfg, stop_event=stop_event, dm=member.dm)
-        hwnd = member._current_war3_hwnd
-        if not hwnd:
-            logger.error("run_task 无可用 War3 窗口句柄")
-            member._flow_failed = True
-            return
-        try:
-            task.run_core(hwnd)
-        except StopTaskError:
-            logger.info("用户请求停止风龙挂机")
-            raise
-        except Exception as e:
-            logger.error(f"风龙挂机任务异常: {e}")
-            member._flow_failed = True
-
-
-_steps = _PaladinWindDragonSteps()
-preparation = _steps.preparation
-position_init = _steps.position_init
-pre_exit = _steps.pre_exit
-run_task = _steps.run_task

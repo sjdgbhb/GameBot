@@ -160,10 +160,10 @@ def main() -> int:
     profile_icon = tuple(kk_cfg.get("main", {}).get("profile_icon_coords", [0, 0]))
     dropdown_wait = kk_cfg.get("main", {}).get("dropdown_wait_time", 1)
     dropdown_class_kw = kk_cfg.get("main", {}).get("dropdown_window_class", "Popup")
-    bind_multi = kk_cfg.get("bind_multi", {})
+    bind_background = kk_cfg.get("bind_background", {})
 
-    if not bind_multi:
-        logger.warning("配置中未找到 [kk.bind_multi]，诊断脚本使用 bind_multi 后台绑定可能失败")
+    if not bind_background:
+        logger.warning("配置中未找到 [kk.bind_background]，诊断脚本使用 bind_background 后台绑定可能失败")
 
     dm = create_dm_client()
     inf = get_inference_client(load_chest=False, load_combat=False)
@@ -237,7 +237,7 @@ def main() -> int:
         # 绑定大厅，点击头像
         try:
             dm.set_client_size(hall_hwnd, *main_size)
-            with dm.bind_window(hall_hwnd, bind_cfg=bind_multi):
+            with dm.bind_window(hall_hwnd, bind_cfg=bind_background):
                 dm.move_to(*profile_icon)
                 time.sleep(0.3)
                 dm.left_click()
@@ -280,12 +280,12 @@ def main() -> int:
                 continue
             dd_w = dd["rect"][2] - dd["rect"][0]
             dd_h = dd["rect"][3] - dd["rect"][1]
-            text = ocr_dropdown(dm, inf, dd["hwnd"], dd_w, dd_h, bind_multi)
+            text = ocr_dropdown(dm, inf, dd["hwnd"], dd_w, dd_h, bind_background)
             logger.info(f"{name} 下拉框 OCR 玩家名: {text!r}")
 
         # 关闭下拉框
         try:
-            with dm.bind_window(hall_hwnd, bind_cfg=bind_multi):
+            with dm.bind_window(hall_hwnd, bind_cfg=bind_background):
                 dm.key_press_char("esc")
                 time.sleep(0.3)
         except Exception as e:

@@ -1,5 +1,4 @@
 ############## 盾卫 ##############
-name = "war3.jiubing2.heroes.guardian"
 extends = ["war3.jiubing2"]
 
 

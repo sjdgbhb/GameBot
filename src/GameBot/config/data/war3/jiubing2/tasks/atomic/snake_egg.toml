@@ -3,7 +3,6 @@
 # 任务流程：走到村民杰菲特 → 点技能格接 → 沿路线清怪 → OCR 检测完成 → 回 NPC 交
 # NPC 坐标、技能格等场景信息见 scenes/kami_village.toml
 # =============================================================================
-name = "war3.jiubing2.tasks.atomic.snake_egg"
 extends = ["war3.jiubing2.scenes.kami_village", "war3.jiubing2.heroes.hxd", "kk"]
 
 [this]

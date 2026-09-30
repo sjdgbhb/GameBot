@@ -120,19 +120,29 @@ def run_with_float_window(
     task_thread.start()
 
     # ===== Tkinter 弹窗 =====
+    # DPI 感知：非感知进程下 winfo_screenwidth 返回缩放后的逻辑像素，
+    # 高缩放显示器上右侧定位会偏左（x 按缩小的逻辑宽度算）
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+    except Exception:
+        try:
+            _user32.SetProcessDPIAware()
+        except Exception:
+            pass
     root = tk.Tk()
     root.overrideredirect(True)  # 无原生标题栏
     root.configure(bg=_CARD_BORDER)  # 深色边框底
     root.attributes("-topmost", True)
 
-    # 窗口大小和位置：左侧，垂直 1/4 处
+    # 窗口大小和位置：默认右侧，垂直 1/4 处
     # 有多行进度时自动增高
     _lines_h = 0  # 会在 _refresh_lines 中动态调整
     win_w = win_w_cfg if win_w_cfg else 300
     win_h_base = 70
     win_h = win_h_base
+    screen_w = root.winfo_screenwidth()
     screen_h = root.winfo_screenheight()
-    x = win_x if win_x is not None else 20
+    x = win_x if win_x is not None else screen_w - win_w - 20
     y = win_y if win_y is not None else (screen_h - win_h) // 6 + 250
     root.geometry(f"{win_w}x{win_h}+{x}+{y}")
 
@@ -153,6 +163,23 @@ def run_with_float_window(
     )
     title_label.pack(side=tk.LEFT, padx=6)
 
+    # 标题栏拖动（overrideredirect 无原生标题栏，需自己实现拖拽）
+    _drag = {"dx": 0, "dy": 0, "moved": False}
+
+    def _drag_start(e):
+        _drag["dx"] = e.x_root - root.winfo_x()
+        _drag["dy"] = e.y_root - root.winfo_y()
+        _drag["moved"] = False
+
+    def _drag_motion(e):
+        _drag["moved"] = True
+        root.geometry(f"+{e.x_root - _drag['dx']}+{e.y_root - _drag['dy']}")
+
+    for w in (title_bar, title_label):
+        w.bind("<ButtonPress-1>", _drag_start)
+        w.bind("<B1-Motion>", _drag_motion)
+        w.config(cursor="fleur")
+
     # 标题栏右侧停止提示（按 Num- 后显示）
     stop_hint = tk.Label(
         title_bar,
@@ -163,6 +190,25 @@ def run_with_float_window(
         anchor="e",
     )
     stop_hint.pack(side=tk.RIGHT, padx=6)
+
+    # 停止按钮：点击等效按 Num-（停止本脚本的运行）
+    stop_btn = tk.Label(
+        title_bar,
+        text="✕",
+        font=("Microsoft YaHei", 9, "bold"),
+        bg=_GOLD,
+        fg=_DANGER,
+        cursor="hand2",
+        padx=4,
+    )
+    stop_btn.pack(side=tk.RIGHT)
+
+    def _on_stop_click(_e):
+        if not stop_event.is_set():
+            stop_event.set()
+            stop_hint.config(text="正在停止...")
+
+    stop_btn.bind("<Button-1>", _on_stop_click)
 
     # 上行：时间 + 进度（左对齐，金色）
     top_label = tk.Label(
@@ -206,12 +252,15 @@ def run_with_float_window(
         # 更新文本（统一金色）
         for lbl, text in zip(line_labels, lines_data):
             lbl.config(text=text, fg=_GOLD)
-        # 动态调整窗口高度和位置
+        # 动态调整窗口高度；拖动过则保持当前位置，否则按默认布局定位
         new_h = win_h_base + len(lines_data) * 24
         if new_h != win_h:
             win_h = new_h
-            new_y = win_y if win_y is not None else (screen_h - win_h) // 6 + 250
-            root.geometry(f"{win_w}x{win_h}+{x}+{new_y}")
+            if _drag["moved"]:
+                root.geometry(f"{win_w}x{win_h}+{root.winfo_x()}+{root.winfo_y()}")
+            else:
+                new_y = win_y if win_y is not None else (screen_h - win_h) // 6 + 250
+                root.geometry(f"{win_w}x{win_h}+{x}+{new_y}")
 
     start_time = [None]
     countdown_started = [False]

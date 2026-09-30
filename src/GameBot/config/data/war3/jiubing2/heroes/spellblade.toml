@@ -1,5 +1,4 @@
 ############## 魔剑士 ##############
-name = "war3.jiubing2.heroes.spellblade"
 extends = ["war3.jiubing2"]
 
 
@@ -11,7 +10,7 @@ coords = [868,400]
 load_save = "-load1"
 # ------------------------------ 物品栏配置（背包1-6格） ------------------------------
 # slot: 格子编号 0~5 对应第 1~6 格
-# item: 物品名（映射表在 jiubing2.toml 的 items 中），也可用 item_id = 数字
+# item: 物品名（映射表在 jiubing2.toml 的 items 中）
 # 快捷键从 kk.toml 的 inventory_slots 默认配置中查找，无需在此重复配置
 inventory = [
   {slot = 0, item = "血瓶"},

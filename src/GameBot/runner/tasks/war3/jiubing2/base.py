@@ -12,6 +12,7 @@ from __future__ import annotations
 import math
 import time
 
+from GameBot.config import get_task_view, resolve_bind_cfg
 from GameBot.inference import get_inference_client
 from GameBot.runner import create_dm_client
 from GameBot.runner.business.war3 import TextMonitor, War3Business
@@ -40,12 +41,15 @@ class AtomicLoopTask:
     task_config_path = None  # 本任务配置在 cfg 中的路径（子类必须指定）
     atomic_config_path = None  # 原子任务配置在 cfg 中的路径（子类必须指定）
 
-    def __init__(self, cfg: dict):
+    def __init__(self, cfg: dict, task_name: str = ""):
         """
         :param cfg: 任务依赖闭包配置（load_task 结果，含 war3/hero/game/prompt_text 等）
+        :param task_name: 变体任务全名（如 war3.jiubing2.tasks.others.upgrade_stigmata_善木木）；
+            非空时本任务配置走 get_task_view 沿 extends 链合并（变体节点不在 task_config_path 上），
+            为空则按 task_config_path 直接取节点
         """
         self.full_cfg = cfg
-        self.cfg = self._get_nested(cfg, self.task_config_path)
+        self.cfg = get_task_view(cfg, task_name) if task_name else self._get_nested(cfg, self.task_config_path)
         self.atomic_cfg = self._get_nested(cfg, self.atomic_config_path)
         # 父级配置（子表 fallback 用，如 daily_reputation.blackstone → daily_reputation）
         self._parent_cfg = (
@@ -60,6 +64,8 @@ class AtomicLoopTask:
         hero_cfg = cfg.get("hero", {})
 
         self.war3 = War3Business(self.dm, war3_cfg)
+        # 多开认领：本任务段或父级段配置的 target_player（如 daily_reputation → blackstone 继承）
+        self.war3.target_player = self.cfg.get("target_player", self._parent_cfg.get("target_player", ""))
         self.ui = GameUI(self.dm, war3_cfg, hero_cfg, cfg, self.war3)
         self.combat = CombatHelper(self.dm, war3_cfg, hero_cfg, cfg, self.war3)
         self.war3_cfg = war3_cfg
@@ -72,7 +78,7 @@ class AtomicLoopTask:
         self.nearby_cleaner = (
             NearbyCleaner(
                 self.war3,
-                cfg.get("command", {}),
+                cfg.get("war3", {}).get("jiubing2", {}).get("command", {}),
                 probability=clear_nearby_probability,
             )
             if clear_nearby_probability > 0
@@ -117,13 +123,14 @@ class AtomicLoopTask:
         loop_interval = self.cfg.get("loop_interval_time", 1.5)
         logger.info(f"{self.task_name}目标次数：{times}（通过{self.atomic_name}任务完成）")
 
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
 
-        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
-            self.war3.set_client_size(hwnd)
+        # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
+        self.war3.set_client_size(hwnd)
+        with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
             # 预热 OCR 子进程（启动 + 加载 OCR 模型，约数秒），
             # 避免首次 wait_for_text 时占用超时
             get_inference_client(load_chest=False, load_combat=False)
@@ -147,11 +154,18 @@ class AtomicLoopTask:
 
     def _make_monitor(self, hwnd: int):
         """创建持续文字监测器；子类可覆写返回 None 以禁用。"""
-        atomic_task_cfg = self.full_cfg.get("atomic_task", {})
+        atomic_task_cfg = self.full_cfg.get("war3", {}).get("jiubing2", {}).get("atomic_task", {})
         interval = atomic_task_cfg.get("monitor_interval", 0.2)
-        monitor = TextMonitor(self.war3, self.full_cfg.get("prompt_text"), interval=interval)
+        # 监测线程截图出错 → set stop_event 让主线程尽快中断，异常由 monitor.stop() 抛出
+        monitor = TextMonitor(
+            self.war3, self.full_cfg.get("war3", {}).get("jiubing2", {}).get("prompt_text"), interval=interval, on_error=self._on_monitor_error
+        )
         monitor.start(hwnd)
         return monitor
+
+    def _on_monitor_error(self, _exc: BaseException):
+        if self._stop_event is not None:
+            self._stop_event.set()
 
     def _run_loop(self, times: int, loop_interval: float, monitor=None) -> int:
         """循环执行原子任务，返回成功次数。"""
@@ -161,6 +175,8 @@ class AtomicLoopTask:
             try:
                 ok = self._run_one_atomic(monitor=monitor)
             except StopTaskError:
+                if monitor is not None and monitor.error is not None:
+                    raise monitor.error
                 logger.info("用户请求停止，终止循环")
                 break
 
@@ -305,13 +321,14 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         logger.info(f"{self.task_name}目标次数：{times}，每轮最多 {n} 个任务")
         self._progress_callback(f"成功 0 / {times}")
 
-        hwnd = self.dm.get_active_window(self.war3_cfg["window_class"], self.war3_cfg["window_title"])
+        hwnd = self.war3.find_game_window()
         if not hwnd:
             logger.error("未找到 war3 窗口")
             return
 
-        with self.dm.bind_window(hwnd, bind_cfg=self.war3_cfg.get("bind", {})):
-            self.war3.set_client_size(hwnd)
+        # 尺寸调整放在绑定前：dx2 挂钩后 resize 会重建交换链导致闪屏
+        self.war3.set_client_size(hwnd)
+        with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
             get_inference_client(load_chest=False, load_combat=False)
             monitor = self._make_monitor(hwnd)
             try:
@@ -352,6 +369,8 @@ class MultiAtomicLoopTask(AtomicLoopTask):
                 submitted = self._submit_all(accepted_keys, hwnd)
                 done += submitted
             except StopTaskError:
+                if monitor is not None and monitor.error is not None:
+                    raise monitor.error
                 logger.info("用户请求停止，终止循环")
                 break
 
@@ -383,7 +402,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         elapsed = time.time() - last
         if elapsed < respawn:
             label = task_cls._task_label if task_cls else key
-            logger.info(f"跳过 {label}：冷却中（剩余 {respawn - elapsed:.0f}s）")
+            logger.info(f"跳过 {label}：任务怪还有 {respawn - elapsed:.0f}s 刷新")
             return False
         return True
 
@@ -553,7 +572,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
                     continue
             points.append(pt)
 
-        complete_text = self.full_cfg.get("atomic_task", {}).get("complete_text", "")
+        complete_text = self.full_cfg.get("war3", {}).get("jiubing2", {}).get("atomic_task", {}).get("complete_text", "")
         if not complete_text:
             logger.error("未配置 atomic_task.complete_text")
             return
@@ -638,6 +657,11 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         # 弹窗查询：已提交的任务会从弹窗消失，弹窗中剩余的均为未提交
         # 弹窗中可能包含上一轮遗留的未提交任务（在 _in_progress 但不在本轮 accepted_keys）
         total = self._check_popup(hwnd)
+        if total < 0:
+            # 弹窗查询失败（OCR 无结果）：无法判断提交情况，本轮按 0 处理，
+            # 不清除 _in_progress，进行中任务保留下轮复查
+            logger.warning("弹窗查询失败，本轮提交数按 0 处理")
+            return 0
         all_outstanding = set(accepted_keys) | self._in_progress
         submitted = len(all_outstanding) - total
         logger.info(f"本轮完成 {submitted} 个任务")
@@ -677,14 +701,14 @@ class MultiAtomicLoopTask(AtomicLoopTask):
     # ── 弹窗查询 ──────────────────────────────────────────
 
     def _check_popup(self, hwnd) -> int:
-        """发送 -rw 查询弹窗，返回弹窗中剩余任务行数。
+        """发送 -rw 查询弹窗，返回弹窗中剩余任务行数；OCR 无结果返回 -1。
 
         弹窗结构：顶部"任务"标题 → 中间 N 个任务行 → 底部"关闭"按钮。
         已提交的任务不会显示在弹窗中，因此剩余行数 = 未提交任务数。
-        OCR 后顺便点击"关闭"按钮关闭弹窗。
+        OCR 后关闭弹窗并复检，残留则重试关闭。
         """
-        popup_cfg = self.full_cfg.get("task_popup", {})
-        command_cfg = self.full_cfg.get("command", {})
+        popup_cfg = self.full_cfg.get("war3", {}).get("jiubing2", {}).get("task_popup", {})
+        command_cfg = self.full_cfg.get("war3", {}).get("jiubing2", {}).get("command", {})
 
         # 发送 -rw 打开弹窗
         self.war3.send_msg(command_cfg.get("task_query", "-rw"))
@@ -693,7 +717,7 @@ class MultiAtomicLoopTask(AtomicLoopTask):
         # OCR 弹窗区域（逐行）
         area_coords = popup_cfg.get("area_coords", [600, 200, 1300, 600])
         ocr_cfg = {"area_coords": area_coords}
-        lines = self.war3.ocr_lines(self.war3.dm, hwnd, ocr_cfg, bind_cfg=self.war3.war3_cfg.get("bind", {}))
+        lines = self.war3.ocr_lines(hwnd, ocr_cfg)
 
         window_kw = popup_cfg.get("window_keyword", "任务")
         close_kw = popup_cfg.get("close_keyword", "关闭")
@@ -713,38 +737,55 @@ class MultiAtomicLoopTask(AtomicLoopTask):
                 continue
             task_lines.append(text)
 
-        # 关闭弹窗（优先点击"关闭"按钮，兜底 Escape）
-        self._close_popup(close_coords)
+        # 关闭弹窗并复检（点击"关闭"按钮，兜底 Escape）。
+        # 点击可能未命中、弹窗也可能晚于首次 OCR 才弹出，
+        # 残留弹窗会遮挡后续操作，须复检并重试（重试时用最新坐标）
+        gt = self.war3_cfg.get("general_time", 0.3)
+        for _ in range(3):
+            self._close_popup(close_coords)
+            time.sleep(gt)
+            is_open, retry_coords = self._popup_state(hwnd, ocr_cfg, area_coords, window_kw, close_kw)
+            if retry_coords is not None:
+                close_coords = retry_coords
+            if not is_open:
+                break
+        else:
+            logger.warning("任务弹窗可能未关闭")
 
         if not lines:
-            logger.warning("弹窗 OCR 无结果")
-            return 0
+            # lines 为空 = 弹窗区域一个文字都没识别到（弹窗未弹出或 OCR 失败），
+            # 返回 -1 让调用方区分"查询失败"与"识别成功但 0 个任务行"
+            logger.warning("弹窗区域 OCR 未识别到任何文字（弹窗可能未弹出）")
+            return -1
 
         return len(task_lines)
 
+    def _popup_state(self, hwnd, ocr_cfg: dict, area_coords: list, window_kw: str, close_kw: str) -> tuple:
+        """检测任务弹窗状态，返回 (是否打开, "关闭"按钮客户区坐标或 None)。
+
+        存在"任务"标题或"关闭"按钮即视为弹窗打开。
+        """
+        lines = self.war3.ocr_lines(hwnd, ocr_cfg)
+        is_open = False
+        close_coords = None
+        for line in lines:
+            text = line.get("text", "")
+            if close_kw in text:
+                close_coords = (
+                    area_coords[0] + int(line.get("x_center", 0)),
+                    area_coords[1] + int(line.get("y_center", 0)),
+                )
+                is_open = True
+            elif window_kw in text:
+                is_open = True
+        return is_open, close_coords
+
     def _close_popup(self, close_coords: tuple = None):
-        """关闭任务弹窗。
+        """关闭任务弹窗：优先点击 OCR 识别到的"关闭"按钮，兜底按 Escape。
 
-        如果配置 task_popup.close_by_x=true，则点击弹窗右上角 X 按钮；
-        否则优先点击 OCR 识别到的"关闭"按钮，兜底按 Escape。
-
-        :param close_coords: "关闭"按钮的屏幕坐标 (x, y)，为 None 时按 Escape
+        :param close_coords: "关闭"按钮的客户区坐标 (x, y)，为 None 时按 Escape
         """
         gt = self.war3_cfg.get("general_time", 0.3)
-        popup_cfg = self.full_cfg.get("task_popup", {})
-
-        if popup_cfg.get("close_by_x"):
-            area_coords = popup_cfg.get("area_coords", [600, 200, 1300, 600])
-            offset_x, offset_y = popup_cfg.get("close_offset", [15, 15])
-            click_x = area_coords[2] - offset_x
-            click_y = area_coords[1] + offset_y
-            if click_x > 0 and click_y > 0:
-                self.dm.move_to(click_x, click_y)
-                time.sleep(gt)
-                self.dm.left_click()
-                time.sleep(gt)
-                return
-
         if close_coords is not None and close_coords[0] > 0 and close_coords[1] > 0:
             self.dm.move_to(*close_coords)
             time.sleep(gt)

@@ -8,7 +8,7 @@
 
 import sys
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -134,49 +134,38 @@ class TestIdentifyWar3Owner(unittest.TestCase):
         }
         return war3
 
-    @patch("os.remove")
-    @patch("GameBot.runner.business.base.get_inference_client")
-    def test_identify_war3_owner_returns_first_player(self, mock_ocr_client, _):
+    def test_identify_war3_owner_returns_first_player(self):
         """应返回 OCR 识别的第一个非空行文本。"""
         war3 = self._make_war3()
-        war3.dm.capture_to_temp.return_value = "/tmp/test_ocr.bmp"
-        war3.dm.bind_window.return_value.__enter__ = MagicMock(return_value=None)
-        war3.dm.bind_window.return_value.__exit__ = MagicMock(return_value=False)
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = [
-            {"text": "Player1", "y_center": 100, "x_center": 500},
-            {"text": "Player2", "y_center": 200, "x_center": 500},
-        ]
+        war3.ocr_lines = MagicMock(
+            return_value=[
+                {"text": "Player1", "y_center": 100, "x_center": 500},
+                {"text": "Player2", "y_center": 200, "x_center": 500},
+            ]
+        )
 
         result = war3.identify_war3_owner(123)
 
         self.assertEqual(result, "Player1")
 
-    @patch("os.remove")
-    @patch("GameBot.runner.business.base.get_inference_client")
-    def test_identify_war3_owner_empty_lines_returns_empty(self, mock_ocr_client, _):
+    def test_identify_war3_owner_empty_lines_returns_empty(self):
         """OCR 结果全为空时应返回空字符串。"""
         war3 = self._make_war3()
-        war3.dm.capture_to_temp.return_value = "/tmp/test_ocr.bmp"
-        war3.dm.bind_window.return_value.__enter__ = MagicMock(return_value=None)
-        war3.dm.bind_window.return_value.__exit__ = MagicMock(return_value=False)
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = [
-            {"text": "", "y_center": 100},
-            {"text": "   ", "y_center": 200},
-        ]
+        war3.ocr_lines = MagicMock(
+            return_value=[
+                {"text": "", "y_center": 100},
+                {"text": "   ", "y_center": 200},
+            ]
+        )
 
         result = war3.identify_war3_owner(123)
 
         self.assertEqual(result, "")
 
-    @patch("os.remove")
-    @patch("GameBot.runner.business.base.get_inference_client")
-    def test_identify_war3_owner_no_lines_returns_empty(self, mock_ocr_client, _):
+    def test_identify_war3_owner_no_lines_returns_empty(self):
         """OCR 无结果时应返回空字符串。"""
         war3 = self._make_war3()
-        war3.dm.capture_to_temp.return_value = "/tmp/test_ocr.bmp"
-        war3.dm.bind_window.return_value.__enter__ = MagicMock(return_value=None)
-        war3.dm.bind_window.return_value.__exit__ = MagicMock(return_value=False)
-        mock_ocr_client.return_value.ocr_lines_from_file.return_value = []
+        war3.ocr_lines = MagicMock(return_value=[])
 
         result = war3.identify_war3_owner(123)
 

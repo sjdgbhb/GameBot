@@ -17,7 +17,7 @@
 
 import time
 
-from GameBot.config import config
+from GameBot.config import config, resolve_bind_cfg
 from GameBot.runner.business.kk import KKBusiness
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.driver import create_dm_client
@@ -53,7 +53,7 @@ def main():
     # ── 第 2 步：退出当前局 ──
     logger.info("=== 第 1 局：退出游戏 ===")
     war3.set_client_size(hwnd)
-    with dm.bind_window(hwnd, bind_cfg=war3_cfg.get("bind", {})):
+    with dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(war3_cfg)):
         war3.quit_game()
     logger.info("第 1 局已退出")
 

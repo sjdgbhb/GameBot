@@ -18,9 +18,12 @@
 
 - **窗口管理**：查找/枚举窗口、绑定/解绑窗口（上下文管理器）、获取窗口矩形和状态、
   客户区坐标与屏幕坐标转换、layered 窗口强制刷新
-- **截图**：区域截图（支持 layered 窗口的 PrintWindow 降级路径）、临时截图供 OCR 使用
+- **截图**：截图统一走 WGC（Windows Graphics Capture，`runner/driver/wgc_capture.py`），
+  按 hwnd 从 DWM 取帧，不进游戏进程；大漠不再承担截图职责
 - **输入**：键盘按键、鼠标移动/点击/双击、向窗口发送字符串
-- **视觉**：找图（按名称在资源目录查找 BMP 模板）、找色、取色
+- **视觉**：找图（按名称在资源目录查找 BMP 模板）、找色、取色（均基于 WGC 帧
+  numpy 实现）；`find_pic`/`ocr_lines` 等支持 `hwnd` 参数对未绑定窗口取帧
+  （读图期/认领前的零操作检测）
 - **调试截图**：保存截图到日志目录（带频率控制，避免刷屏）
 
 ## 依赖关系
@@ -29,7 +32,7 @@
 - **资源管理器**：解析找图用的 BMP 模板路径
 - **共享工具**：日志、异常（DmError）
 - **桥接子进程**：依赖 pywin32（COM）、大漠插件 DLL、ctypes（DPI感知/管理员提权）
-- **PIL**：处理 PrintWindow 截图的图像数据
+- **windows-capture**：WGC 截图库（仅主环境，按 hwnd 从 DWM 取帧）
 
 ## 关键约束
 
@@ -44,9 +47,10 @@
 
 ### layered 窗口刷新（重要）
 - KK 平台 Qt 窗口是 `WS_EX_LAYERED`，后台输入/点击后画面不刷新
-- 解决方案：临时取消 layered 样式 → RedrawWindow → 恢复 layered
-- **约束**：此操作会破坏大漠后台绑定状态，不能在 `bind_window` 上下文内调用
-- **正确做法**：拆成两段 bind，在中间调用刷新
+- 方案：1px 尺寸扰动（SetWindowPos w-1→w）触发 WM_SIZE 强制 Qt 全量重绘
+  并重推 UpdateLayeredWindow 帧，全程保持 layered 不产生黑边；
+  非 layered 窗口走 RedrawWindow
+- 纯扰动不破坏大漠后台绑定状态（旧的取消/恢复 layered 兜底已删除）
 
 ### 子进程不自动重启
 - 桥接子进程异常退出时不自动重启，避免静默丢失窗口绑定状态
@@ -60,20 +64,22 @@
 
 | 配置项 | 位置 | 语义 |
 |--------|------|------|
-| `dm.version` | base.toml | 期望的大漠插件版本 |
-| `dm.dll_path` | base.toml | 大漠 DLL 所在目录 |
-| `dm.python_path` | base.toml | 可选：32位Python路径（默认自动检测 .venv-dm） |
-| `war3.bind.*` | war3.toml | 大漠窗口绑定模式（前台/后台、截图/鼠标/键盘方式） |
-| `war3.bind_multi.*` | war3.toml | 多开后台绑定配置（dx2截图 + windows3鼠标） |
-| `paths.screenshot_path` | base.toml | 调试截图输出目录 |
+| `base.dm.version` | base.toml `[this.dm]` | 期望的大漠插件版本 |
+| `base.dm.dll_path` | base.toml `[this.dm]` | 大漠 DLL 所在目录 |
+| `base.dm.python_path` | base.toml `[this.dm]` | 可选：32位Python路径（默认自动检测 .venv-dm） |
+| `war3.bind_mode` | war3.toml | 绑定模式开关：foreground / background（任务/变体写 [war3] 段 bind_mode 覆盖） |
+| `war3.bind_foreground.*` | war3.toml | 前台绑定参数（normal 系鼠标/键盘；display 仅大漠输入注入配套用，截图走 WGC） |
+| `war3.bind_background.*` | war3.toml | 后台绑定参数（dx 系鼠标/键盘 + windows 键盘；display 仅保留配套，截图走 WGC） |
+| `war3.wgc_min_interval_ms` | war3.toml | WGC 最小出帧间隔（毫秒） |
+| `base.paths.screenshot_path` | base.toml `[this.paths]` | 调试截图输出目录 |
 
 ## 禁忌
 
 - ❌ 不要在 64 位主环境中直接创建大漠 COM 对象（会失败）
-- ❌ 不要在 `bind_window` 上下文内调用 layered 窗口刷新
 - ❌ 不要跨进程共享大漠客户端对象（每个实例独占子进程）
 - ❌ 不要在桥接子进程中安装 Web/OCR/AI 依赖（仅 pywin32 + loguru）
 - ❌ 不要假设子进程崩溃后会自动恢复（需调用方显式处理）
+- ❌ 不要用大漠 Capture 截图（已废弃，与 dx 鼠标注入共用钩子会撕开注入锁卡帧）；截图统一走 WGC
 
 ## 关联文档
 

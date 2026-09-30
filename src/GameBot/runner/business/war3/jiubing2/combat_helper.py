@@ -16,25 +16,13 @@ from GameBot.utils import logger
 
 
 def _build_slot_hotkey_map(hero_cfg: dict) -> dict:
-    """构建 slot → hotkey 映射表。
-
-    优先使用 hero_cfg["inventory_slots"]（新格式，来自 kk.toml 或组队成员覆盖），
-    回退到 inventory 条目中内联的 hotkey 字段（兼容旧格式）。
-    """
+    """构建 slot → hotkey 映射表（来自 hero_cfg["inventory_slots"]，kk.toml 默认或任务级覆盖）。"""
     slot_map = {}
-    # 新格式：inventory_slots 独立配置
     for slot_entry in hero_cfg.get("inventory_slots", []):
         slot = slot_entry.get("slot")
         hotkey = slot_entry.get("hotkey", "")
         if slot is not None and hotkey:
             slot_map[slot] = hotkey
-    # 兼容旧格式：inventory 条目中内联 hotkey
-    if not slot_map:
-        for item in hero_cfg.get("inventory", []):
-            slot = item.get("slot")
-            hotkey = item.get("hotkey", "")
-            if slot is not None and hotkey:
-                slot_map[slot] = hotkey
     return slot_map
 
 
@@ -61,17 +49,12 @@ def get_inventory_hotkeys(hero_cfg: dict, item_id: int) -> list:
     slot_map = _build_slot_hotkey_map(hero_cfg)
     hotkeys = []
     for item in hero_cfg.get("inventory", []):
-        # 兼容 item_id（新格式）和 id（旧格式）
-        item_val = item.get("item_id", item.get("id"))
-        if item_val == item_id:
+        if item.get("item_id") == item_id:
             slot = item.get("slot")
             if slot is not None:
                 hotkey = slot_map.get(slot, "")
                 if hotkey:
                     hotkeys.append(hotkey)
-            # 兼容旧格式：hotkey 直接内联在 inventory 条目中
-            elif item.get("hotkey"):
-                hotkeys.append(item["hotkey"])
     return hotkeys
 
 
@@ -94,30 +77,35 @@ class CombatHelper:
         self.war3_cfg = war3_cfg
         self.hero_cfg = hero_cfg
         self.cfg = cfg
-        self.game_cfg = cfg.get("game", {})
+        self.game_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("game", {})
         self._war3 = war3
         # 物品 id → name 映射，用于日志可读性
-        self._item_names = {it.get("id"): it.get("name", "") for it in cfg.get("items", []) if it.get("id") is not None}
+        self._item_names = {it.get("id"): it.get("name", "") for it in cfg.get("war3", {}).get("jiubing2", {}).get("items", []) if it.get("id") is not None}
 
     def resolve_point_skills(self, point_skills) -> list:
         """将路线点的技能配置与英雄技能池合并，返回完整技能列表。
 
-        路线点通过 skill id 引用英雄 hero.skills 中的技能，可额外指定 key、target_coords。
-        若英雄技能池中不存在该 id，但路线点提供了 key 和 target_type，则按自定义技能处理。
+        路线点通过 skill（技能名，对应英雄 hero.skills 的 desc）引用技能，
+        可额外指定 key、target_coords；旧格式的数值 id 仍兼容。
+        若英雄技能池中不存在该技能，但路线点提供了 key 和 target_type，则按自定义技能处理。
 
-        :param point_skills: 点位技能配置列表（[{id, key?, target_type?, target_coords?}, ...]）
+        :param point_skills: 点位技能配置列表（[{skill, key?, target_type?, target_coords?}, ...]）
         :return: 合并后的技能配置列表（含 key, desc, target_type, target_coords 等完整字段）
         """
         if not point_skills:
             return []
-        skill_map = {s["id"]: s for s in self.hero_cfg.get("skills", [])}
+        pool = self.hero_cfg.get("skills", [])
+        by_name = {s.get("desc"): s for s in pool if s.get("desc")}
+        by_id = {s.get("id"): s for s in pool if s.get("id") is not None}
         result = []
         for skill_cfg in point_skills:
-            sid = skill_cfg["id"]
-            if sid in skill_map:
-                skill_data = skill_map[sid].copy()
+            base = by_name.get(skill_cfg.get("skill"))
+            if base is None and skill_cfg.get("id") is not None:
+                base = by_id.get(skill_cfg["id"])  # 兼容旧数值 id 引用
+            if base is not None:
+                skill_data = base.copy()
                 skill_data["target_coords"] = skill_cfg.get("target_coords")
-                if skill_cfg.get("key") and skill_map[sid].get("fixed_key"):
+                if skill_cfg.get("key") and base.get("fixed_key"):
                     skill_data["key"] = skill_cfg["key"]
                 if skill_cfg.get("position"):
                     skill_data["position"] = skill_cfg["position"]
@@ -126,9 +114,9 @@ class CombatHelper:
                 result.append(skill_data)
             elif skill_cfg.get("key") and skill_cfg.get("target_type"):
                 skill_data = {
-                    "id": sid,
+                    "id": skill_cfg.get("id"),
                     "key": skill_cfg["key"],
-                    "desc": skill_cfg.get("desc", f"技能{sid}"),
+                    "desc": skill_cfg.get("desc") or skill_cfg.get("skill") or "自定义技能",
                     "target_type": skill_cfg["target_type"],
                     "target_coords": skill_cfg.get("target_coords"),
                     "position": skill_cfg.get("position", ""),
@@ -136,7 +124,8 @@ class CombatHelper:
                 }
                 result.append(skill_data)
             else:
-                logger.warning(f'技能 id "{sid}" 未在英雄技能池中找到，且缺少快捷键/目标类型，跳过')
+                ref = skill_cfg.get("skill") or skill_cfg.get("id")
+                logger.warning(f'技能 "{ref}" 未在英雄技能池中找到，且缺少快捷键/目标类型，跳过')
         return result
 
     def log_and_execute_combo(
@@ -169,7 +158,7 @@ class CombatHelper:
         :param stop_event: 停止事件，设置时中断等待
         """
         passed_time = round(time.time() - task.pet_feed_time)
-        feeding_interval = self.cfg.get("pet", {}).get("feeding_interval", 10) * 60
+        feeding_interval = self.cfg.get("war3", {}).get("jiubing2", {}).get("pet", {}).get("feeding_interval", 10) * 60
         if passed_time >= feeding_interval:
             logger.info(f"喂食宠物（距上次喂食已过 {passed_time}s，间隔 {feeding_interval}s）")
             hotkeys = get_inventory_hotkeys(self.hero_cfg, 9)
@@ -184,7 +173,7 @@ class CombatHelper:
         每个 action 的 type 决定执行方式：
         - "msg": 发送聊天信息（content 为文本）
         - "skill": 施放技能（id 引用英雄技能，target_coords 可选）
-        - "item": 使用物品（id 引用物品栏，coords 可选，有则 move_to→key→click）
+        - "item": 使用物品（item_id 引用物品栏，coords 可选，有则 move_to→key→click）
 
         连续的 skill action 会分组合并为一次 execute_combo 调用，
         确保技能之间有 fast_skill_time 延迟，避免英雄还在施法时下一个技能被吞。
@@ -224,7 +213,7 @@ class CombatHelper:
                     self._war3.interruptible_wait(self.war3_cfg["key_time"], stop_event)
             elif act_type == "item":
                 flush_skills()
-                item_id = act.get("id")
+                item_id = act.get("item_id")
                 coords = act.get("coords")
                 cast_time = act.get("cast_time")
                 if item_id is None:

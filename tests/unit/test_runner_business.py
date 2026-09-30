@@ -154,12 +154,15 @@ class TestResourceManager(unittest.TestCase):
         _restore_dm_modules(self._orig)
 
     def _make_mgr(self, tmp_path):
-        """创建一个 ResourceManager 实例，mock config.get_path 返回 tmp_path。"""
+        """创建一个 ResourceManager 实例，mock load_task/resolve_path 返回 tmp_path。"""
         from GameBot.runner.resource_manager import ResourceManager
 
         mgr = ResourceManager()
         with patch("GameBot.runner.resource_manager.config") as mock_config:
-            mock_config.get_path.return_value = tmp_path
+            mock_config.load_task.return_value = {
+                "base": {"paths": {"resources_path": str(tmp_path)}}
+            }
+            mock_config.resolve_path.side_effect = lambda v: Path(v)
             mgr._ensure_initialized()
         return mgr
 
@@ -311,8 +314,8 @@ class TestEndlessRunnerOnArrive(unittest.TestCase):
         pt = {
             "coords": [100, 100],
             "actions": [
-                {"type": "item", "id": 8},
-                {"type": "skill", "id": 1},
+                {"type": "item", "item_id": 8},
+                {"type": "skill", "skill": "相位作战服"},
             ],
         }
         endless_cfg = {"use_shard_floor": 5}
@@ -331,8 +334,8 @@ class TestEndlessRunnerOnArrive(unittest.TestCase):
         pt = {
             "coords": [100, 100],
             "actions": [
-                {"type": "item", "id": 8},
-                {"type": "skill", "id": 1},
+                {"type": "item", "item_id": 8},
+                {"type": "skill", "skill": "相位作战服"},
             ],
         }
         endless_cfg = {"use_shard_floor": 5}
@@ -360,7 +363,7 @@ class TestEndlessRunnerOnArrive(unittest.TestCase):
         pt = {
             "coords": [100, 100],
             "actions": [
-                {"type": "item", "id": 8},
+                {"type": "item", "item_id": 8},
             ],
         }
         endless_cfg = {"use_shard_floor": 10}
@@ -377,8 +380,8 @@ class TestEndlessRunnerOnArrive(unittest.TestCase):
         pt = {
             "coords": [100, 100],
             "actions": [
-                {"type": "item", "id": 8},
-                {"type": "skill", "id": 1},
+                {"type": "item", "item_id": 8},
+                {"type": "skill", "skill": "相位作战服"},
             ],
         }
         endless_cfg = {}
@@ -396,8 +399,8 @@ class TestEndlessRunnerOnArrive(unittest.TestCase):
         pt = {
             "coords": [100, 100],
             "actions": [
-                {"type": "item", "id": 8},
-                {"type": "skill", "id": 1},
+                {"type": "item", "item_id": 8},
+                {"type": "skill", "skill": "相位作战服"},
             ],
         }
         original_actions = list(pt["actions"])
@@ -414,8 +417,8 @@ class TestEndlessRunnerOnArrive(unittest.TestCase):
         pt = {
             "coords": [100, 100],
             "actions": [
-                {"type": "item", "id": "8"},
-                {"type": "skill", "id": 1},
+                {"type": "item", "item_id": "8"},
+                {"type": "skill", "skill": "相位作战服"},
             ],
         }
         endless_cfg = {"use_shard_floor": 5}

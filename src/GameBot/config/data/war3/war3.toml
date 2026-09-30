@@ -1,5 +1,4 @@
 # War3 窗口/界面交互配置 (随游戏版本可能调整)
-name = "war3"
 extends = ["base"]
 
 [this]
@@ -32,6 +31,18 @@ mini_map_signal_delta_color = '202020'
 
 check_interval_time = 2 # 检测间隔
 
+# 所有截图/找图/找色/OCR/AI 检测统一走 WGC（Windows Graphics Capture，按 hwnd 从 DWM
+# 取帧，不进游戏进程），不再调用大漠 Capture —— dx2 截图与 dx 系鼠标注入共用游戏进程内
+# 钩子，每次截图都撕开注入锁并卡一帧。详见 docs/change_logs/war3后台开发记录.md。
+# WGC 失败直接报错终止任务，不回退大漠截图。前置条件：窗口不可最小化、挂机机不锁屏。
+wgc_min_interval_ms = 100 # WGC 最小出帧间隔（毫秒），略小于 monitor_interval 即可；帧超过 max(2×间隔, 2s) 未更新视为帧流停止
+
+# 大漠窗口绑定模式：foreground（前台，用 bind_foreground 参数）/ background（后台，用 bind_background 参数）
+#   - 任务/变体文件可写 [war3] bind_mode = "..." 覆盖此默认值（绝对寻址补丁）
+bind_mode = "foreground"
+
+hero_head_show_coords = [538,874,666,964] # 下方英雄头像（非左上角）显示区域（客户区坐标）
+
 # 等待 war3 窗口出现超时（bind_war3_window / wait_for_game_window）
 [this.wait_for_game_window]
 timeout = 60
@@ -41,31 +52,46 @@ timeout = 60
 method = "image"       # "image"=图色检测（使用 mini_map_signal_* 配置）, "none"=纯等待不检测
 timeout = 120          # 等待进入游戏的超时时间（秒），超时可能卡在加载界面
 
-# 大漠窗口绑定模式
-# bind_mode：foreground（前台）或 background（后台）
-#   - 非组队/单成员组队：按此配置选择前台或后台
-#   - 多成员组队（成员数 > 1）：强制 background，忽略此配置
-[this.bind]
-bind_mode = "foreground"  # foreground（前台）/ background（后台，用 bind_multi）
+# 前台绑定参数（bind_mode = foreground 时生效）
+[this.bind_foreground]
 display = "normal"     # 可选：normal / gdi / gdi2 / dx / dx2 / dx3
 mouse = "normal"       # 可选：normal / windows / windows2 / windows3
 keypad = "normal"      # 可选：normal / windows
 mode = 0               # 大漠 BindWindow 附加模式
 
-# 后台绑定配置（bind_mode = background 或多成员组队时使用）
-# War3 是 DirectX 渲染窗口，用 dx2 后台截图
+# 后台绑定参数（bind_mode = background 时生效）
 # dx2 + windows3 + windows 需要管理员权限
 # 注意：dx2 模式要求窗口有一部分在屏幕外（Win7/Vista 不需要），且不可连续操作需加 10ms 延时
-[this.bind_multi]
-display = "dx2"        # DirectX 后台截图，窗口进程崩溃风险低于 dx
-mouse = "dx.mouse.position.lock.api"     # Windows 后台鼠标，支持多子窗口
+[this.bind_background]
+# display 已无任何实际用途——所有截图/找图/找色/OCR 均走 WGC（见上方 wgc_min_interval_ms），
+# 大漠仅剩鼠标/键盘输入注入。但为保守起见暂留 dx2（dm 输入注入与该显示钩子配套实测通过）；
+# 后续如确认 dx.mouse.* 不依赖 display=dx 可改 normal。
+display = "dx2"
+# 实机矩阵测试结论（详见 AGENTS.md 文本输入/鼠标体系）：
+# windows2（position.lock.api|position.lock.message|state.message）后台解耦，
+# 再追加 dx.mouse.input.lock.api 封锁鼠标输入接口。
+# 2026-09-12 点击矩阵实测：只要含 position.lock.api，A+左键"选择目标"态
+# 点击即落在注入坐标且光标不跟随物理鼠标；windows/message-only 组合全挂。
+# 此前任务里选择态点击失效的真正原因是 public 缺 dx.public.active.api ——
+# dx 系绑定要求窗口处于激活态，缺失时 war3 真实前台与绑定激活态打架。
+# 注意 dx.mouse.raw.input / input.lock.api2|api3 / dx.mouse.cursor 是收费项，
+# 免费版 BindWindowEx 必失败。
+mouse = "dx.mouse.position.lock.api|dx.mouse.position.lock.message|dx.mouse.state.message|dx.mouse.input.lock.api"
 keypad = "windows"     # Windows 后台键盘
-public = "dx.public.active.api"  # 公共窗口检测
-mode = 0               # 推荐模式 0
+public = "dx.public.active.api"  # 公共窗口激活（dx 系绑定必需，缺失时选择态点击失效）
+mode = 4
 bind_delay = 1.5       # 绑定后延时 1.5 秒等待后台生效（DX 绑定较慢）
 
 # 多开识别配置
 [this.multi_instance]
+# 聊天 token 认领（游戏内）：向候选窗口发随机 token，OCR 聊天区匹配"玩家名：token"定归属。
+# 互斥锁先行——已认领窗口跳过不发 token；token = 前缀+pid+随机hex，进程唯一不错领。
+chat_area_coords = [11, 436, 355, 676]  # 聊天信息显示区（客户区坐标）
+token_prefix = "gb"                     # token 前缀（须 ASCII，war3 聊天仅支持 ASCII）
+send_retries = 3                        # 每个窗口 token 验证重试次数
+verify_wait = 1.0                       # 每次发送后等待上屏的秒数
+claim_timeout = 60                      # 认领总超时（秒）：全局锁排队+窗口占用重试直到超时
+claim_retry_interval = 0.5              # 每轮扫描间隔（秒）
 
 [this.multi_instance.loading_page]
 area_coords = [231,295,1532,581]  # 加载页面玩家列表 OCR 区域

@@ -1,7 +1,7 @@
 """技能按键循环测试 — 每个技能每 1 秒按一次（W / T / Q）。
 
-用法（主环境 .venv）：
-  .venv/Scripts/python.exe tests/manual/test_skill_loop.py
+用法（主环境 .venv，即 uv run）：
+  uv run python tests/manual/test_skill_loop.py
 
 流程：
   1. 浮窗倒计时（按 Num- 可停止）

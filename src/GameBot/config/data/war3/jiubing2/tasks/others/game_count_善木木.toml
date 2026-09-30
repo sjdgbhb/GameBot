@@ -1,0 +1,18 @@
+# =============================================================================
+# 刷局数变体 — 善木木（多开认领，大号）
+# 继承 game_count 全部配置，[this] 只写差异字段；文件名即启动参数。
+# 启动：uv run python -m GameBot.runner.tasks.war3.jiubing2.others.game_count game_count_善木木
+# 启动要求：创建好自己的密码房即可运行，认领失败任务停止
+# =============================================================================
+extends = ["war3.jiubing2.tasks.others.game_count"]
+
+[this]
+# 多开认领目标玩家名：KK 房间聊天 token / war3 加载页玩家列表判归属。
+# 显示名/日志名由任务动态拼接。
+target_player = "善木木"
+
+# 多开认领必须后台绑定：直接覆盖命名空间级默认值
+[war3]
+bind_mode = "background"
+[kk]
+bind_mode = "background"

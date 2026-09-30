@@ -1,5 +1,4 @@
 ############## 德鲁伊 ##############
-name = "war3.jiubing2.heroes.druid"
 extends = ["war3.jiubing2"]
 
 

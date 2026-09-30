@@ -1,5 +1,4 @@
 ############## 牧师 ##############
-name = "war3.jiubing2.heroes.pastor"
 extends = ["war3.jiubing2"]
 
 

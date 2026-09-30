@@ -1,5 +1,6 @@
-"""依赖解析 — DFS 后序展开依赖树、循环依赖检测。"""
+"""依赖解析 — DFS 后序展开依赖树、循环依赖检测、extends 分层约束。"""
 
+import logging
 from typing import List, Set
 
 from .base import ConfigurationError
@@ -37,8 +38,25 @@ class ConfigResolverMixin:
         if "extends" not in raw:
             raise ConfigurationError(f"{config_name}: 必须声明 extends")
         for dep_name in raw["extends"]:
+            self._check_extends_layer(config_name, dep_name)
             self._resolve_order(dep_name, order, visiting, visited)
         visiting.pop()
         visited.add(config_name)
         # 自身最后加入，因此加载顺序中后面的配置覆盖前面的
         order.append(config_name)
+
+    def _check_extends_layer(self, config_name: str, dep_name: str):
+        """extends 分层约束（告警阶段）。
+
+        规则：低层文件（base/平台/领域/英雄/场景）不得 extends tasks.*；
+        task→task 任意引用允许（编排任务、变体继承均为既有用法）。
+        违反当前只告警，未来版本升级为 ConfigurationError。
+        """
+        if dep_name.startswith("war3.jiubing2.tasks.") and not config_name.startswith(
+            "war3.jiubing2.tasks."
+        ):
+            logging.getLogger(__name__).warning(
+                "%s: 低层配置不应 extends 任务层配置 %s（分层约束，未来版本将报错）",
+                config_name,
+                dep_name,
+            )

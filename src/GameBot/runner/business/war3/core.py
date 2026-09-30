@@ -33,6 +33,9 @@ class War3Business(BaseGame, WindowManagerMixin, InputControllerMixin, SkillCont
         super().__init__(dm)
         self.war3_cfg = war3_cfg
         self._actual_client_size = "未知"
+        # 多开认领：目标玩家名（任务侧从 cfg["target_player"] 注入），空则认领空闲窗口
+        self.target_player = ""
+        self.claimed_owner = ""
 
 
 __all__ = ["War3Business", "TextMonitor"]

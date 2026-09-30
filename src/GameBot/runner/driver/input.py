@@ -1,6 +1,9 @@
 """输入操作 Mixin — 键盘/鼠标/字符串输入（基于 _com_call 原语组合）。"""
 
 
+import time
+
+
 class InputMixin:
     """键鼠输入相关操作：按键、点击、移动、字符串发送。
 
@@ -27,8 +30,16 @@ class InputMixin:
     def left_click(self):
         self._com_call("LeftClick")
 
-    def left_double_click(self):
-        self._com_call("LeftDoubleClick")
+    def left_double_click(self, interval: float = 0.1):
+        """双击：两次 LeftClick 模拟。
+
+        dx.mouse.* 注入模式下大漠 LeftDoubleClick 只产生单次点击效果（war3 实测
+        选中但未双击确认），两次独立 LeftClick 在所有鼠标模式下都可靠；
+        interval 须小于系统双击判定时间（默认 500ms）。
+        """
+        self._com_call("LeftClick")
+        time.sleep(interval)
+        self._com_call("LeftClick")
 
     def left_down(self):
         return self._com_call("LeftDown")
@@ -40,11 +51,24 @@ class InputMixin:
         self._com_call("RightClick")
 
     def send_string(self, text: str, hwnd: int = 0):
-        """使用 DmPlugin SendString 向指定窗口发送文本。"""
-        target_hwnd = hwnd or self.get_foreground_window()
+        """使用 DmPlugin SendString 向指定窗口发送文本。
+
+        hwnd 缺省时优先取当前绑定窗口（后台模式下目标窗口未必在前台），
+        无绑定再回退到前台窗口。
+        """
+        target_hwnd = hwnd or getattr(self, "_current_bind_hwnd", 0) or self.get_foreground_window()
         return self._com_call("SendString", target_hwnd, text)
 
     def send_string2(self, text: str, hwnd: int = 0):
         """使用旧版 DmPlugin SendString2 向指定窗口发送文本。"""
-        target_hwnd = hwnd or self.get_foreground_window()
+        target_hwnd = hwnd or getattr(self, "_current_bind_hwnd", 0) or self.get_foreground_window()
         return self._com_call("SendString2", target_hwnd, text)
+
+    def send_string_ime(self, text: str):
+        """使用 DmPlugin SendStringIme 向绑定窗口发送字符串（支持中文等输入法字符）。
+
+        作用于当前绑定窗口，无需传 hwnd；如需启用 IME 注入，绑定参数
+        public 需含 dx.public.input.ime（大漠收费功能）。
+        实测注意：dm 3.1233 对 war3 聊天框前/后台均无效（返回 1 但无输入）。
+        """
+        return self._com_call("SendStringIme", text)

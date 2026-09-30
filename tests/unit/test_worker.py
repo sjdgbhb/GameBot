@@ -9,12 +9,10 @@
 - _send: JSON 协议输出
 - _run_chest_detection: 宝箱检测完整流程（mock session）
 - _handle_predict_combat: 战斗检测（mock session）
-- _handle_capture_and_predict_combat: 截屏战斗检测含取消逻辑（mock）
 """
 
 import json
 import os
-import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -491,94 +489,6 @@ class TestWorkerHandlePredictCombat(unittest.TestCase):
 
         result = _handle_predict_combat(["/tmp/a.bmp", "/tmp/b.bmp", "/tmp/c.bmp"])
         self.assertEqual(result, {"combat": [True, False, True]})
-
-
-class TestWorkerCapturePredictCombat(unittest.TestCase):
-    """测试 _handle_capture_and_predict_combat 截屏战斗检测含取消逻辑。"""
-
-    def _make_combat_session(self, output_array):
-        session = MagicMock()
-        session.run.return_value = [output_array]
-        return session
-
-    def setUp(self):
-        from GameBot.inference import worker
-
-        worker._cfg = {"combat_img_w": 87, "combat_img_h": 61, "combat_threshold": 0.5}
-        worker._combat_session = None
-
-    @patch("GameBot.inference.worker._get_combat_session")
-    @patch("GameBot.inference.worker.ImageGrab")
-    def test_normal_capture(self, mock_grab, mock_session_fn):
-        """正常截屏检测应返回战斗状态列表。"""
-        mock_session_fn.return_value = self._make_combat_session(np.array([[0.9], [0.1]]))
-        mock_grab.grab.return_value = Image.new("RGB", (87, 61))
-
-        from GameBot.inference.worker import _handle_capture_and_predict_combat
-
-        result = _handle_capture_and_predict_combat(bbox=[0, 0, 87, 61], frame_count=2, frame_interval=0.01)
-        self.assertEqual(result, {"combat": [True, False]})
-
-    @patch("GameBot.inference.worker._get_combat_session")
-    @patch("GameBot.inference.worker.ImageGrab")
-    def test_cancel_file_present_from_start(self, mock_grab, mock_session_fn):
-        """取消文件一开始就存在时应立即返回 cancelled。"""
-        mock_session_fn.return_value = self._make_combat_session(np.array([]))
-
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            cancel_path = f.name
-
-        try:
-            from GameBot.inference.worker import _handle_capture_and_predict_combat
-
-            result = _handle_capture_and_predict_combat(
-                bbox=[0, 0, 87, 61],
-                frame_count=5,
-                frame_interval=0.01,
-                cancel_file=cancel_path,
-            )
-            self.assertTrue(result.get("cancelled"))
-            self.assertEqual(len(result["combat"]), 1)  # max(len(batch), 1) = max(0, 1) = 1
-            self.assertFalse(result["combat"][0])
-            # 取消文件应被删除
-            self.assertFalse(os.path.exists(cancel_path))
-        finally:
-            if os.path.exists(cancel_path):
-                os.remove(cancel_path)
-
-    @patch("GameBot.inference.worker._get_combat_session")
-    @patch("GameBot.inference.worker.ImageGrab")
-    def test_cancel_file_created_midway(self, mock_grab, mock_session_fn):
-        """截帧中途创建取消文件时应提前终止。"""
-        mock_session_fn.return_value = self._make_combat_session(np.array([[0.9]]))
-
-        # 创建一个临时文件作为取消信号
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            cancel_path = f.name
-        os.remove(cancel_path)  # 先删除，模拟中途创建
-
-        # 在第一帧后创建取消文件
-        original_exists = os.path.exists
-        call_count = [0]
-
-        def mock_exists(path):
-            if path == cancel_path:
-                call_count[0] += 1
-                return call_count[0] > 2  # 第三次检查时返回 True
-            return original_exists(path)
-
-        mock_grab.grab.return_value = Image.new("RGB", (87, 61))
-
-        with patch("os.path.exists", side_effect=mock_exists):
-            from GameBot.inference.worker import _handle_capture_and_predict_combat
-
-            result = _handle_capture_and_predict_combat(
-                bbox=[0, 0, 87, 61],
-                frame_count=5,
-                frame_interval=0.01,
-                cancel_file=cancel_path,
-            )
-            self.assertTrue(result.get("cancelled"))
 
 
 if __name__ == "__main__":
