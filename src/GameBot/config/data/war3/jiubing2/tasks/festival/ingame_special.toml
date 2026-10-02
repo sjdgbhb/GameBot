@@ -40,4 +40,4 @@ time = 15              # TODO: 步行等待时间（秒）
 
 # 钓鱼参数覆盖（绝对寻址：直接打到 tasks.others.fishing 节点）
 [war3.jiubing2.tasks.others.fishing]
-max_times = 40            # 抛竿次数
+max_times = 50            # 抛竿次数

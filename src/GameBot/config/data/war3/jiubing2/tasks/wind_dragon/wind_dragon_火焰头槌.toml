@@ -1,0 +1,31 @@
+# =============================================================================
+# 风龙挂机变体 — 火焰头槌（多开认领）
+# 继承 wind_dragon 全部配置，[this] 只写差异字段；文件名即启动参数。
+# 启动：uv run python -m GameBot.runner.tasks.war3.jiubing2.wind_dragon.wind_dragon wind_dragon_火焰头槌
+# 启动要求：英雄已进入风龙场景（局内任务，启动时须已在游戏内），认领失败任务停止
+# =============================================================================
+extends = [
+    "war3.jiubing2.tasks.wind_dragon.wind_dragon",
+    "war3.jiubing2.heroes.mk", 
+]
+
+[this]
+# 多开认领目标玩家名：向候选窗口发随机 token，OCR 聊天区匹配
+# "玩家名：token" 行提取归属名，仅匹配此值才认领。
+target_player = "火焰头槌"
+
+# 多开认领必须后台绑定：直接覆盖命名空间级默认值（基任务已配，显式声明保持一致）
+[war3]
+bind_mode = "background"
+
+# 浮窗位置错开：与其他实例的浮窗错开避免遮挡（火焰头槌统一用 620）
+[base.float_window]
+y = 620
+
+[[war3.jiubing2.tasks.wind_dragon.wind_dragon.skills]]
+skill = "雷霆之怒"        # Q，自身
+grid = [2, 3]   # 该技能位于技能面板的位置
+
+[[war3.jiubing2.tasks.wind_dragon.wind_dragon.skills]]
+skill = "毁灭狂暴"    # T，自身
+grid = [3, 4]

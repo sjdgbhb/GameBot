@@ -1,13 +1,13 @@
 # =============================================================================
-# 圣骑士风龙挂机任务配置
+# 风龙挂机任务配置
 # 挂机逻辑：不做按键计时，轮询检测技能图标——图标与就绪态图片匹配（未变灰）
 # 即施放；冷却中图标变灰不匹配则跳过。被控制吞掉的按键下一轮检测自然补上。
 # 技能面板坐标由 jiubing2.toml 的 [skill_panel]（first_coords + gap_x/gap_y）计算，
 # 因此运行时强制对齐客户区尺寸（war3.client_size，默认 1902x1033）。
-# uv run python -m GameBot.runner.tasks.war3.jiubing2.others.paladin_wind_dragon
+# uv run python -m GameBot.runner.tasks.war3.jiubing2.wind_dragon.wind_dragon
 # =============================================================================
 extends = [
-    "war3.jiubing2.heroes.paladin", 
+    "war3.jiubing2.heroes.mk", 
     "war3.jiubing2.scenes.wind_dragon",
     "kk"
 ]
@@ -18,21 +18,16 @@ inventory = [
 ]
 
 [this]
-name = "圣骑士风龙"
-description = "圣骑士风龙挂机：检测技能图标就绪即施放，冷却自动跳过。"
-target_player = "善木木"
+name = "风龙挂机"
+description = "风龙挂机：检测技能图标就绪即施放，冷却自动跳过。"
 pet_feed_interval = 100  # “喂宠物的时间是否到了”的检测间隔（秒），0 关闭；实际喂食间隔由 pet.feeding_interval（分钟）控制
-boss_open_timeout = 10   # 到位后在裂隙区域找图开 boss 的最长等待（秒），超时未找到则跳过直接挂机
-mouse_avoid_pos = [200, 200]  # 找图检测前的鼠标避让位置（防光标/tooltip 遮挡）
 
 skill_gap = 0.8             # 任意两次技能施放之间的最小间隔（秒），等待后摇
 poll_interval = 0.5         # 无技能就绪时的轮询间隔（秒）
 cast_confirm_time = 3     # 施放确认窗口（秒）：按技能后需观察到图标变灰才允许再放。
                             # 注意：技能施法前摇/动画期间图标不变灰，窗口需大于技能最大前摇；
                             # 超时未变灰视为按键被吞，自动重按（覆盖被控制场景）
-f1_min_interval = 0.6       # 两次 F1 最小间隔（秒），防止被判定双击 F1 镜头跳英雄
 reselect_idle_time = 10      # 连续无技能就绪超过该秒数时按一次 F1（防选中丢失卡死）
-# 大漠窗口绑定模式：foreground / background（后台，用 bind_background 参数）
 
 # 技能图标检测参数（冷却时图标变灰，与就绪态图片不匹配）
 icon_sim = 0.95              # 找图相似度
@@ -47,23 +42,15 @@ icon_search_half = [40, 30]
 #                   key/image/targeted 由技能池自动带出（targeted = target_type != "self"）
 #   grid          — 技能面板格子 [行, 列]（1-based，由 skill_panel 公式换算坐标）
 #   target_coords — 指向性技能的目标坐标："center"=客户区中心（缺省），或 [x, y]
-#   self_cast     — 可选，true 时 Alt+技能键自我施放（免疫视角偏移）
 
 [[this.skills]]
-skill = "降临"        # Q，自身
-grid = [2, 3]   # 该技能位于技能面板（技能面板默认3行4列）的位置
+skill = "雷霆之怒"        # Q，自身
+grid = [2, 3]   # 该技能位于技能面板的位置
 
 [[this.skills]]
-skill = "光明礼赞"    # W，地面目标区域
-grid = [3, 1]
-target_coords = [595,921]
-
-[[this.skills]]
-skill = "神圣复仇"    # T，自身
+skill = "毁灭狂暴"    # T，自身
 grid = [3, 4]
 
 # 后台绑定：覆盖命名空间级默认值（war3.toml/kk.toml 默认 foreground）
 [war3]
-bind_mode = "background"
-[kk]
 bind_mode = "background"

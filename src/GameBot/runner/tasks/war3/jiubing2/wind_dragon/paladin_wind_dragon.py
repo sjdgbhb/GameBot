@@ -6,14 +6,15 @@
 图标恢复就绪态，下一轮检测自然补上，无需额外重试逻辑。
 
 技能格坐标由 skill_panel 配置（first_coords + gap）计算，依赖统一窗口尺寸。
-配置见 tasks/others/paladin_wind_dragon.toml。
+配置见 tasks/wind_dragon/paladin_wind_dragon.toml。
 """
 
 from __future__ import annotations
 
+import sys
 import time
 
-from GameBot.config import config, resolve_bind_cfg
+from GameBot.config import config, get_task_view, resolve_bind_cfg
 from GameBot.runner.business.war3 import War3Business
 from GameBot.runner.business.war3.jiubing2 import CombatHelper, GameUI, get_inventory_hotkeys
 from GameBot.runner.driver import create_dm_client
@@ -27,13 +28,15 @@ class PaladinWindDragonTask:
     def __init__(
         self,
         cfg: dict,
+        task_name: str = "war3.jiubing2.tasks.wind_dragon.paladin_wind_dragon",
         stop_event=None,
         progress_callback=None,
         progress_lines_callback=None,
         dm=None,
     ):
         self.task_cfg = cfg
-        self.cfg = cfg["war3"]["jiubing2"]["tasks"]["others"]["paladin_wind_dragon"]
+        # 任务视图：沿 extends 链深合并，变体不写的参数自动从基任务继承
+        self.cfg = get_task_view(cfg, task_name)
         self.dm = dm or create_dm_client()
         self._stop_event = stop_event
         self._progress_callback = progress_callback or (lambda text: None)
@@ -42,6 +45,8 @@ class PaladinWindDragonTask:
         self.war3_cfg = cfg.get("war3", {})
         self.hero_cfg = cfg.get("hero", {})
         self.war3 = War3Business(self.dm, self.war3_cfg)
+        # target_player 在变体 [this] 里配置，注入 war3 做多开窗口认领
+        self.war3.target_player = self.cfg.get("target_player", "")
         self.ui = GameUI(self.dm, self.war3_cfg, self.hero_cfg, self.task_cfg, self.war3)
         self.combat = CombatHelper(self.dm, self.war3_cfg, self.hero_cfg, self.task_cfg, self.war3)
 
@@ -61,6 +66,9 @@ class PaladinWindDragonTask:
         self.pet_feed_interval = self.cfg.get("pet_feed_interval", 0)
         # 找图检测前的鼠标避让位置（防光标/tooltip 遮挡）
         self.mouse_avoid_pos = self.cfg.get("mouse_avoid_pos", [200, 200])
+        # 挂机中裂隙复检间隔（秒）：boss 被打死后裂隙会重新出现，需再次右击开 boss；0 关闭
+        self.boss_check_interval = self.cfg.get("boss_check_interval", 3.0)
+        self._next_rift_check = 0.0
         self.pet_feed_time = time.time()
         self._feed_count = 0
 
@@ -240,39 +248,64 @@ class PaladinWindDragonTask:
         )
         logger.info("已走到风龙裂隙附近")
 
-    def _open_boss(self):
-        """开启 boss：在 boss_rift_coords 区域内找裂隙图，命中后右击返回坐标。"""
+    def _find_rift(self):
+        """在裂隙区域找裂隙图一次，命中返回右击坐标 (x, y)，未命中返回 None。"""
         npc = self._npc
         region = npc.get("boss_rift_coords")
         if not region:
-            logger.warning("风龙场景未配置 boss_rift_coords，跳过开 boss")
-            return
+            return None
         # 裂隙图为通用机制（jiubing2.toml [boss_rift]），场景侧只配区域
         rift_cfg = self.task_cfg.get("war3", {}).get("jiubing2", {}).get("boss_rift", {})
         image = rift_cfg.get("image", "rift.bmp")
         offset = rift_cfg.get("click_offset", [0, 0])
         sim = rift_cfg.get("sim", 0.9)
         delta_color = rift_cfg.get("delta_color", "000000")
+        # 找图前把鼠标挪开，避免光标/tooltip 遮挡裂隙图
+        self.dm.move_to(*self.mouse_avoid_pos)
+        self._interruptible_wait(0.15)
+        index, x, y = self.dm.find_pic(
+            region[0], region[1], region[2], region[3], image, sim=sim, delta_color=delta_color
+        )
+        if index == -1:
+            return None
+        return x + offset[0], y + offset[1]
+
+    def _click_rift(self, cx, cy):
+        """右击裂隙坐标开启 boss。"""
+        self.dm.move_to(cx, cy)
+        self._interruptible_wait(self.war3_cfg.get("general_time", 0.3))
+        self.dm.right_click()
+        logger.info(f"已右击裂隙 ({cx},{cy}) 开启 boss")
+
+    def _open_boss(self):
+        """开局开 boss：最长等待 boss_open_timeout，循环找裂隙图，命中右击；超时跳过。"""
+        npc = self._npc
+        if not npc.get("boss_rift_coords"):
+            logger.warning("风龙场景未配置 boss_rift_coords，跳过开 boss")
+            return
         timeout = self.cfg.get("boss_open_timeout", 10)
         deadline = time.monotonic() + timeout
         while True:
-            # 找图前把鼠标挪开，避免光标/tooltip 遮挡裂隙图
-            self.dm.move_to(*self.mouse_avoid_pos)
-            self._interruptible_wait(0.15)
-            index, x, y = self.dm.find_pic(
-                region[0], region[1], region[2], region[3], image, sim=sim, delta_color=delta_color
-            )
-            if index != -1:
-                cx, cy = x + offset[0], y + offset[1]
-                self.dm.move_to(cx, cy)
-                self._interruptible_wait(self.war3_cfg.get("general_time", 0.3))
-                self.dm.right_click()
-                logger.info(f"已右击裂隙 ({cx},{cy}) 开启 boss")
+            pos = self._find_rift()
+            if pos:
+                self._click_rift(*pos)
                 return
             if time.monotonic() >= deadline:
-                logger.warning(f"{timeout}s 内未在裂隙区域找到 {image}，跳过开 boss 直接进入挂机")
+                logger.warning(f"{timeout}s 内未在裂隙区域找到裂隙图，跳过开 boss 直接进入挂机")
                 return
             self._interruptible_wait(self.poll_interval)
+
+    def _recheck_boss(self):
+        """挂机中周期性复检裂隙：boss 被打死后裂隙重新出现，命中即右击再开。"""
+        if self.boss_check_interval <= 0 or not self._npc.get("boss_rift_coords"):
+            return
+        now = time.monotonic()
+        if now < self._next_rift_check:
+            return
+        self._next_rift_check = now + self.boss_check_interval
+        pos = self._find_rift()
+        if pos:
+            self._click_rift(*pos)
 
     def run_core(self, hwnd):
         """核心挂机循环 — 假设窗口已绑定。"""
@@ -301,6 +334,9 @@ class PaladinWindDragonTask:
             if self.pet_feed_interval > 0 and time.time() - feed_timer >= self.pet_feed_interval:
                 self._feed_pet()
                 feed_timer = time.time()
+
+            # 裂隙复检：boss 死后裂隙重现，命中即右击再开
+            self._recheck_boss()
 
             casted = False
             for skill in self.skills:
@@ -378,13 +414,24 @@ class PaladinWindDragonTask:
 
 def main():
     setup_global_exception_hook()
+    # 命令行参数可指定变体配置名（如 paladin_wind_dragon_善木木 认领指定玩家窗口）
+    # 用法：python -m GameBot.runner.tasks.war3.jiubing2.wind_dragon.paladin_wind_dragon paladin_wind_dragon_善木木
+    base_task_name = "war3.jiubing2.tasks.wind_dragon.paladin_wind_dragon"
+    task_name = base_task_name
+    if len(sys.argv) > 1:
+        leaf_arg = sys.argv[1]
+        task_name = leaf_arg if "." in leaf_arg else f"war3.jiubing2.tasks.wind_dragon.{leaf_arg}"
+    cfg = config.load_task(task_name)
+
     setup_log_file("圣骑士风龙")
     logger.info("############################# 圣骑士风龙挂机 #############################")
-    cfg = config.load_task("war3.jiubing2.tasks.others.paladin_wind_dragon")
+    if task_name != base_task_name:
+        logger.info(f"使用指定配置: {task_name}")
 
     def task_wrapper(stop_event, progress_callback=None, **kwargs):
         PaladinWindDragonTask(
             cfg,
+            task_name=task_name,
             stop_event=stop_event,
             progress_callback=progress_callback,
             progress_lines_callback=kwargs.get("progress_lines_callback"),

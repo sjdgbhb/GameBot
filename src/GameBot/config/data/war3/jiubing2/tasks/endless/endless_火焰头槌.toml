@@ -1,0 +1,54 @@
+# =============================================================================
+# 多局无尽变体 — 火焰头槌（多开认领）
+# 继承 endless 全部配置，[this] 只写差异字段；文件名即启动参数。
+# 启动：uv run python -m GameBot.runner.tasks.war3.jiubing2.endless.endless endless_火焰头槌
+# 启动要求：创建好自己的密码房即可运行，认领失败任务停止
+# =============================================================================
+extends = ["war3.jiubing2.tasks.endless.endless"]
+
+# 浮窗位置错开：默认 y=380、岁月神偷 y=500，本变体继续下移避免遮挡
+[base.float_window]
+y = 620
+
+[this]
+# 多开认领目标玩家名：KK 房间聊天 token / war3 加载页玩家列表判归属。
+# 显示名/日志名由任务动态拼接。
+target_player = "火焰头槌"
+
+# 多开认领必须后台绑定：直接覆盖命名空间级默认值
+[war3]
+bind_mode = "background"
+[kk]
+bind_mode = "background"
+
+[war3.jiubing2.tasks.endless.endless]
+min_level = 1
+max_level = 30
+
+# 圣痕
+[hero.stigmata]
+is_open = true  # 是否使用圣痕
+use_index = 1  # 使用第几套圣痕
+
+# 卡牌
+[hero.card]
+is_open = true  # 是否装备卡牌
+use_index = [
+    [1, 2],
+    [5, 2],
+    [5, 5],
+]  # 示例：[1, 1] 即第1行第1列的卡牌
+
+# 神碎配置
+[hero.shard]
+is_open = true  # 是否装备神碎
+is_resonance = true  # 是否激活神碎共鸣
+is_absorb = true  # 是否吸收覆盖神碎
+max_pages = 3  # 神碎最大可用页数
+use_index = [
+   [1, 1],
+   [1, 2],
+   [1, 3],
+   [1, 4]
+]  # 示例：[1, 2] 即第1页第2行
+absorb_index = [3, 4]  # 在第几页第几行吸收神碎，会自动覆盖当前位置神碎，务必慎重！！！

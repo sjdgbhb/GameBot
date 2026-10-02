@@ -27,8 +27,9 @@ inventory = [
 # target_type: self(自身/无指向) | ground(地面目标) | enemy(锁头敌方) | ally(锁头友军)
 # position: target_area(目标区域) 、target（目标），具体坐标需自行抓取后在路线点设置
 skills = [
-  {id = 0, desc = "岩石形态/雷霆之怒", key = "Q", target_type = "self"},
-  {id = 1, desc = "毁灭狂暴", key = "T", target_type = "self"},
+  {id = 0, desc = "岩石形态", key = "Q", target_type = "self"},
+  {id = 1, desc = "雷霆之怒", key = "Q", target_type = "self", image = "mk_skill_q_thunder.bmp"},
+  {id = 2, desc = "毁灭狂暴", key = "T", target_type = "self", image = "mk_skill_t_rampage.bmp"},
 ]
 
 # ------------------------------ 学习技能列表（按学习顺序） ------------------------------

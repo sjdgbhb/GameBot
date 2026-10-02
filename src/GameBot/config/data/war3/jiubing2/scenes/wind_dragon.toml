@@ -14,6 +14,6 @@ desc = "风龙boss"
 mini_coords = [184,915]  # 小地图坐标
 coords = [984,374]  # 裂隙坐标
 boss_rift_coords = [971,371,991,389]  # 裂隙区域，用于开启boss（找图/右击参数见 jiubing2.toml [boss_rift]）
-walk_offset = [0, 100]  # 首轮行走目标偏移（避免直接走到 NPC 身上）
+walk_offset = [0, 50]  # 首轮行走目标偏移（避免直接走到 NPC 身上）
 walk_mode = 2
 time = 1  # 走到可以接取任务的距离所需的时间（英雄通常已在NPC旁，0.5s 足够重置视角）
