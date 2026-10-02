@@ -188,6 +188,13 @@ class WindowManagerMixin:
         self._claimed_mutex = mutex
         self._claimed_hwnd = hwnd
         self.claimed_owner = target_player
+        kk_pid = kk_pid_box[0] or parent_pid(window_pid(hwnd))
+        if kk_pid:
+            self._kk_pid = kk_pid
+            if target_player:
+                # token 自举写入的是聊天 speaker 原文（带阵营/称号前缀）；
+                # 认领成功后补写干净 target_player，供 kk_pid_of 精确命中与其他实例复用
+                reg.set_kk_owner(kk_pid, target_player)
         logger.info(f"已认领 war3 窗口 hwnd={hwnd}" + (f"，归属玩家 {target_player}" if target_player else ""))
         return hwnd
 

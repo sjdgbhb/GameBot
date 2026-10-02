@@ -206,12 +206,16 @@ class TestClaimWar3Window(unittest.TestCase):
         war3 = self._make_war3()
         war3._identify_owner_by_chat = MagicMock(return_value="善木木")
         with self._patched(kk_pid=0) as (reg, m_wpid, m_ppid, m_claim):
-            war3.claim_war3_window("善木木")
-            identify = m_claim.call_args.kwargs["identify"]
             m_wpid.return_value = 9000
             m_ppid.return_value = 4567
+            war3.claim_war3_window("善木木")
+            identify = m_claim.call_args.kwargs["identify"]
             self.assertTrue(identify(700))
-            reg.set_kk_owner.assert_called_once_with(4567, "善木木")
+            # 认领成功后回写干净 target_player + identify 写 speaker 原文，两笔同值
+            self.assertEqual(
+                reg.set_kk_owner.call_args_list,
+                [unittest.mock.call(4567, "善木木"), unittest.mock.call(4567, "善木木")],
+            )
             self.assertEqual(war3._kk_pid, 4567)
 
     def test_identify_token_mismatch_returns_false(self):
@@ -219,13 +223,17 @@ class TestClaimWar3Window(unittest.TestCase):
         war3 = self._make_war3()
         war3._identify_owner_by_chat = MagicMock(return_value="其他玩家")
         with self._patched(kk_pid=0) as (reg, m_wpid, m_ppid, m_claim):
-            war3.claim_war3_window("善木木")
-            identify = m_claim.call_args.kwargs["identify"]
             m_wpid.return_value = 9000
             m_ppid.return_value = 4567
+            war3.claim_war3_window("善木木")
+            identify = m_claim.call_args.kwargs["identify"]
             self.assertFalse(identify(700))
-            reg.set_kk_owner.assert_called_once_with(4567, "其他玩家")
-            self.assertEqual(war3._kk_pid, 0)
+            # 认领成功回写干净 target_player，identify 归属他人再写 speaker 原文
+            self.assertEqual(
+                reg.set_kk_owner.call_args_list,
+                [unittest.mock.call(4567, "善木木"), unittest.mock.call(4567, "其他玩家")],
+            )
+            self.assertEqual(war3._kk_pid, 4567)
 
     def test_claim_timeout_raises_claim_error(self):
         """认领超时抛 ClaimError。"""
