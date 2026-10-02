@@ -125,8 +125,9 @@ if __name__ == "__main__":
    （多开必须后台绑定），按需加 `[hero.xxx]` 账号差异覆盖、`[base.float_window]`
    错开浮窗位置
 
-参考实现：`endless.py`（多局，加载页只读认领）、`endless_single.py` /
-`fishing.py` / `patrol_loot.py` / `upgrade_stigmata.py`（局内，聊天 token 认领）。
+参考实现：`endless.py`（多局，KK 房间认领 + war3 PPID 认领）、
+`endless_single.py` / `fishing.py` / `patrol_loot.py` / `upgrade_stigmata.py`
+（局内，war3 PPID 认领，kk_pid 未知时聊天 token 自举）。
 
 ## 7. 验证
 

@@ -1,4 +1,5 @@
 from .exception_handler import (
+    ClaimError,
     ConfigError,
     DmError,
     GameBotError,
@@ -25,6 +26,7 @@ __all__ = [
     "TaskTimeoutError",
     "StopTaskError",
     "WindowLostError",
+    "ClaimError",
     "retry",
     "safe_call",
     "setup_global_exception_hook",

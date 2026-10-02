@@ -30,6 +30,10 @@ GameBot — 魔兽争霸3 RPG地图"九种兵器2"的 Python 自动化脚本系�
 - 新增任务模块时在 `src/GameBot/config/data/war3/jiubing2/tasks/` 下创建对应 TOML 配置（可用 `python -m GameBot.config new <任务名>` 生成模板）
 - 详见 [配置系统](docs/modules/config.md) → 配置调用规范
 
+## 实机测试规则
+- 涉及实机测试（游戏/KK 窗口操作、大漠绑定、点击输入等）前，必须先由用户确认实机环境已搭好
+- 禁止未经用户允许自动跑实机测试
+
 ## 开发前必读
 - 了解架构 → [架构总览](docs/architecture/overview.md)
 - 开发某模块 → [模块卡片](docs/modules/) 中找到对应模块，阅读其职责/依赖/禁忌
@@ -69,6 +73,15 @@ GameBot — 魔兽争霸3 RPG地图"九种兵器2"的 Python 自动化脚本系�
 - 已应用：hall_manager/join_room/room_manager、create_room、join_room
 - 业务层无 `dm.sleep`：DmClientBase 未暴露大漠 Sleep，延时统一 `time.sleep`
 
+## KK ↔ war3 进程/窗口关系（2026-10-02 实机，tests/manual/test_kk_war3_relation.py）
+
+- **war3.exe 是开房 KK 客户端（Platform.exe）的直接子进程**，无中转；多开时各账号
+  Platform.exe 由主实例派生（主实例 <- 客户端 <- war3），故归属判定必须用
+  **直接父进程** `ppid(war3_pid) == 房间 owner_pid`，不能用祖先链包含匹配
+- 窗口层无任何隶属：war3 与 KK 窗口的 parent/owner/rootowner 互不相指，线程独立
+- 开局后该 KK 客户端的大厅+房间窗口被搬到 `(-32000,-32000)` 屏外
+  （IsWindowVisible 仍为 true，可枚举可绑定）；**游戏期间该房间 UI 置灰不可操作**
+
 ## 文本输入（SendString）
 
 - 生产代码统一 `send_string`；`send_string2` 仅留驱动层/诊断脚本
@@ -86,32 +99,37 @@ GameBot — 魔兽争霸3 RPG地图"九种兵器2"的 Python 自动化脚本系�
   错开浮窗、`[hero.xxx]` 覆盖账号差异配置（hero 浅合并，子键整表覆盖须写全字段）
 - 启动：`uv run python -m GameBot.runner.tasks.war3.jiubing2.<组>.<任务> <任务>_<玩家名>`
   （如 `...endless.endless endless_善木木`）
-- 隔离机制：
-  - KK 侧 `claim_room_window`：向房间聊天输入框发随机 token（含本进程 pid 标记），
-    OCR 聊天记录区"玩家名：token"提取归属；认领后拿 `owner_pid`，
-    房间/弹窗/掉线处理全按 PID 过滤。坐标在 `kk.toml [this.multi_instance]`
-  - war3 侧 `claim_war3_window` 两种认领模式（窗口锁协议一致）：
-    - **局内任务认领**（ingame_special/fishing/endless_single/patrol_loot/
-      upgrade_stigmata 等，启动时已在游戏内）：
-      默认 `identify=_identify_owner_by_chat`——发聊天 token，OCR 聊天区
-      "玩家名：token"回显定归属；进游戏窗口可正常绑定/输入，无需特殊处理
-    - **多局任务认领**（endless 等，窗口随每局重开）：
-      `identify=分阶段回调`（`_identify_claim_window`）——**加载页只读认领**，
-      读图期对窗口零操作（只读 WGC OCR 玩家列表 + 内核互斥锁，不占窗口、
-      不改尺寸、不绑定），与手动启动等价；进游戏后等待（无绑定 WGC 轮询）
-      → 统一尺寸 → 绑定 → 按本账号配置选难度。
-      认领必须在加载页完成：难度界面在场时无法发聊天 token 验归属
-      （Enter 会误选默认难度），且各账号难度可能不同，必须先验归属再选难度
-    - 多局任务局间须 `release_war3_claim`，旧 hwnd 销毁后复领新窗口
-  - **认领失败直接终止任务**——归属未确认时继续运行可能误操作另一账号窗口；
-    且绝不可对未认领窗口发退出键清场（未进游戏的窗口可能属于其他玩家）
+- 隔离机制（注册表 + PPID 模型，`runner/driver/claim_registry.py` +
+  `runner/business/claim.py::claim_window`）：
+  - 机器级共享注册表 `%LOCALAPPDATA%\GameBot\claim_registry.json`
+    （`Local\GameBot_Registry` 互斥锁守护）：`instances` 存活实例注册
+    （重复 target_player 拒绝启动）、`kk_owner` kk_pid→player 映射
+    （进程启动时间戳防 PID 复用）、`windows` 已认领窗口 `kind:hwnd→kk_pid`
+    （IsWindow + 归属复核防 hwnd 复用）；配置项 `base.toml [this.claim_registry]`
+  - 统一认领原语 `claim_window`：缓存复用 → 枚举候选 → IsWindow/最小化过滤 →
+    per-hwnd 互斥锁 `Local\GameBot_{Kind}_{hwnd}` → 归属判定（只读）→
+    未知时场景化自举 → 匹配持锁登记；超时抛 `ClaimError` 任务终止；
+    单实例+单候选走快速路径跳过识别（仍持锁）
+  - KK 侧归属 = `窗口 PID == kk_pid`：注册表命中直接判定；kk_pid 未知时
+    自举——房间启动发聊天 token（坐标 `kk.toml [this.multi_instance]`，
+    仅自举用）、大厅启动走头像下拉框 OCR（保留
+    `Local\GameBot_KK_Hall_Identify_PID_{pid}` 串行锁）
+  - war3 侧归属 = `ppid(war3_pid) == kk_pid`（Toolhelp32 直接父进程比对，
+    纯只读零窗口操作，读图期/任意游戏阶段均可认领）；kk_pid 未知
+    （游戏内启动且注册表未命中）时发聊天 token 自举（坐标
+    `war3.toml [this.multi_instance]`，仅自举用），命中后由 ppid 推出
+    kk_pid 写注册表
+  - 弹窗/掉线等 PID 过滤路径读注册表 `kk_pid`，任务层不再传 `owner_pid`
+  - 多局任务局间须 `release_war3_claim`，旧 hwnd 销毁后复领新窗口
+  - **认领失败抛 ClaimError 直接终止任务**——归属未确认时继续运行可能
+    误操作另一账号窗口；绝不可对未认领窗口发退出键清场
 
 **读图期禁操作 war3 窗口（2026-09-18 实机定位）**：两个实例读图重叠时，
 脚本在读图期对窗口做 `set_client_size`/`BindWindowEx`(dx2+active.api) 会导致
 其中一方卡死加载页——WGC 帧流正常（加载页动画在跑）但读条永不推进，
 `wait_enter_game` 120s 超时。手动双开同刻读图无此问题 → 肇事者是注入操作
-而非读图并发本身。对策即上面的"加载页只读认领 + 进游戏后绑定"：
-读图期只允许只读检测（WGC `is_in_game(hwnd)`/OCR）与内核互斥锁。
+而非读图并发本身。新认领协议归属判定为纯只读（进程关系比对 + 互斥锁），
+读图期天然零窗口操作；进游戏后仍按"等待 → 统一尺寸 → 绑定"顺序操作。
 - 启动要求：账号停留在 **KK 房间**内（创建好密码房即可运行）
 - 注意：浮窗停止键 NumPad- 是全局热键，两个脚本同时按会一起停；单独停用各浮窗 ✕ 按钮
 

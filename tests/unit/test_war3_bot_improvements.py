@@ -659,7 +659,7 @@ class TestEndlessTaskDoKK(unittest.TestCase):
         task.kk.start_game.assert_not_called()
 
     def test_do_kk_multi_instance_filters_by_owner_pid(self):
-        """多开模式：do_kk 先认领本账号房间，弹窗按 PID 过滤并在认领窗口点开始。"""
+        """多开模式：do_kk 先认领本账号房间，弹窗过滤由 kk 业务层按注册表 kk_pid 兜底。"""
         task = self._make_task()
         task.target_player = "Player1"
         task.room_hwnd = 100
@@ -667,15 +667,17 @@ class TestEndlessTaskDoKK(unittest.TestCase):
         task._claim_kk_room = MagicMock()
         self.assertTrue(task.do_kk())
         task._claim_kk_room.assert_called_once()
-        task.kk.dismiss_room_popups.assert_called_once_with(task.dm, owner_pid=456)
+        task.kk.dismiss_room_popups.assert_called_once_with(task.dm)
         task.kk.start_game.assert_called_once_with(task.dm, room_hwnd=100, stop_event=None)
 
     def test_do_kk_multi_instance_claim_fail_raises(self):
-        """多开模式：认领房间失败时抛错终止，不做无 PID 过滤的 KK 操作。"""
+        """多开模式：认领房间失败抛 ClaimError 终止，不做无 PID 过滤的 KK 操作。"""
+        from GameBot.utils import ClaimError
+
         task = self._make_task()
         task.target_player = "Player1"
-        task._claim_kk_room = MagicMock(side_effect=RuntimeError("未认领到 KK 房间"))
-        self.assertRaises(RuntimeError, task.do_kk)
+        task._claim_kk_room = MagicMock(side_effect=ClaimError("未认领到 KK 房间"))
+        self.assertRaises(ClaimError, task.do_kk)
         task.kk.dismiss_room_popups.assert_not_called()
         task.kk.dismiss_hall_popups.assert_not_called()
         task.kk.create_room.assert_not_called()

@@ -17,11 +17,12 @@
 
 ### 流程
 
-1. **KK 阶段**：认领本账号房间窗口（多开按 `target_player` 聊天 token 判归属）→ 启动游戏
+1. **KK 阶段**：认领本账号房间窗口（`claim_own_room`：注册表命中 kk_pid 直接
+   按 PID 判定，未知时房间聊天 token 自举并写 `kk_owner`）→ 启动游戏
 2. **War3 阶段**（每局）：
-   - **加载页只读认领**（`claim_war3_window`）：读图期对窗口零操作（不占窗口、
-     不改尺寸、不绑定）——分阶段归属验证：加载页 OCR 玩家列表 /
-     已进游戏且无难度界面时聊天 token / 难度界面在场则跳过本轮
+   - **PPID 认领**（`claim_war3_window`）：`ppid(war3_pid) == kk_pid` 直接父进程
+     比对（纯只读、读图期窗口零操作、任意游戏阶段可用）；认领失败抛
+     `ClaimError` 终止任务
    - 无绑定 WGC 轮询等待进入游戏（`wait_enter_game(hwnd)`）
    - 统一客户端尺寸 → 绑定窗口
    - 等待并按本账号配置选择难度（`wait_and_select_difficulty`）
@@ -34,12 +35,11 @@
 
 ### 异常处理
 
-- **认领失败（多开）**：直接终止任务，避免误操作另一账号窗口；绝不对未认领
-  窗口发退出键清场（未进游戏的窗口可能属于其他玩家）
-- **未找到窗口（单开）**：对所有未认领 war3 窗口发退出键清场
-  （`_quit_stuck_war3_windows`，单开时本机窗口必属本玩家），跳过本局
+- **认领失败**：`claim_room_window`/`claim_war3_window` 超时抛 `ClaimError`
+  终止任务，避免误操作另一账号窗口；绝不对未认领窗口发退出键清场
 - **卡在加载页**：`wait_enter_game` 超时后绑定已认领窗口发退出键，跳过本局
-- **War3 窗口消失**：按掉线处理，走 KK 掉线重连弹窗清理（多开按 `owner_pid` 过滤）
+- **War3 窗口消失**：按掉线处理，走 KK 掉线重连弹窗清理（多开按注册表
+  `kk_pid` 过滤，任务层无需传 `owner_pid`）
 
 ## 单局无尽
 
@@ -51,7 +51,8 @@
 - **多开变体**：`endless_single_<玩家名>.toml`（`[this] target_player` +
   `[war3]`/`[kk]` `bind_mode="background"`），启动
   `... endless_single endless_single_善木木`；局内任务认领——启动时已在
-  游戏内，发聊天 token 按"玩家名：token"回显定归属，认领失败任务停止
+  游戏内，war3 侧按 `ppid(war3_pid) == kk_pid` 判定（kk_pid 未知时聊天
+  token 自举），认领失败抛 `ClaimError` 任务停止
 
 ### 功能
 

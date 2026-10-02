@@ -12,7 +12,13 @@ from ctypes import wintypes
 from typing import Optional
 
 from GameBot.config import resolve_bind_cfg
-from GameBot.runner.driver.process_lock import NamedMutex
+from GameBot.runner.business.claim import (
+    claim_window,
+    ensure_registered,
+    player_matches,
+    self_kk_pid,
+)
+from GameBot.runner.driver.claim_registry import parent_pid, window_pid
 from GameBot.runner.driver.wgc_capture import WgcCapture
 from GameBot.utils import WindowLostError, logger
 
@@ -99,16 +105,13 @@ class WindowManagerMixin:
         target_player: str = "",
         stop_event=None,
         claim_timeout: float = None,
-        identify=None,
     ) -> int:
-        """认领一个 war3 窗口（多开隔离），返回 hwnd。
+        """认领一个 war3 窗口（多开隔离），返回 hwnd；超时抛 ClaimError。
 
-        协议：先拿全局认领锁 `Local\\GameBot_War3_Claim`（串行化整个认领过程，
-        防止两脚本同时发 token/占用窗口互踩）→ 枚举窗口逐个尝试窗口锁（已被
-        认领的直接跳过，不发 token）→ 配了 target_player 时验证窗口归属：
-        默认向窗口发随机 token，OCR 聊天区"〔盟友〕玩家名：token"行提取归属名；
-        也可传 identify=identify_war3_owner 走加载页面玩家列表 OCR（无需进游戏）。
-        不匹配释放窗口锁换下一个。认领成功或本轮全部失败都释放全局锁，让其他脚本认领。
+        协议（统一认领原语 claim_window）：枚举候选 → per-hwnd 互斥锁 →
+        归属判定 `ppid(窗口进程) == 本账号 kk_pid`（Toolhelp32 直接父进程比对，
+        纯只读、读图期零操作，任意游戏阶段可用）→ kk_pid 未知（游戏内启动且
+        注册表未命中）时发聊天 token 自举，命中后由 ppid 推出 kk_pid 写注册表。
 
         认领成功后窗口互斥锁一直持有到显式释放或进程退出（崩溃自动释放），
         self._claimed_hwnd / self.claimed_owner 记录结果，全链路只用该 hwnd。
@@ -117,111 +120,97 @@ class WindowManagerMixin:
         :param target_player: 目标玩家名；为空则认领第一个未被占用的窗口
         :param stop_event: 停止事件
         :param claim_timeout: 认领总超时（秒），None 时用 multi_instance.claim_timeout
-        :param identify: 归属验证函数 identify(hwnd) -> str（玩家名，未识别返回 ""）。
-            两种认领模式对应两种任务形态：
-            - 局内任务（ingame_special/fishing 等，启动时已在游戏内）：identify=None
-              默认聊天 token（_identify_owner_by_chat，内部自行对齐尺寸并绑定）
-            - 多局任务（endless 等，窗口随每局重开）：传任务层分阶段回调——
-              加载页只读 OCR 玩家列表（读图期窗口零操作），进游戏后再视难度
-              界面在场与否走聊天 token；也可传 self.identify_war3_owner 纯加载页 OCR。
-            认领过程本身不改尺寸/不绑定窗口，尺寸对齐由具体 identify 实现负责
-        :return: 认领的窗口句柄，无可用窗口返回 0
+        :return: 认领的窗口句柄
+        :raises ClaimError: 认领超时（任务须终止，归属未确认不可继续运行）
         """
         if getattr(self, "_claimed_hwnd", 0):
             if _user32.IsWindow(self._claimed_hwnd):
                 return self._claimed_hwnd
             # 认领窗口已销毁（如上局结束 war3 退出），释放窗口锁重新认领
             self.release_war3_claim()
+        reg = ensure_registered(self, self.war3_cfg, target_player)
         mi_cfg = self.war3_cfg.get("multi_instance", {})
         if claim_timeout is None:
             claim_timeout = float(mi_cfg.get("claim_timeout", 60))
         retry_interval = float(mi_cfg.get("claim_retry_interval", 0.5))
-        start = time.time()
-        last_wins = 0
-        mismatched = set()  # 本次认领内已验明非本账号的窗口，避免每轮重复发 token
-        while time.time() - start < claim_timeout:
-            # 全局认领锁：整个扫描+验证过程串行，其他脚本排队等待
-            claim_lock = NamedMutex("Local\\GameBot_War3_Claim")
-            remaining_ms = int(max(0, claim_timeout - (time.time() - start)) * 1000)
-            if not claim_lock.acquire(timeout_ms=remaining_ms):
-                break  # 超时还没拿到全局锁，放弃
-            try:
-                wins = self.dm.find_windows(
-                    self.war3_cfg.get("window_class", ""),
-                    self.war3_cfg.get("window_title", ""),
-                )
-                if wins:
-                    last_wins = len(wins)
-                claimed = self._claim_one_pass(wins, target_player, stop_event, identify=identify, mismatched=mismatched)
-            finally:
-                claim_lock.release()
-            if claimed:
-                return claimed
-            # 本轮没认领到（都被占用或不匹配），稍后重扫
-            self.interruptible_wait(retry_interval, stop_event)
-        logger.error(f"认领超时（{claim_timeout}s）：共 {last_wins} 个 war3 窗口，均已被占用或不匹配")
-        return 0
+        kk_pid_box = [self_kk_pid(self, self.war3_cfg, target_player, reg=reg)]
+        window_class = self.war3_cfg.get("window_class", "")
+        window_title = self.war3_cfg.get("window_title", "")
+
+        def _candidates() -> list:
+            return [
+                w["hwnd"]
+                for w in self.dm.find_windows(window_class, window_title)
+            ]
+
+        def _resolve(hwnd: int):
+            """war3 归属判定（只读）：窗口进程的直接父 PID 与本账号 kk_pid 比对。"""
+            if not target_player:
+                return True
+            ppid = parent_pid(window_pid(hwnd))
+            if not ppid:
+                return None
+            kk_pid = kk_pid_box[0]
+            if kk_pid:
+                # kk_pid 已知：归属判定是确定性的，不再落入 token 识别
+                return ppid == kk_pid
+            player = reg.player_of_kk_pid(ppid)
+            if not player:
+                return None
+            return player_matches(player, target_player)
+
+        def _identify(hwnd: int) -> bool:
+            """war3 聊天 token 自举（仅游戏内启动、kk_pid 未知时触发）。"""
+            owner = self._identify_owner_by_chat(hwnd, stop_event)
+            if not owner:
+                return False
+            kk_pid = parent_pid(window_pid(hwnd))
+            if kk_pid:
+                reg.set_kk_owner(kk_pid, owner)
+            if target_player and player_matches(owner, target_player):
+                self._kk_pid = kk_pid_box[0] = kk_pid
+                logger.info(f"war3 token 自举命中: hwnd={hwnd}，归属玩家 {owner}，kk_pid={kk_pid}")
+                return True
+            logger.info(f"war3 窗口 {hwnd} 归属 {owner}，与目标玩家 {target_player} 不匹配")
+            return False
+
+        hwnd, mutex = claim_window(
+            kind="war3",
+            candidates_fn=_candidates,
+            mutex_prefix="Local\\GameBot_War3_",
+            resolve_owner=_resolve,
+            identify=_identify,
+            timeout=claim_timeout,
+            retry_interval=retry_interval,
+            stop_event=stop_event,
+            registry=reg,
+        )
+        self._claimed_mutex = mutex
+        self._claimed_hwnd = hwnd
+        self.claimed_owner = target_player
+        logger.info(f"已认领 war3 窗口 hwnd={hwnd}" + (f"，归属玩家 {target_player}" if target_player else ""))
+        return hwnd
 
     def release_war3_claim(self) -> None:
-        """释放当前认领的 war3 窗口锁并清除缓存句柄。
+        """释放当前认领的 war3 窗口锁并清除缓存句柄/注册表窗口记录。
 
         多局任务每局新开 war3 窗口，局间调用以便下一轮认领新句柄；
         窗口锁按 hwnd 命名，仅影响本进程对该 hwnd 的占用标记。
         """
+        hwnd = getattr(self, "_claimed_hwnd", 0)
         mutex = getattr(self, "_claimed_mutex", None)
         if mutex is not None:
             mutex.release()
         self._claimed_mutex = None
         self._claimed_hwnd = 0
         self.claimed_owner = ""
+        if hwnd:
+            try:
+                from GameBot.runner.business.claim import get_registry
 
-    def _claim_one_pass(
-        self,
-        wins: list,
-        target_player: str,
-        stop_event=None,
-        identify=None,
-        mismatched: set = None,
-    ) -> int:
-        """单轮认领：在全局认领锁保护下逐个尝试窗口锁并验证归属。
-
-        认领过程本身不改尺寸/不绑定窗口：读图期认领场景下窗口零操作
-        （与手动启动等价），需要输入的 identify 实现内部自行对齐尺寸并绑定。
-        """
-        if identify is None:
-            identify = lambda h: self._identify_owner_by_chat(h, stop_event)
-        mismatched = mismatched if mismatched is not None else set()
-        for w in wins:
-            hwnd = w["hwnd"]
-            if hwnd in mismatched:
-                continue  # 已验明非本账号，不再重试（窗口归属不会中途改变）
-            # 枚举到认领存在间隙，窗口可能已销毁——跳过等下一轮重扫
-            if not _user32.IsWindow(hwnd):
-                continue
-            # 最小化窗口客户区 0x0、WGC 无法取帧，认领了也跑不了，跳过等恢复
-            if _user32.IsIconic(hwnd):
-                logger.info(f"war3 窗口 {hwnd} 已最小化，跳过认领")
-                continue
-            mutex = NamedMutex(f"Local\\GameBot_War3_{hwnd}")
-            if not mutex.try_acquire():
-                logger.info(f"war3 窗口 {hwnd} 已被其他脚本认领，跳过")
-                continue
-            # 归属验证异常直接上抛终止（认领失败即停止，不做兜底）
-            owner = identify(hwnd) if target_player else ""
-            if target_player:
-                # 包含匹配：target_player 出现在"："左边的发送者段中即归属
-                if not owner or target_player not in owner:
-                    if owner:
-                        mismatched.add(hwnd)  # 已验明归属他人，本次认领不再重试
-                    logger.info(f"war3 窗口 {hwnd} 归属 {owner or '未知'}，与目标玩家 {target_player} 不匹配，释放")
-                    mutex.release()
-                    continue
-            self._claimed_mutex = mutex
-            self._claimed_hwnd = hwnd
-            self.claimed_owner = owner
-            logger.info(f"已认领 war3 窗口 hwnd={hwnd}" + (f"，归属玩家 {owner}" if owner else ""))
-            return hwnd
-        return 0
+                get_registry(self, self.war3_cfg).release_window("war3", hwnd)
+            except Exception as e:
+                logger.debug(f"清理 war3 注册表记录失败: {e}")
 
     def _identify_owner_by_chat(self, hwnd: int, stop_event=None) -> str:
         """向 hwnd 发送随机 token，OCR 聊天区匹配"玩家名：token"行，返回玩家名。
@@ -419,113 +408,4 @@ class WindowManagerMixin:
         except Exception as e:
             logger.warning(f"退出游戏流程异常：{e}")
 
-    def identify_war3_owner(self, hwnd: int, known_players: list = None) -> str:
-        """通过 War3 加载页面玩家列表 OCR 识别窗口归属玩家。
 
-        仅在游戏加载页面有效，其他时机 OCR 区域无玩家列表。
-        调用时机：认领流程中对尚未进入游戏的窗口调用（纯读帧，不触碰窗口）。
-
-        OCR 结果按行(y)再列(x)排序，排除含 exclude_keywords 的文本行，
-        第一个非空且未被过滤的行即为最前面的玩家名。
-
-        多开时 OCR 可能把相邻的多个玩家名识别为一行文本（如"善木木岁月神偷"），
-        此时用 known_players 子串匹配拆分，取位置最靠前（x_center 最小）的玩家名。
-
-        :param hwnd: War3 窗口句柄
-        :param known_players: 已知玩家名列表，用于拆分 OCR 拼接的文本
-        :return: 排在最前面的玩家用户名，识别失败返回空字符串
-        """
-        multi_cfg = self.war3_cfg.get("multi_instance", {})
-        loading_cfg = multi_cfg.get("loading_page", {})
-        exclude_keywords = loading_cfg.get("exclude_keywords", [])
-
-        # 加载期窗口为原生尺寸（不允许改尺寸），玩家列表区域按尺寸差外扩
-        if "area_coords" in loading_cfg:
-            loading_cfg = dict(loading_cfg)
-            loading_cfg["area_coords"] = self._size_tolerant_area(hwnd, loading_cfg["area_coords"])
-        lines = self.ocr_lines(hwnd, loading_cfg)
-        # 按 (y_center, x_center) 排序：先按行排列，再按列排列
-        sorted_lines = sorted(lines, key=lambda l: (l.get("y_center", 0), l.get("x_center", 0)))
-        for line in sorted_lines:
-            text = line.get("text", "").strip()
-            if not text:
-                continue
-            # 排除含关键词的非玩家名文本（称号等）
-            if any(kw in text for kw in exclude_keywords):
-                logger.debug(f"War3 加载页面排除非玩家名文本：{text}")
-                continue
-            # 如果提供了已知玩家名列表，尝试从拼接文本中拆分出玩家名
-            if known_players:
-                matched = []
-                for player in known_players:
-                    if player and player in text:
-                        matched.append(player)
-                if matched:
-                    # 取在文本中最先出现的玩家名（位置最靠前）
-                    matched.sort(key=lambda p: text.index(p))
-                    owner = matched[0]
-                    logger.info(f"War3 窗口 {hwnd} 归属玩家：{owner}（OCR 原文：{text}）")
-                    return owner
-            logger.info(f"War3 窗口 {hwnd} 归属玩家：{text}")
-            return text
-        return ""
-
-    def find_target_war3_hwnd(self, target_player: str = "", known_players: list = None) -> int:
-        """查找目标 War3 窗口（支持多开识别）。
-
-        单开时直接返回唯一窗口；多开时通过 OCR 识别窗口归属玩家，
-        返回匹配 target_player 的窗口。
-
-        :param target_player: 目标玩家 ID，为空时返回第一个窗口
-        :param known_players: 已知玩家名列表，用于拆分 OCR 拼接的文本
-        :return: War3 窗口句柄，未找到返回 0
-        """
-        wins = self.dm.find_windows(
-            self.war3_cfg.get("window_class", ""),
-            self.war3_cfg.get("window_title", ""),
-        )
-        if len(wins) == 1:
-            return wins[0]["hwnd"]
-        if len(wins) > 1:
-            if not target_player:
-                logger.error("检测到多开 War3 但未配置 target_player，无法识别目标窗口")
-                return 0
-            for w in wins:
-                hwnd = w["hwnd"]
-                owner = self.identify_war3_owner(hwnd, known_players=known_players)
-                if owner == target_player:
-                    return hwnd
-            logger.error(f"未找到归属玩家 {target_player} 的 War3 窗口")
-            return 0
-        return 0
-
-    def bind_war3_window(
-        self, target_player: str = "", stop_event=None, timeout: int = 60, known_players: list = None
-    ) -> int:
-        """等待 War3 窗口出现并绑定准备（多开时验证归属），返回窗口句柄。
-
-        封装了 wait_for_game_window → 多开验证 → set_client_size 的完整流程，
-        供各任务复用。调用方拿到 hwnd 后自行 bind_window 执行后续操作。
-
-        :param target_player: 目标玩家 ID，多开时用于窗口归属验证
-        :param stop_event: 停止事件
-        :param timeout: 等待 War3 窗口超时秒数
-        :param known_players: 已知玩家名列表，用于拆分 OCR 拼接的文本
-        :return: War3 窗口句柄，失败返回 0
-        """
-        hwnd = self.wait_for_game_window(stop_event, timeout=timeout)
-        if not hwnd:
-            return 0
-        # 多开时验证窗口归属
-        if target_player:
-            owner = self.identify_war3_owner(hwnd, known_players=known_players)
-            if owner != target_player:
-                logger.warning(f"War3 窗口归属 {owner} 与目标 {target_player} 不匹配，尝试查找目标窗口")
-                target_hwnd = self.find_target_war3_hwnd(target_player, known_players=known_players)
-                if target_hwnd:
-                    hwnd = target_hwnd
-                else:
-                    logger.error(f"未找到归属 {target_player} 的 War3 窗口")
-                    return 0
-        self.set_client_size(hwnd)
-        return hwnd

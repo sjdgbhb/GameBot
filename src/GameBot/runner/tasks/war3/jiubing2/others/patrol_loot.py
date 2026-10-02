@@ -43,6 +43,7 @@ class PatrolLootTask:
         self.war3 = War3Business(self.dm, war3_cfg)
         # 多开认领：变体配置的 target_player（后台绑定时 find_game_window 走窗口认领协议）
         self.war3.target_player = self.cfg.get("target_player", "")
+        self.war3.task_name = task_name
         self.ui = GameUI(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
         self.combat = CombatHelper(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
         self.war3_cfg = war3_cfg

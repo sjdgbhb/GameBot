@@ -40,32 +40,46 @@ KK 平台大厅经常弹出各种窗口（广告、活动、公告等），这�
 
 ## 多开窗口认领
 
-多开场景下，同一台电脑运行多个 KK 客户端实例。每个实例的窗口外观相同，
-需要通过归属识别区分哪个窗口属于哪个账号。
+多开场景下，同一台电脑运行多个 KK 客户端实例。归属判定基于
+**机器级共享注册表 + 进程关系**，不再依赖逐窗侵入式识别。
 
-### 认领流程（房间窗口，主路径）
-1. 全局认领锁 `Local\GameBot_KK_Room_Claim` 串行化整个认领过程
-2. 枚举候选窗口（类名/标题），逐个 OCR 左上角"房间号：xxx"区域
-   （`room.room_id_ocr_area_coords`，按窗口实际尺寸等比缩放）确认是房间窗口
-   ——大厅与房间类名/标题相同，尺寸过滤不严谨（窗口可被拉伸），以
-   `room.room_id_keyword`（"房间号"）文本命中为准，判定结果按 hwnd 缓存；
-   再尝试窗口互斥锁 `Local\GameBot_KK_Room_{hwnd}`，已认领窗口跳过，不发任何验证信息
-3. 先查聊天记录：本进程 token marker 已上屏则直接解析归属，不再重发
-4. 未上屏才点击聊天输入框发送随机 token（前缀+PID hex+随机尾，进程唯一），
-   每窗口每轮最多发 1 次，之后只重读 OCR 验证（消息可能晚到，重发只会灌屏）
-5. OCR 聊天记录区"玩家名：token"提取归属名，匹配 `target_player`
-6. 认领成功后持有窗口锁至显式释放或进程退出，并记录 `owner_pid`，
-   房间/弹窗/掉线处理全按 PID 过滤
+### 共享注册表（`runner/driver/claim_registry.py`）
 
-### 认领流程（大厅窗口，多开场景）
-1. 点击头像下拉框
-2. 差分窗口查找（对比点击前后的窗口变化）
-3. OCR 识别玩家名
-4. 匹配目标账号
+- 文件：`%LOCALAPPDATA%\GameBot\claim_registry.json`；读写全程持
+  `Local\GameBot_Registry` 命名互斥锁，写盘用临时文件 + `os.replace` 原子替换；
+  损坏/缺失按空表处理告警自愈
+- `instances`：存活脚本实例（注册时校验重复 `target_player`，读时剪枝死 PID）
+- `kk_owner`：`kk_pid → {player, start_time}`，启动时间戳防 PID 复用错认
+- `windows`：`kind:hwnd → kk_pid`；读时校验 `IsWindow` + 归属复核
+  （war3 复核 `ppid(war3_pid)`，KK 窗口复核窗口 PID）
+
+### 统一认领原语（`runner/business/claim.py::claim_window`）
+
+缓存复用 → 枚举候选 → `IsWindow`/最小化过滤 → per-hwnd 互斥锁
+（`Local\GameBot_{Kind}_{hwnd}`）→ 归属判定（只读 PID/PPID 查表）→
+未知时场景化自举 → 匹配持锁登记注册表；超时抛 `ClaimError` 终止任务。
+单开快速路径（注册表单实例 + 单候选）跳过归属识别，仍持锁登记。
+
+### 归属判定
+
+- KK 大厅/房间窗口：`窗口 PID == 本账号 kk_pid`；kk_pid 未知时按注册表
+  `kk_owner` 反查该窗口 PID 的归属玩家
+- war3 窗口：`ppid(war3_pid) == 本账号 kk_pid`（Toolhelp32 直接父进程比对，
+  纯只读，读图期零操作，任意游戏阶段可用）
+
+### 自举（仅 kk_pid 未知时一次性触发）
+
+- 房间启动（endless/game_count）：房间聊天 token（前缀+PID hex+随机尾）→
+  OCR 聊天记录区"玩家名：token"提取归属，写 `kk_owner` 反哺注册表
+- 大厅启动（create_room/join_room）：头像下拉框 OCR 玩家名
+  （保留 `Local\GameBot_KK_Hall_Identify_PID_{pid}` 串行锁防同 PID 互踩）
+- 游戏内启动（fishing/patrol_loot 等局内任务）：war3 聊天 token 自举，
+  命中后由 `ppid(war3_pid)` 推出 kk_pid 写注册表
 
 ### 约束
-- 按 PID 串行化，避免多开实例同时认领导致冲突
-- War3 窗口同样在加载页面做玩家列表 OCR 识别归属（只读，零窗口操作）
+
+- 认领成功后持有窗口互斥锁至显式释放或进程退出（崩溃自动释放）
+- 归属未确认时禁止对候选窗口做任何操作；认领超时抛 `ClaimError` 任务终止
 
 ## War3 窗口绑定模式
 

@@ -1,10 +1,10 @@
-"""KK 多开识别 mixin — 大厅玩家 ID 识别、房间聊天 token 认领、父子窗口辅助验证。
+"""KK 多开识别 mixin — 大厅玩家 ID 识别、房间认领。
 
-多开下归属识别两条路径：
-- 大厅：OCR 头像下拉框拿玩家 ID（identify_hall_owner/claim_hall_window）；
-- 房间：房间聊天输入框发随机 token，OCR 聊天记录区"玩家名：token"提取归属
-  （claim_room_window，协议对齐 war3 窗口认领）。
-归属确定后的房间、弹窗等其它窗口通过 PID + 尺寸/类名区分，不再 OCR 玩家名。
+多开归属模型（注册表 + PID 匹配，详见 openspec/changes/refactor-window-claim）：
+- `player → kk_pid` 映射共享在机器级注册表，一次识别全员复用；
+- KK 侧窗口归属判定 = `窗口 PID == 本账号 kk_pid`（只读）；
+- kk_pid 未知时场景化自举：房间启动发聊天 token，大厅启动走下拉框 OCR，
+  自举成功写 `kk_owner` 反哺注册表。
 """
 
 from __future__ import annotations
@@ -18,7 +18,13 @@ from ctypes import wintypes
 from typing import TYPE_CHECKING, Optional, cast
 
 from GameBot.config import resolve_bind_cfg
-from GameBot.runner.driver.process_lock import NamedMutex
+from GameBot.runner.business.claim import (
+    claim_window,
+    ensure_registered,
+    player_matches,
+    self_kk_pid,
+)
+from GameBot.runner.driver.claim_registry import window_pid
 from GameBot.utils import StopTaskError, logger
 
 if TYPE_CHECKING:
@@ -29,7 +35,7 @@ if TYPE_CHECKING:
 class MultiInstanceMixin:
     """KK 多开识别 mixin。依赖 self.kk_cfg（dict）。"""
 
-    # ── 房间窗口认领（聊天 token 归属识别）─────────────────────
+    # ── 房间窗口认领 ──────────────────────────────────────────
 
     def claim_room_window(
         self,
@@ -38,117 +44,134 @@ class MultiInstanceMixin:
         stop_event=None,
         claim_timeout: float = None,
     ) -> tuple[int, int]:
-        """认领属于 target_player 的 KK 房间窗口，返回 (room_hwnd, owner_pid)。
+        """认领属于 target_player 的 KK 房间窗口，返回 (room_hwnd, kk_pid)。
 
-        协议（对齐 war3 窗口认领）：先拿全局认领锁 `Local\\GameBot_KK_Room_Claim`
-        串行化整个认领过程 → 枚举房间候选窗口逐个尝试窗口锁
-        `Local\\GameBot_KK_Room_{hwnd}`（已被认领的跳过，不发 token）→ OCR 聊天
-        记录区找本进程 token，已上屏直接解析归属；未上屏才点击聊天输入框发送随机
-        token → 匹配"玩家名：token"提取归属名；不匹配释放窗口锁换下一个。
-        认领成功或本轮全部失败都释放全局锁。
+        协议（统一认领原语 claim_window）：枚举房间候选 → per-hwnd 互斥锁 →
+        归属判定（窗口 PID == 本账号 kk_pid / 注册表 kk_owner 反查）→
+        kk_pid 未知时房间聊天 token 自举并写注册表 → 匹配持锁，超时抛 ClaimError。
 
         认领成功后窗口互斥锁持有到 release_room_claim 或进程退出（崩溃自动释放），
         self._claimed_room_hwnd / _claimed_room_pid 记录结果，复用时校验存活。
 
-        :param target_player: 目标玩家 ID
+        :param target_player: 目标玩家 ID；为空则认领第一个未被占用的房间窗口
         :param stop_event: 停止事件
         :param claim_timeout: 认领总超时（秒），None 时用 multi_instance.claim_timeout
-        :return: (房间句柄, 进程 PID)；超时未认领返回 (0, 0)
+        :return: (房间句柄, 本账号 KK 进程 PID)
+        :raises ClaimError: 认领超时（任务须终止，归属未确认不可继续运行）
         """
         if getattr(self, "_claimed_room_hwnd", 0):
             hwnd = self._claimed_room_hwnd
             pid = getattr(self, "_claimed_room_pid", 0)
             # 窗口存活且 PID 未变时复用认领；查询失败/PID 为 0 说明窗口已销毁
-            try:
-                alive_pid = dm.get_window_process_id(hwnd)
-            except Exception:
-                alive_pid = 0
-            if pid and alive_pid == pid:
+            if pid and window_pid(hwnd) == pid:
                 return hwnd, pid
             # 认领窗口已销毁（掉线/被踢出房间），释放窗口锁重新认领
             self.release_room_claim()
+
+        reg = ensure_registered(self, self.kk_cfg, target_player)
         mi_cfg = self.kk_cfg.get("multi_instance", {})
         if claim_timeout is None:
             claim_timeout = float(mi_cfg.get("claim_timeout", 60))
         retry_interval = float(mi_cfg.get("claim_retry_interval", 0.5))
-        start = time.time()
-        last_rooms = 0
-        mismatched = set()  # 验归属失败的窗口（归属他人或 token 未上屏），本次认领内排除
         window_class = self.kk_cfg.get("window_class", "")
         window_title = self.kk_cfg.get("window_title", "")
-        while time.time() - start < claim_timeout:
-            claim_lock = NamedMutex("Local\\GameBot_KK_Room_Claim")
-            remaining_ms = int(max(0, claim_timeout - (time.time() - start)) * 1000)
-            if not claim_lock.acquire(timeout_ms=remaining_ms):
-                break
+        room_size = tuple(self.kk_cfg.get("room", {}).get("window_size", [1224, 904]))
+        kk_pid_box = [self_kk_pid(self, self.kk_cfg, target_player, reg=reg)]
+        # self 运行时实为 KKBusiness（各 mixin 组合体），cast 供 IDE 解析跨 mixin 方法
+        kk = cast("KKBusiness", self)
+
+        def _candidates() -> list:
+            wins = []
+            for w in dm.find_windows(window_class, window_title):
+                hwnd = w["hwnd"]
+                # 枚举到认领存在间隙，房间窗口可能已关闭——此时跳过该窗口
+                if not dm.get_window_state(hwnd, 0):
+                    continue
+                if not kk._check_room_window(dm, hwnd):
+                    continue
+                wins.append(hwnd)
+            return wins
+
+        def _resolve(hwnd: int):
+            if not target_player:
+                return True
+            pid = window_pid(hwnd)
+            if not pid:
+                return None
+            if kk_pid_box[0]:
+                # kk_pid 已知：归属判定是确定性的，不再落入 token 识别
+                return pid == kk_pid_box[0]
+            player = reg.player_of_kk_pid(pid)
+            if not player:
+                return None
+            return player_matches(player, target_player)
+
+        def _identify(hwnd: int) -> bool:
+            """房间聊天 token 自举：识别归属写 kk_owner，命中则推出本账号 kk_pid。"""
+            # 先统一客户区尺寸：聊天坐标按 room.window_size 校准
             try:
-                # self 运行时实为 KKBusiness（各 mixin 组合体），cast 供 IDE 解析跨 mixin 方法
-                kk = cast("KKBusiness", self)
-                # 逐窗流水：查房间号 → 锁 → 验归属，认领到本账号房间即返回，不再碰后续窗口
-                rooms_found = 0
-                for w in dm.find_windows(window_class, window_title):
-                    hwnd = w["hwnd"]
-                    if hwnd in mismatched:
-                        continue
-                    # 枚举到认领存在间隙，房间窗口可能已关闭——此时跳过该窗口
-                    if not dm.get_window_state(hwnd, 0):
-                        continue
-                    if not kk._check_room_window(dm, hwnd):
-                        continue
-                    rooms_found += 1
-                    mutex = NamedMutex(f"Local\\GameBot_KK_Room_{hwnd}")
-                    if not mutex.try_acquire():
-                        logger.info(f"KK 房间窗口 {hwnd} 已被其他脚本认领，跳过")
-                        continue
-                    # 先统一客户区尺寸：聊天坐标按 room.window_size 校准。
-                    # 归属验证异常直接上抛终止（认领失败即停止，不做兜底）
-                    room_size = tuple(self.kk_cfg.get("room", {}).get("window_size", [1224, 904]))
-                    try:
-                        dm.set_client_size(hwnd, room_size[0], room_size[1])
-                    except Exception as e:
-                        logger.info(f"KK 房间窗口 {hwnd} 已失效（{e}），跳过")
-                        mutex.release()
-                        continue
-                    owner = self._identify_room_owner_by_chat(dm, hwnd, stop_event)
-                    # 包含匹配：target_player 出现在"："左边的发送者段中即归属。
-                    # 归属他人（owner 非空且不匹配）：本次认领内排除不再重试；
-                    # token 未上屏/归属名未解析出（owner 为空）：只释放窗口锁不
-                    # 排除——token 可能晚到，下轮认领会先查 marker 重读归属
-                    if not owner or target_player not in owner:
-                        if owner:
-                            mismatched.add(hwnd)
-                        logger.info(
-                            f"KK 房间窗口 {hwnd} 归属 {owner or '未知'}，"
-                            f"与目标玩家 {target_player} 不匹配，释放"
-                        )
-                        mutex.release()
-                        continue
-                    self._claimed_room_mutex = mutex
-                    self._claimed_room_hwnd = hwnd
-                    self._claimed_room_pid = dm.get_window_process_id(hwnd)
-                    logger.info(
-                        f"已认领 KK 房间窗口 hwnd={hwnd}，归属玩家 {owner}，pid={self._claimed_room_pid}"
-                    )
-                    return hwnd, self._claimed_room_pid
-                last_rooms = rooms_found or last_rooms
-            finally:
-                claim_lock.release()
-            if stop_event is not None:
-                if stop_event.wait(retry_interval):
-                    raise StopTaskError("用户请求停止任务")
-            else:
-                time.sleep(retry_interval)
-        logger.error(f"认领 KK 房间超时（{claim_timeout}s）：共 {last_rooms} 个房间窗口，均已被占用或不匹配")
-        return 0, 0
+                dm.set_client_size(hwnd, room_size[0], room_size[1])
+            except Exception as e:
+                logger.info(f"KK 房间窗口 {hwnd} 已失效（{e}），跳过")
+                return False
+            owner = self._identify_room_owner_by_chat(dm, hwnd, stop_event)
+            if not owner:
+                return False
+            pid = window_pid(hwnd)
+            if pid:
+                reg.set_kk_owner(pid, owner)
+            if target_player and player_matches(owner, target_player):
+                self._kk_pid = kk_pid_box[0] = pid
+                logger.info(f"房间 token 自举命中: hwnd={hwnd}，归属玩家 {owner}，kk_pid={pid}")
+                return True
+            logger.info(f"KK 房间窗口 {hwnd} 归属 {owner}，与目标玩家 {target_player} 不匹配")
+            return False
+
+        hwnd, mutex = claim_window(
+            kind="kk_room",
+            candidates_fn=_candidates,
+            mutex_prefix="Local\\GameBot_KK_Room_",
+            resolve_owner=_resolve,
+            identify=_identify,
+            timeout=claim_timeout,
+            retry_interval=retry_interval,
+            stop_event=stop_event,
+            registry=reg,
+        )
+        pid = window_pid(hwnd)
+        self._claimed_room_mutex = mutex
+        self._claimed_room_hwnd = hwnd
+        self._claimed_room_pid = pid
+        if pid:
+            self._kk_pid = pid
+            if target_player:
+                # 快速路径/空映射场景下补写归属映射，供 war3 侧认领与其他实例复用
+                reg.set_kk_owner(pid, target_player)
+        return hwnd, pid
+
+    def claim_own_room(self, dm: DmClient, target_player: str, stop_event=None) -> tuple[int, int]:
+        """认领本账号 KK 房间窗口并缓存句柄（认领失败抛 ClaimError 语义内建）。
+
+        :return: (room_hwnd, kk_pid)；kk_pid 供任务层按 PID 过滤弹窗/掉线
+        """
+        return self.claim_room_window(dm, target_player, stop_event=stop_event)
 
     def release_room_claim(self) -> None:
-        """释放当前认领的 KK 房间窗口锁并清除缓存句柄。"""
+        """释放当前认领的 KK 房间窗口锁并清除缓存句柄/注册表窗口记录。"""
+        hwnd = getattr(self, "_claimed_room_hwnd", 0)
         mutex = getattr(self, "_claimed_room_mutex", None)
         if mutex is not None:
             mutex.release()
         self._claimed_room_mutex = None
         self._claimed_room_hwnd = 0
         self._claimed_room_pid = 0
+        if hwnd:
+            try:
+                from GameBot.runner.business.claim import get_registry
+
+                get_registry(self, self.kk_cfg).release_window("kk_room", hwnd)
+            except Exception as e:
+                logger.debug(f"清理 KK 房间注册表记录失败: {e}")
 
     def _identify_room_owner_by_chat(self, dm: DmClient, hwnd: int, stop_event=None) -> str:
         """向 KK 房间聊天输入框发送随机 token，OCR 聊天记录区提取归属玩家名。
@@ -307,7 +330,6 @@ class MultiInstanceMixin:
         dm: DmClient,
         hall_hwnd: int,
         stop_event=None,
-        hall_owner_cache=None,
     ) -> Optional[str]:
         """通过点击头像弹出下拉框，对下拉框窗口 OCR 识别 KK 主界面窗口的玩家 ID。
 
@@ -337,11 +359,6 @@ class MultiInstanceMixin:
                 return None
             if stop_event and stop_event.is_set():
                 raise StopTaskError("停止 KK 大厅玩家 ID 识别")
-            if hall_owner_cache:
-                cached_owner = hall_owner_cache.read_hall_owner(hall_hwnd, pid)
-                if cached_owner:
-                    logger.info(f"大厅归属共享缓存命中: hwnd={hall_hwnd}, pid={pid}, owner={cached_owner}")
-                    return cached_owner
 
             # 点击前先记录已有下拉框，避免把其他大厅残留/其他进程刚弹出的框当成本次结果
             before_candidates = dm.find_windows(dropdown_class, window_title, pid)
@@ -436,19 +453,5 @@ class MultiInstanceMixin:
                 dm.key_press_char("esc")
 
             if owner:
-                if hall_owner_cache:
-                    hall_owner_cache.write_hall_owner(hall_hwnd, pid, owner)
                 logger.info(f"大厅归属 OCR: hwnd={hall_hwnd}, pid={pid}, owner={owner}")
             return owner
-
-    def check_parent_child_relation(self, dm: DmClient, hwnd: int) -> int:
-        """检查窗口的父窗口句柄（辅助多开识别）。
-
-        :return: 父窗口句柄，无父窗口返回 0
-        """
-        parent = dm.get_window_parent(hwnd)
-        if parent:
-            logger.debug(f"窗口 {hwnd} 的父窗口为 {parent}")
-        else:
-            logger.debug(f"窗口 {hwnd} 无父窗口（顶层窗口）")
-        return parent

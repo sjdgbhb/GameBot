@@ -39,3 +39,10 @@ models_dir = "src/GameBot/resources/models"
 # x 不配置则默认屏幕右侧（screen_w - width - 20）；需要左侧时显式写 x
 y = 380      # 浮窗默认 y 坐标（屏幕坐标）
 width = 300  # 浮窗宽度（像素）
+
+# ---------------------------------------------------------------------------
+# 多开认领注册表（机器级共享：实例注册 / kk_pid→player 映射 / 已认领窗口记录）
+# ---------------------------------------------------------------------------
+[this.claim_registry]
+# path = ""              # 注册表文件路径；留空默认 %LOCALAPPDATA%\GameBot\claim_registry.json
+lock_timeout_ms = 5000   # 注册表互斥锁（Local\GameBot_Registry）单次等待超时

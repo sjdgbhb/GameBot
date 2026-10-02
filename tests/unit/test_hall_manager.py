@@ -12,6 +12,7 @@
 
 import sys
 import unittest
+from contextlib import ExitStack, contextmanager
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -250,205 +251,160 @@ class TestDismissHallPopups(unittest.TestCase):
 
 
 class TestClaimHallWindow(unittest.TestCase):
+    """claim_hall_window 新认领协议测试（注册表 + PID 匹配 + 下拉框自举）。
+
+    claim_window 原语、window_pid、注册表均 mock，只测 mixin 侧接线。
+    """
+
     def setUp(self):
         self._orig = _mock_dm_modules()
 
     def tearDown(self):
         _restore_dm_modules(self._orig)
 
-    def test_matches_class_title_and_owner_without_initial_size_filter(self):
+    def _make_hall_kk(self):
         kk = _make_kk()
-        kk.kk_cfg["main"]["window_size"] = [1332, 945]
-        kk.dm.find_windows.return_value = [
-            {
-                "hwnd": 500,
-                "title": "KKTitle",
-                "class": "KKClass",
-                "rect": (0, 0, 800, 600),
-            }
-        ]
-        kk.dm.get_client_rect.return_value = (0, 0, 800, 600)
-        kk.dm.get_window_process_id.return_value = 123
-        kk.dm.is_window_minimized.return_value = False
+        kk._claimed_hall_hwnd = 0
+        kk._claimed_hall_pid = 0
+        kk._claimed_hall_mutex = None
+        kk._kk_pid = 0
+        kk.target_player = ""
+        kk.task_name = ""
+        kk.kk_cfg["multi_instance"] = {"claim_timeout": 5, "claim_retry_interval": 0.01}
+        return kk
+
+    @contextmanager
+    def _patched(self, kk_pid_of=0, claim_return=None, claim_side_effect=None):
+        reg = MagicMock()
+        reg.kk_pid_of.return_value = kk_pid_of
+        with ExitStack() as stack:
+            stack.enter_context(
+                patch("GameBot.runner.business.kk.hall_manager.ensure_registered", return_value=reg)
+            )
+            stack.enter_context(
+                patch("GameBot.runner.business.kk.hall_manager.self_kk_pid", return_value=kk_pid_of)
+            )
+            m_wpid = stack.enter_context(patch("GameBot.runner.business.kk.hall_manager.window_pid"))
+            m_claim = stack.enter_context(patch("GameBot.runner.business.kk.hall_manager.claim_window"))
+            if claim_side_effect is not None:
+                m_claim.side_effect = claim_side_effect
+            else:
+                m_claim.return_value = claim_return if claim_return is not None else (600, MagicMock())
+            m_wpid.return_value = 4567
+            yield reg, m_wpid, m_claim
+
+    def test_claim_hall_returns_hwnd_pid_and_caches(self):
+        """认领成功返回 (hwnd, kk_pid) 并缓存窗口/互斥锁。"""
+        kk = self._make_hall_kk()
+        mutex = MagicMock()
+        with self._patched(claim_return=(500, mutex)) as (reg, m_wpid, m_claim):
+            m_wpid.return_value = 4567
+            hwnd, pid = kk.claim_hall_window(kk.dm, "善木木")
+        self.assertEqual((hwnd, pid), (500, 4567))
+        self.assertEqual(kk._claimed_hall_hwnd, 500)
+        self.assertEqual(kk._claimed_hall_pid, 4567)
+        self.assertEqual(kk._claimed_hall_mutex, mutex)
+
+    def test_claim_hall_reuses_cached_hwnd(self):
+        """已认领窗口存活（PID 一致）时直接复用，不走认领原语。"""
+        kk = self._make_hall_kk()
+        kk._claimed_hall_hwnd = 500
+        kk._claimed_hall_pid = 4567
+        with self._patched() as (reg, m_wpid, m_claim):
+            m_wpid.return_value = 4567
+            hwnd, pid = kk.claim_hall_window(kk.dm, "善木木")
+        self.assertEqual((hwnd, pid), (500, 4567))
+        m_claim.assert_not_called()
+
+    def test_claim_hall_timeout_propagates_claim_error(self):
+        """claim_window 超时抛 ClaimError 直接上抛。"""
+        from GameBot.utils import ClaimError
+
+        kk = self._make_hall_kk()
+        with self._patched(claim_side_effect=ClaimError("认领超时")):
+            with self.assertRaises(ClaimError):
+                kk.claim_hall_window(kk.dm, "善木木", claim_timeout=1)
+
+    def test_claim_hall_no_window_class_raises(self):
+        """未配置 window_class 时抛 ClaimError。"""
+        from GameBot.utils import ClaimError
+
+        kk = self._make_hall_kk()
+        kk.kk_cfg["window_class"] = ""
+        with self.assertRaises(ClaimError):
+            kk.claim_hall_window(kk.dm, "善木木")
+
+    def test_resolve_owner_by_kk_pid(self):
+        """kk_pid 已知时 resolve_owner 按窗口 PID 确定性判定。"""
+        kk = self._make_hall_kk()
+        with self._patched(kk_pid_of=4567) as (reg, m_wpid, m_claim):
+            kk.claim_hall_window(kk.dm, "善木木")
+            resolve = m_claim.call_args.kwargs["resolve_owner"]
+            m_wpid.return_value = 4567
+            self.assertTrue(resolve(100))
+            m_wpid.return_value = 9999
+            self.assertFalse(resolve(101))
+
+    def test_resolve_owner_by_registry_player(self):
+        """kk_pid 未知时按注册表 kk_owner 反查玩家名比对。"""
+        kk = self._make_hall_kk()
+        with self._patched(kk_pid_of=0) as (reg, m_wpid, m_claim):
+            kk.claim_hall_window(kk.dm, "善木木")
+            resolve = m_claim.call_args.kwargs["resolve_owner"]
+            m_wpid.return_value = 8888
+            reg.player_of_kk_pid.return_value = "其他玩家"
+            self.assertFalse(resolve(100))
+            reg.player_of_kk_pid.return_value = "善木木#1234"
+            self.assertTrue(resolve(100))
+            reg.player_of_kk_pid.return_value = ""
+            self.assertIsNone(resolve(100))
+
+    def test_identify_writes_kk_owner_on_match(self):
+        """下拉框 OCR 自举命中：写 kk_owner 并推出本账号 kk_pid。"""
+        kk = self._make_hall_kk()
         kk.dismiss_hall_popups = MagicMock()
-        kk.identify_hall_owner = MagicMock(return_value="善木木#123456")
+        kk.identify_hall_owner = MagicMock(return_value="善木木#1234")
+        with self._patched(kk_pid_of=0) as (reg, m_wpid, m_claim):
+            m_wpid.return_value = 4567
+            kk.claim_hall_window(kk.dm, "善木木")
+            identify = m_claim.call_args.kwargs["identify"]
+            self.assertTrue(identify(500))
+            # identify 写识别出的归属名；认领成功后补写 target_player 映射
+            reg.set_kk_owner.assert_any_call(4567, "善木木#1234")
+            self.assertEqual(kk._kk_pid, 4567)
+            # 自举前清理弹窗并按窗口 PID 过滤
+            kk.dismiss_hall_popups.assert_called_once_with(kk.dm, exclude_hwnds={500}, owner_pid=4567)
 
-        result = kk.claim_hall_window(kk.dm, "善木木")
-
-        self.assertEqual(result, (500, 123))
-        kk.dm.find_windows.assert_called_once_with("KKClass", "KKTitle", 0)
-        kk.identify_hall_owner.assert_called_once_with(kk.dm, 500, stop_event=None, hall_owner_cache=None)
-
-    def test_busy_window_skipped_then_retried(self):
-        """窗口正忙时应先跳过遍历其他窗口，第一轮结束后再回头重试。
-
-        多开并发下，互斥锁冲突返回 None 时先跳过该窗口继续遍历，
-        其他窗口都不匹配时再回头重试被跳过的窗口。
-        """
-        kk = _make_kk()
-        # 两个窗口：500 正忙，600 是自己的
-        kk.dm.find_windows.return_value = [
-            {"hwnd": 500, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1332, 945)},
-            {"hwnd": 600, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1332, 945)},
-        ]
-        kk.dm.get_client_rect.return_value = (0, 0, 1332, 945)
-        kk.dm.get_window_process_id.return_value = 123
-        kk.dm.is_window_minimized.return_value = False
+    def test_identify_busy_or_empty_returns_false(self):
+        """下拉框正忙（None）或 OCR 空结果时返回 False，不写注册表。"""
+        kk = self._make_hall_kk()
         kk.dismiss_hall_popups = MagicMock()
-        # 500 首次正忙（None），600 是善木木，500 重试后是其他玩家
-        kk.identify_hall_owner = MagicMock(side_effect=[None, "善木木#123456", "其他玩家"])
-
-        result = kk.claim_hall_window(kk.dm, "善木木", busy_wait=0)
-
-        # 第一轮：500 正忙跳过 → 600 匹配成功，直接返回
-        self.assertEqual(result, (600, 123))
-        # 500 识别 1 次（None），600 识别 1 次（善木木），500 未被重试
-        self.assertEqual(kk.identify_hall_owner.call_count, 2)
-
-    def test_busy_window_retried_after_first_round(self):
-        """所有其他窗口都不匹配时，回头重试被跳过的正忙窗口。"""
-        kk = _make_kk()
-        kk.dm.find_windows.return_value = [
-            {"hwnd": 500, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1332, 945)}
-        ]
-        kk.dm.get_client_rect.return_value = (0, 0, 1332, 945)
-        kk.dm.get_window_process_id.return_value = 123
-        kk.dm.is_window_minimized.return_value = False
-        kk.dismiss_hall_popups = MagicMock()
-        # 首次返回 None（正忙），重试后返回玩家名
-        kk.identify_hall_owner = MagicMock(side_effect=[None, "善木木#123456"])
-
-        result = kk.claim_hall_window(kk.dm, "善木木", busy_wait=0)
-
-        self.assertEqual(result, (500, 123))
-        self.assertEqual(kk.identify_hall_owner.call_count, 2)
-
-    def test_busy_window_retry_exhausted_skips(self):
-        """窗口正忙重试耗尽后应返回未找到。"""
-        kk = _make_kk()
-        kk.dm.find_windows.return_value = [
-            {"hwnd": 500, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1332, 945)}
-        ]
-        kk.dm.get_client_rect.return_value = (0, 0, 1332, 945)
-        kk.dm.get_window_process_id.return_value = 123
-        kk.dm.is_window_minimized.return_value = False
-        kk.dismiss_hall_popups = MagicMock()
-        # 持续返回 None（正忙）
         kk.identify_hall_owner = MagicMock(return_value=None)
+        with self._patched(kk_pid_of=0) as (reg, m_wpid, m_claim):
+            kk.claim_hall_window(kk.dm, "善木木")
+            identify = m_claim.call_args.kwargs["identify"]
+            self.assertFalse(identify(500))
+            # 认领前 set_kk_owner 未被 identify 调用（认领成功后的补写是 target_player）
+            reg.set_kk_owner.assert_called_once_with(4567, "善木木")
 
-        result = kk.claim_hall_window(kk.dm, "善木木", busy_retry=2, busy_wait=0)
-
-        self.assertEqual(result, (0, 0))
-        # 第一轮 1 次 + 重试 2 次 = 3 次
-        self.assertEqual(kk.identify_hall_owner.call_count, 3)
-
-    def test_empty_owner_result_allows_retry_up_to_limit(self):
-        """空 OCR 结果允许重试，但超过上限后不再点击 OCR。"""
-        kk = _make_kk()
-        kk.kk_cfg["max_hall_owner_empty_retries"] = 2
-        kk.dm.find_windows.return_value = [
-            {"hwnd": 500, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1332, 945)}
-        ]
-        kk.dm.get_client_rect.return_value = (0, 0, 1332, 945)
-        kk.dm.get_window_process_id.return_value = 123
-        kk.dm.is_window_minimized.return_value = False
-        kk.dismiss_hall_popups = MagicMock()
-        kk.identify_hall_owner = MagicMock(return_value="")
-
-        # 第 1 次调用：OCR 一次（空），返回 (0, 0)
-        kk.claim_hall_window(kk.dm, "善木木")
-        # 第 2 次调用：OCR 一次（空），达到上限 2 次
-        kk.claim_hall_window(kk.dm, "善木木")
-        # 第 3 次调用：不再 OCR，直接返回空
-        kk.claim_hall_window(kk.dm, "善木木")
-
-        # 只调用了 2 次 identify_hall_owner
-        self.assertEqual(kk.identify_hall_owner.call_count, 2)
-
-    def test_non_empty_owner_cached_across_calls(self):
-        """非空 OCR 结果应跨 claim_hall_window 调用缓存，避免重复点击 OCR。"""
-        kk = _make_kk()
-        kk.dm.find_windows.return_value = [
-            {"hwnd": 500, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1332, 945)},
-            {"hwnd": 600, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1332, 945)},
-        ]
-        kk.dm.get_client_rect.return_value = (0, 0, 1332, 945)
-        # 用函数让 PID 返回值稳定，避免 side_effect 耗尽
-        kk.dm.get_window_process_id.side_effect = lambda hwnd: {500: 123, 600: 456}[hwnd]
-        kk.dm.is_window_minimized.return_value = False
-        kk.dismiss_hall_popups = MagicMock()
-        # 窗口 500 是"其他玩家"，窗口 600 是"善木木"
-        kk.identify_hall_owner = MagicMock(side_effect=["其他玩家#111", "善木木#123456"])
-
-        # 第一次调用：OCR 两个窗口，匹配 600
-        self.assertEqual(kk.claim_hall_window(kk.dm, "善木木"), (600, 456))
-        self.assertEqual(kk.identify_hall_owner.call_count, 2)
-
-        # 第二次调用：500 已缓存"其他玩家"，600 已缓存"善木木"，不再 OCR
-        self.assertEqual(kk.claim_hall_window(kk.dm, "善木木"), (600, 456))
-        self.assertEqual(kk.identify_hall_owner.call_count, 2)
-
-    def test_invisible_and_tiny_hall_candidates_are_skipped(self):
-        """find_windows 已过滤不可见窗口，这里只验证尺寸过滤。"""
-        kk = _make_kk()
+    def test_candidates_skip_room_and_tiny_windows(self):
+        """候选枚举：排除房间窗口、过小窗口，恢复最小化。"""
+        kk = self._make_hall_kk()
+        kk.kk_cfg["min_business_window_size"] = [200, 200]
         kk.dm.find_windows.return_value = [
             {"hwnd": 100, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 100, 100)},
-            {"hwnd": 200, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 100, 100)},
+            {"hwnd": 500, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1332, 945)},
+            {"hwnd": 600, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1332, 945)},
         ]
-        kk.dm.get_client_rect.return_value = (0, 0, 100, 100)
-        kk.identify_hall_owner = MagicMock()
-
-        result = kk.claim_hall_window(kk.dm, "善木木")
-
-        self.assertEqual(result, (0, 0))
-        kk.identify_hall_owner.assert_not_called()
-
-    def test_shared_owner_cache_skips_ocr(self):
-        """共享缓存中已有窗口归属时直接跳过 OCR。"""
-        kk = _make_kk()
-        kk.dm.find_windows.return_value = [
-            {"hwnd": 500, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1332, 945)}
-        ]
-        kk.dm.get_client_rect.return_value = (0, 0, 1332, 945)
-        kk.dm.get_window_process_id.return_value = 123
-        kk.dm.is_window_minimized.return_value = False
-        kk.dismiss_hall_popups = MagicMock()
-        kk.identify_hall_owner = MagicMock()
-        shared_cache = MagicMock()
-        # 窗口 500 已被其他进程认领为"其他玩家"
-        shared_cache.read_hall_owner.return_value = "其他玩家#123"
-
-        result = kk.claim_hall_window(kk.dm, "善木木", hall_owner_cache=shared_cache)
-
-        # 不匹配"善木木"，返回 (0, 0)
-        self.assertEqual(result, (0, 0))
-        # 从 IPC 读到已认领记录，跳过 OCR
-        kk.identify_hall_owner.assert_not_called()
-        shared_cache.read_hall_owner.assert_called_once_with(500, 123)
-
-    def test_claim_passes_shared_cache_to_owner_identification(self):
-        """实际 OCR 应接收共享缓存并在 PID 锁内写入归属。"""
-        kk = _make_kk()
-        kk.dm.find_windows.return_value = [
-            {"hwnd": 500, "title": "KKTitle", "class": "KKClass", "rect": (0, 0, 1332, 945)}
-        ]
-        kk.dm.get_client_rect.return_value = (0, 0, 1332, 945)
-        kk.dm.get_window_process_id.return_value = 123
-        kk.dm.is_window_minimized.return_value = False
-        kk.dismiss_hall_popups = MagicMock()
-        kk.identify_hall_owner = MagicMock(return_value="善木木#123456")
-        shared_cache = MagicMock()
-        shared_cache.read_hall_owner.return_value = None
-
-        result = kk.claim_hall_window(kk.dm, "善木木", hall_owner_cache=shared_cache)
-
-        self.assertEqual(result, (500, 123))
-        kk.identify_hall_owner.assert_called_once_with(
-            kk.dm,
-            500,
-            stop_event=None,
-            hall_owner_cache=shared_cache,
+        kk.dm.get_client_rect.side_effect = lambda h: (
+            (0, 0, 100, 100) if h == 100 else (0, 0, 1332, 945)
         )
+        kk.dm.is_window_minimized.return_value = False
+        kk._is_room_window = MagicMock(side_effect=lambda dm, h: h == 600)
+        with self._patched() as (reg, m_wpid, m_claim):
+            kk.claim_hall_window(kk.dm, "善木木")
+        candidates = m_claim.call_args.kwargs["candidates_fn"]()
+        self.assertEqual(candidates, [500])  # 100 过小、600 是房间
 
 
 class TestDialogIdentification(unittest.TestCase):

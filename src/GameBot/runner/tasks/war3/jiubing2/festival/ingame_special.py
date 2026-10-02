@@ -31,6 +31,7 @@ class IngameSpecialTask:
         # 复用黑石城声望的大漠客户端和业务对象，避免多占一个 dm_bridge 子进程
         self.dm = self.daily.blackstone.dm
         self.war3 = self.daily.blackstone.war3
+        self.war3.task_name = task_name
         self.war3_cfg = self.full_cfg.get("war3", {})
 
     @property

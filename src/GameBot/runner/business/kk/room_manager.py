@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from GameBot.runner.driver.base import DmClientBase as DmClient
 from GameBot.config import resolve_bind_cfg
+from GameBot.runner.business.claim import self_kk_pid
 from GameBot.utils import StopTaskError, logger
 
 
@@ -79,6 +80,7 @@ class RoomManagerMixin:
 
     def dismiss_room_popups(self, dm: DmClient, room_size: tuple = None, owner_pid: int = 0) -> int:
         """清理目标 KK 进程的房间弹窗，并通过按钮状态 OCR 返回房间句柄。"""
+        owner_pid = owner_pid or self_kk_pid(self, self.kk_cfg)
         popup_cfg = self.kk_cfg.get("popup", {})
         offset_x, offset_y = popup_cfg.get("close_offset", [15, 15])
         protected_keywords = popup_cfg.get("protected_keywords", [])
@@ -139,6 +141,7 @@ class RoomManagerMixin:
         KK 大厅和房间类名/标题相同，尺寸过滤不严谨（窗口可能被拉伸），
         以房间特有的"房间号"文本为准；尺寸仅用于把基准 OCR 区域按比例换算。
         """
+        owner_pid = owner_pid or self_kk_pid(self, self.kk_cfg)
         window_class = self.kk_cfg.get("window_class", "")
         id_area = self.kk_cfg.get("room", {}).get("room_id_ocr_area_coords", [0, 0, 0, 0])
         if not window_class or id_area == [0, 0, 0, 0]:
@@ -204,9 +207,10 @@ class RoomManagerMixin:
         弹窗类名与 create_room_window_class 相同，通过窗口尺寸区分。
         多开时通过 owner_pid 只枚举本进程的窗口，避免误操作其他账号的弹窗。
 
-        :param owner_pid: 所属 KK 进程 PID，>0 时按 PID 枚举；0 时单开用 find_window
+        :param owner_pid: 所属 KK 进程 PID，>0 时按 PID 枚举；为 0 时读注册表缓存的本账号 kk_pid
         :return: True=检测到弹窗并已处理, False=未检测到弹窗
         """
+        owner_pid = owner_pid or self_kk_pid(self, self.kk_cfg)
         dialog_cfg = self.kk_cfg.get("disconnect_dialog", {})
         popup_class = self.kk_cfg.get("create_room_window_class", "")
         expect_size = dialog_cfg.get("window_size", [440, 260])

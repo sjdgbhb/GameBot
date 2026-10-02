@@ -36,6 +36,9 @@ class War3Business(BaseGame, WindowManagerMixin, InputControllerMixin, SkillCont
         # 多开认领：目标玩家名（任务侧从 cfg["target_player"] 注入），空则认领空闲窗口
         self.target_player = ""
         self.claimed_owner = ""
+        # 认领注册表相关状态：本账号 KK 进程 PID / 任务名（注册表记录用）
+        self._kk_pid = 0
+        self.task_name = ""
 
 
 __all__ = ["War3Business", "TextMonitor"]

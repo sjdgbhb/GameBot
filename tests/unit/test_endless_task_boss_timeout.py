@@ -119,10 +119,10 @@ class TestDoWar3BossTimeout(unittest.TestCase):
         self.assertFalse(result)
         task.war3.quit_game.assert_not_called()
 
-    # 多开：claim_war3_window 加载页只读认领本账号窗口
+    # 多开：claim_war3_window 按 PPID 认领本账号窗口
     @patch("GameBot.runner.tasks.war3.jiubing2.endless.endless.time")
     def test_do_war3_multi_instance_claims_window(self, mock_time):
-        """target_player 配置时走 claim_war3_window + 分阶段归属验证认领本账号窗口。"""
+        """target_player 配置时走 claim_war3_window 认领本账号窗口（无 identify 回调）。"""
         task = self._make_task()
         task.target_player = "Player1"
         task.war3.claim_war3_window.return_value = 123
@@ -135,18 +135,20 @@ class TestDoWar3BossTimeout(unittest.TestCase):
         task.war3.release_war3_claim.assert_called_once()
         task.war3.claim_war3_window.assert_called_once()
         task.war3.wait_for_game_window.assert_not_called()
-        # 归属验证走分阶段回调：加载页只读 OCR / 进游戏聊天 token / 难度界面跳过
+        # 认领不再传 identify 回调：归属判定由 ppid 比对/注册表完成
         _, kwargs = task.war3.claim_war3_window.call_args
-        self.assertEqual(kwargs["identify"], task._identify_claim_window)
+        self.assertNotIn("identify", kwargs)
 
-    # 多开：认领失败终止任务
+    # 多开：认领失败抛 ClaimError 终止任务
     def test_do_war3_multi_instance_claim_fail_raises(self):
-        """认领不到本账号窗口时抛错终止任务，不调用 quit_game（未绑定任何窗口）。"""
+        """claim_war3_window 抛 ClaimError 时任务终止，不调用 quit_game（未绑定任何窗口）。"""
+        from GameBot.utils import ClaimError
+
         task = self._make_task()
         task.target_player = "Player2"
-        task.war3.claim_war3_window.return_value = 0
+        task.war3.claim_war3_window.side_effect = ClaimError("认领超时")
 
-        self.assertRaises(RuntimeError, task.do_war3, 1)
+        self.assertRaises(ClaimError, task.do_war3, 1)
         task.war3.quit_game.assert_not_called()
 
 
@@ -279,84 +281,3 @@ class TestDoWar3TimeoutError(unittest.TestCase):
         self.assertFalse(result)
         task.war3.quit_game.assert_called_once()
 
-
-class TestFindTargetWar3Hwnd(unittest.TestCase):
-    """War3Business.find_target_war3_hwnd 边界场景测试。
-
-    _find_target_war3_hwnd 已从 EndlessTask 提取到 War3Business，
-    本类测试公共方法行为。
-    """
-
-    def setUp(self):
-        self._orig = _mock_dm_modules()
-
-    def tearDown(self):
-        _restore_dm_modules(self._orig)
-
-    def _make_war3(self):
-        from GameBot.runner.business.war3 import War3Business
-
-        war3 = War3Business.__new__(War3Business)
-        war3.dm = MagicMock()
-        war3.war3_cfg = {"window_class": "War3Class", "window_title": "War3Title"}
-        return war3
-
-    def test_find_target_war3_hwnd_single_window(self):
-        """仅一个 War3 窗口时应直接返回该窗口句柄。"""
-        war3 = self._make_war3()
-        war3.dm.find_windows.return_value = [
-            {"hwnd": 123, "title": "War3Title", "class": "War3Class", "rect": (0, 0, 1920, 1080)}
-        ]
-        war3.identify_war3_owner = MagicMock()
-
-        result = war3.find_target_war3_hwnd("")
-
-        self.assertEqual(result, 123)
-        war3.identify_war3_owner.assert_not_called()
-
-    def test_find_target_war3_hwnd_no_windows(self):
-        """无 War3 窗口时应返回 0。"""
-        war3 = self._make_war3()
-        war3.dm.find_windows.return_value = []
-
-        result = war3.find_target_war3_hwnd("")
-
-        self.assertEqual(result, 0)
-
-    def test_find_target_war3_hwnd_multi_no_target_player(self):
-        """多窗口但未配置 target_player 时应返回 0。"""
-        war3 = self._make_war3()
-        war3.dm.find_windows.return_value = [
-            {"hwnd": 123, "title": "War3Title", "class": "War3Class", "rect": (0, 0, 1920, 1080)},
-            {"hwnd": 456, "title": "War3Title", "class": "War3Class", "rect": (0, 0, 1920, 1080)},
-        ]
-
-        result = war3.find_target_war3_hwnd("")
-
-        self.assertEqual(result, 0)
-
-    def test_find_target_war3_hwnd_multi_with_target_match(self):
-        """多窗口且 target_player 匹配时应返回匹配的窗口句柄。"""
-        war3 = self._make_war3()
-        war3.dm.find_windows.return_value = [
-            {"hwnd": 123, "title": "War3Title", "class": "War3Class", "rect": (0, 0, 1920, 1080)},
-            {"hwnd": 456, "title": "War3Title", "class": "War3Class", "rect": (0, 0, 1920, 1080)},
-        ]
-        war3.identify_war3_owner = MagicMock(side_effect=["Player1", "Player2"])
-
-        result = war3.find_target_war3_hwnd("Player2")
-
-        self.assertEqual(result, 456)
-
-    def test_find_target_war3_hwnd_multi_no_match(self):
-        """多窗口且 target_player 不匹配任何窗口时应返回 0。"""
-        war3 = self._make_war3()
-        war3.dm.find_windows.return_value = [
-            {"hwnd": 123, "title": "War3Title", "class": "War3Class", "rect": (0, 0, 1920, 1080)},
-            {"hwnd": 456, "title": "War3Title", "class": "War3Class", "rect": (0, 0, 1920, 1080)},
-        ]
-        war3.identify_war3_owner = MagicMock(side_effect=["Player1", "Player2"])
-
-        result = war3.find_target_war3_hwnd("Player3")
-
-        self.assertEqual(result, 0)
