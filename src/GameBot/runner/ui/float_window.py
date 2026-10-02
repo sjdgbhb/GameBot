@@ -38,6 +38,7 @@ _TEXT = "#f0f0f5"
 _TEXT_DIM = "#a0a0c0"
 _DANGER = "#e74c3c"
 _SUCCESS = "#27ae60"
+_ICON = "#6a5a20"  # 标题栏按钮图标色（暗金棕，与边框同色）
 
 
 def run_with_float_window(
@@ -191,24 +192,70 @@ def run_with_float_window(
     )
     stop_hint.pack(side=tk.RIGHT, padx=6)
 
-    # 停止按钮：点击等效按 Num-（停止本脚本的运行）
-    stop_btn = tk.Label(
-        title_bar,
-        text="✕",
-        font=("Microsoft YaHei", 9, "bold"),
-        bg=_GOLD,
-        fg=_DANGER,
-        cursor="hand2",
-        padx=4,
-    )
-    stop_btn.pack(side=tk.RIGHT)
+    _minimized = {"flag": False}
+
+    def _minimize(_e=None):
+        # overrideredirect 窗口没有任务栏按钮，直接 iconify 会彻底消失；
+        # 先恢复原生边框让 Windows 生成任务栏入口，再最小化
+        _minimized["flag"] = True
+        root.overrideredirect(False)
+        root.update_idletasks()
+        root.iconify()
+
+    def _on_deiconify(_e=None):
+        # 从任务栏还原后重新套用无边框 + 置顶
+        if not _minimized["flag"] or root.state() != "normal":
+            return
+        _minimized["flag"] = False
+        root.overrideredirect(True)
+        root.attributes("-topmost", True)
 
     def _on_stop_click(_e):
         if not stop_event.is_set():
             stop_event.set()
             stop_hint.config(text="正在停止...")
 
+    # 标题栏按钮统一用 Canvas 手绘图标：最小化 = 居中横线，关闭 = 交叉线
+    # 字符图标（—/✕）依赖字体渲染，粗细和颜色难以统一
+    def _make_title_btn(draw):
+        btn = tk.Canvas(
+            title_bar,
+            width=20,
+            height=20,
+            bg=_GOLD,
+            highlightthickness=0,
+            bd=0,
+            cursor="hand2",
+        )
+
+        def _paint(fg):
+            btn.delete("icon")
+            draw(btn, fg)
+
+        _paint(_ICON)
+        # 悬停仅加深图标颜色（暗金棕 → 近黑），与金色底同色系不突兀
+        btn.bind("<Enter>", lambda _e: _paint(_BG))
+        btn.bind("<Leave>", lambda _e: _paint(_ICON))
+        return btn
+
+    def _draw_min(c, fg):
+        c.create_line(5, 10, 15, 10, fill=fg, width=2, tags="icon")
+
+    def _draw_close(c, fg):
+        c.create_line(6, 6, 14, 14, fill=fg, width=2, tags="icon")
+        c.create_line(14, 6, 6, 14, fill=fg, width=2, tags="icon")
+
+    # 停止按钮：点击等效按 Num-（停止本脚本的运行）
+    stop_btn = _make_title_btn(_draw_close)
+    stop_btn.pack(side=tk.RIGHT)
     stop_btn.bind("<Button-1>", _on_stop_click)
+
+    # 最小化按钮：最小化到任务栏
+    min_btn = _make_title_btn(_draw_min)
+    min_btn.pack(side=tk.RIGHT)
+    min_btn.bind("<Button-1>", _minimize)
+
+    root.bind("<Map>", _on_deiconify)
 
     # 上行：时间 + 进度（左对齐，金色）
     top_label = tk.Label(
@@ -266,6 +313,8 @@ def run_with_float_window(
     countdown_started = [False]
 
     def _update():
+        # 兜底：<Map> 事件未触发时也能完成还原后的无边框重置
+        _on_deiconify()
         if stop_event.is_set():
             stop_hint.config(text="正在停止...")
             root.update_idletasks()

@@ -12,7 +12,7 @@ import argparse
 import sys
 
 from GameBot.config import config
-from GameBot.runner.tasks.war3.jiubing2.others.paladin_wind_dragon import PaladinWindDragonTask
+from GameBot.runner.tasks.war3.jiubing2.wind_dragon.paladin_wind_dragon import PaladinWindDragonTask
 from GameBot.runner.ui import run_with_float_window
 from GameBot.utils import logger, setup_global_exception_hook, setup_log_file
 
@@ -71,7 +71,7 @@ def main():
     setup_global_exception_hook()
     setup_log_file("风龙后台绑定测试")
 
-    cfg = config.load_task("war3.jiubing2.tasks.others.paladin_wind_dragon")
+    cfg = config.load_task("war3.jiubing2.tasks.wind_dragon.paladin_wind_dragon")
     cfg["war3"]["bind_background"] = DEFAULT_CASES[args.case - 1]
 
     def task_wrapper(stop_event, progress_callback):

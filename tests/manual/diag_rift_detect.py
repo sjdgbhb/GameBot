@@ -9,7 +9,6 @@
 """
 
 import tempfile
-import time
 from pathlib import Path
 
 import numpy as np
@@ -33,7 +32,7 @@ def find_war3_hwnd() -> int:
 
 
 def main():
-    cfg = config.load_task("war3.jiubing2.tasks.others.paladin_wind_dragon")
+    cfg = config.load_task("war3.jiubing2.tasks.wind_dragon.paladin_wind_dragon")
     npc = cfg["war3"]["jiubing2"]["scenes"]["wind_dragon"]["npcs"]["wind_dragon"]
     region = npc["boss_rift_coords"]
     image = cfg["war3"]["jiubing2"]["boss_rift"]["image"]

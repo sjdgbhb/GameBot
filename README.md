@@ -46,7 +46,7 @@ uv run python -m GameBot.runner.tasks.war3.jiubing2.endless.endless
 uv run python -m GameBot.runner.tasks.war3.jiubing2.others.patrol_loot
 uv run python -m GameBot.runner.tasks.war3.jiubing2.reputation.daily_reputation
 uv run python -m GameBot.runner.tasks.war3.jiubing2.others.upgrade_stigmata
-uv run python -m GameBot.runner.tasks.war3.jiubing2.others.paladin_wind_dragon
+uv run python -m GameBot.runner.tasks.war3.jiubing2.wind_dragon.paladin_wind_dragon
 uv run python -m GameBot.runner.tasks.war3.jiubing2.festival.ingame_special
 uv run python -m GameBot.runner.tasks.war3.jiubing2.achievements.personal
 ```

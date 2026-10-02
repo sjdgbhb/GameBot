@@ -214,7 +214,7 @@ class TestResolveBindCfg:
     def test_task_node_bind_mode_ignored(self):
         """任务 [this].bind_mode 已废弃：任务节点里的 bind_mode 不影响解析。"""
         config = self._config(war3_mode="foreground", kk_mode="foreground")
-        config["war3"]["jiubing2"] = {"tasks": {"others": {"paladin_wind_dragon": {"bind_mode": "background"}}}}
+        config["war3"]["jiubing2"] = {"tasks": {"wind_dragon": {"paladin_wind_dragon": {"bind_mode": "background"}}}}
         assert resolve_bind_cfg(config["war3"])["display"] == "normal"
         assert resolve_bind_cfg(config["kk"])["display"] == "normal"
 

@@ -45,6 +45,7 @@ _CATEGORY_ICONS = {
     "atomic": "⚡",
     "reputation": "🏅",
     "endless": "∞",
+    "wind_dragon": "🐉",
     "others": "📦",
 }
 
@@ -937,8 +938,8 @@ TASK_SCHEMAS = {
             },
         ],
     },
-    "others.paladin_wind_dragon": {
-        "id": "others.paladin_wind_dragon",
+    "wind_dragon.paladin_wind_dragon": {
+        "id": "wind_dragon.paladin_wind_dragon",
         "name": "圣骑士风龙",
         "description": "圣骑士风龙点挂机：图色检测技能图标，冷却完毕（图标恢复彩色）即施放，冷却/被控制时自动跳过。",
         "sections": [
