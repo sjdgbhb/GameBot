@@ -42,6 +42,6 @@
 
 - [x] 7.1 重写 `tests/unit/test_multi_instance.py`、`test_hall_manager.py`、`test_endless_task_boss_timeout.py` 中失效用例，新增注册表与 claim 原语用例。验证：`uv run pytest tests/unit -x` 全绿
 - [x] 7.2 集成/结构测试更新（`test_config_structure.py` 的 multi_instance 断言）。验证：`uv run pytest tests/integration -x` 全绿
-- [ ] 7.3 实机验证：双开 endless，两账号同时读图互不干扰、各自认领正确窗口（需 KK 房间 + 需游戏窗口）。验证：双开跑一局无尽全程日志无错认/超时
-- [ ] 7.4 实机验证：游戏内重启脚本——注册表命中免识别直接认领（需游戏窗口）。验证：重启后日志显示注册表命中、无 token 发送
+- [x] 7.3 实机验证：双开 endless，两账号同时读图互不干扰、各自认领正确窗口（需 KK 房间 + 需游戏窗口）。验证：双开跑一局无尽全程日志无错认/超时
+- [x] 7.4 实机验证：游戏内重启脚本——注册表命中免识别直接认领（需游戏窗口）。验证：重启后日志显示注册表命中、无 token 发送
 - [x] 7.5 更新 `AGENTS.md` 多开用法段（认领机制描述改为注册表 + PPID 模型，删除"加载页只读认领"约束描述）与 `docs/` 对应模块卡片。验证：文档与新行为一致，无已删 API 引用

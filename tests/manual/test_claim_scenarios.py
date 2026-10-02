@@ -63,15 +63,16 @@ class Instance:
     player: str          # 预期归属玩家（变体 target_player）
     module: str          # 任务模块，如 GameBot.runner.tasks...endless.endless
     variant: str         # 启动变体名（TOML 叶子名）
-    war3_claims: int     # 期望的 war3 认领次数（game_count=2 验证重认领，其余=1）
+    war3_claims: int     # 期望的 war3 认领次数（多局=2 验证局间重认领，局内=1）
     expect_room: bool    # 是否期待 kk_room 认领（多局任务从房间启动）
-    wait_marker: str = ""       # 额外完成标记：日志出现该文本才算达标（如"已进入游戏"）
-    marker_dwell: float = 0     # 标记出现后停留秒数再终止（war3 只能在游戏内退出）
+    wait_marker: str = ""       # 局间触发标记（如"已进入游戏"）：标记+停留期满 → 测试侧 quit_game 退本局进下一局
+    marker_dwell: float = 0     # 标记出现后停留秒数（war3 只能在游戏内退出）
     temp_variant: Path = None   # 临时变体文件（场景1 生成）
     proc: subprocess.Popen = None
     room_claims: list = field(default_factory=list)   # 认领到的 kk_room hwnd
     war3_claim_hwnds: list = field(default_factory=list)  # 认领到的 war3 hwnd
     marker_at: float = 0        # wait_marker 命中时间戳
+    quit_war3_hwnds: set = field(default_factory=set)   # 已被测试侧 quit_game 触发局间流转的 war3 hwnd
     failed: str = ""     # 命中的失败文本
     out_lines: list = field(default_factory=list)     # 输出尾部缓冲（失败时打印）
     done: threading.Event = field(default_factory=threading.Event)
@@ -82,11 +83,13 @@ class Instance:
 def _multi_instances() -> list:
     """场景1：三个多局任务，games=2。"""
     return [
+        # 无尽：认房间→认war3→进游戏停留15s→测试侧 quit_game 正常退出回本局房间进下一局
+        # （不杀 war3，避免掉线弹窗），第2局认领达标即杀任务进程——覆盖"局间释放→重认领"且不跑楼层
         Instance(
             player="善木木",
             module="GameBot.runner.tasks.war3.jiubing2.endless.endless",
             variant="endless_claimtest_善木木",
-            war3_claims=1,
+            war3_claims=2,
             expect_room=True,
             wait_marker="已进入游戏",
             marker_dwell=15,
@@ -96,7 +99,7 @@ def _multi_instances() -> list:
             player="岁月神偷",
             module="GameBot.runner.tasks.war3.jiubing2.endless.endless",
             variant="endless_claimtest_岁月神偷",
-            war3_claims=1,
+            war3_claims=2,
             expect_room=True,
             wait_marker="已进入游戏",
             marker_dwell=15,
@@ -166,6 +169,33 @@ def _ingame_instances() -> list:
     ]
 
 
+# ── 测试侧退出：自建 dm 绑定对认领到的 war3 窗口执行 quit_game ──
+# （正常游戏内退出，不触发掉线弹窗；与任务进程的 dm 绑定互不影响）
+
+_QUIT_CTX: dict = {}
+
+
+def _quit_war3(hwnd: int) -> bool:
+    """测试脚本侧对已认领 war3 窗口执行 quit_game，使任务自然进入下一局。"""
+    if not _QUIT_CTX:
+        from GameBot.config import config, resolve_bind_cfg
+        from GameBot.runner.business.war3 import War3Business
+        from GameBot.runner.driver import create_dm_client
+
+        cfg = config.load_task("war3.jiubing2.tasks.endless.endless")
+        war3_cfg = cfg.get("war3", {})
+        _QUIT_CTX["dm"] = create_dm_client()
+        _QUIT_CTX["war3"] = War3Business(_QUIT_CTX["dm"], war3_cfg)
+        _QUIT_CTX["bind_cfg"] = resolve_bind_cfg(war3_cfg)
+    try:
+        with _QUIT_CTX["dm"].bind_window(hwnd, bind_cfg=_QUIT_CTX["bind_cfg"]):
+            _QUIT_CTX["war3"].quit_game()
+        return True
+    except Exception as e:
+        logger.error(f"测试侧 quit_game 失败 hwnd={hwnd}: {e}")
+        return False
+
+
 # ── 子进程监控 ──────────────────────────────────────────────
 
 def _drain(inst: Instance):
@@ -188,7 +218,7 @@ def _drain(inst: Instance):
                 inst.war3_claim_hwnds.append(hwnd)
         if any(t in line for t in _FAIL_TEXTS):
             inst.failed = line
-        if inst.wait_marker and inst.wait_marker in line and not inst.marker_at:
+        if inst.wait_marker and inst.wait_marker in line:
             inst.marker_at = time.time()
     if inst.war3_claim_hwnds or inst.room_claims:
         return
@@ -214,8 +244,11 @@ def _launch(instances: list):
 def _wait_claims(instances: list, timeout: float) -> bool:
     """等待所有实例完成认领或任一失败/超时。
 
-    达标条件 = war3 认领次数满足 +（如需）房间认领 +（如需）标记命中且停留期满。
-    达标即杀进程——只验证认领链路，不做后续游戏操作。
+    达标条件 = war3 认领次数满足 +（如需）房间认领 +（如需）标记停留期满。
+    - 认领次数未达标但标记停留期满：测试侧 quit_game 正常退出本局回房间
+      （不杀 war3，避免掉线弹窗），任务走"回房间→下一局"路径重开新窗口再次认领
+      （覆盖局间释放+重认领）
+    - 认领次数达标：杀任务进程，本实例验证完毕
     """
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -230,16 +263,24 @@ def _wait_claims(instances: list, timeout: float) -> bool:
             claims_ok = len(i.war3_claim_hwnds) >= i.war3_claims and (
                 not i.expect_room or i.room_claims
             )
-            dwell_ok = not i.wait_marker or (
-                i.marker_at and now - i.marker_at >= i.marker_dwell
-            )
-            if claims_ok and dwell_ok:
+            dwell_elapsed = i.marker_at and now - i.marker_at >= i.marker_dwell
+            if claims_ok and (not i.wait_marker or dwell_elapsed):
                 i.done.set()
                 if i.proc.poll() is None:
                     try:
                         i.proc.kill()
                     except OSError:
                         pass
+            elif i.wait_marker and dwell_elapsed and i.war3_claim_hwnds:
+                hwnd = i.war3_claim_hwnds[-1]
+                if hwnd not in i.quit_war3_hwnds:
+                    ok_quit = _quit_war3(hwnd)
+                    i.quit_war3_hwnds.add(hwnd)
+                    i.marker_at = 0
+                    logger.info(
+                        f"[{i.player}] 停留期满，quit_game hwnd={hwnd} "
+                        f"{'已发送' if ok_quit else '失败'}（触发下一局）"
+                    )
             elif i.proc.poll() is not None:
                 i.failed = f"进程提前退出 rc={i.proc.returncode}"
         time.sleep(0.3)
