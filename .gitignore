@@ -97,3 +97,6 @@ __nonexistent__/
 # 测试报告目录（保留在版本控制中，供 Dev/QA 协作）
 # docs/test_reports/ — 不忽略，需提交
 # docs/review_reports/ — 不忽略，需提交
+
+# Devin CLI local config (contains secrets)
+.devin/config.local.json
