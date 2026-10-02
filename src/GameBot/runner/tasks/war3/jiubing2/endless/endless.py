@@ -30,7 +30,7 @@ from GameBot.runner.business.war3.jiubing2 import (
 from GameBot.runner.business.war3.jiubing2.endless_runner import BossDeathTimeoutError
 from GameBot.runner.ui import run_with_float_window
 from GameBot.utils import StopTaskError, WindowLostError, logger, setup_log_file
-from GameBot.utils.exception_handler import setup_global_exception_hook
+from GameBot.utils.exception_handler import CaptureError, setup_global_exception_hook
 
 
 class EndlessTask:
@@ -146,7 +146,7 @@ class EndlessTask:
             with self.dm.bind_window(hwnd, bind_cfg=resolve_bind_cfg(self.war3_cfg)):
                 self.war3.quit_game()
             return False
-        except WindowLostError:
+        except (WindowLostError, CaptureError):
             logger.error("掉线，War3 窗口消失")
             self._handle_kk_disconnect()
             return False
@@ -178,7 +178,7 @@ class EndlessTask:
                     return False
                 # 正常退出
                 self.war3.quit_game()
-        except WindowLostError:
+        except (WindowLostError, CaptureError):
             logger.error("掉线，War3 窗口消失")
             self._handle_kk_disconnect()
             return False
