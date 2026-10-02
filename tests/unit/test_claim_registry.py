@@ -17,7 +17,7 @@ import threading
 import unittest
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -90,6 +90,49 @@ class TestRegistryFileIO(unittest.TestCase):
             self.assertEqual(errors, [])
             data = json.loads(reg.path.read_text(encoding="utf-8"))
             self.assertEqual(len(data["instances"]), 8)
+
+
+class TestPidAlive(unittest.TestCase):
+    """pid_alive 进程存活判定（含僵尸对象边界）。"""
+
+    def _fake_kernel32(self, open_handle: int, exit_code: int):
+        """伪造 kernel32：OpenProcess 返回 open_handle；GetExitCodeProcess 写 exit_code。"""
+        import ctypes
+
+        fake = MagicMock()
+        fake.OpenProcess.return_value = open_handle
+
+        def _get_exit_code(handle, p_code):
+            ctypes.cast(p_code, ctypes.POINTER(ctypes.wintypes.DWORD)).contents.value = exit_code
+            return 1
+
+        fake.GetExitCodeProcess.side_effect = _get_exit_code
+        return fake
+
+    def test_live_process(self):
+        """STILL_ACTIVE(259) → 存活。"""
+        from GameBot.runner.driver.claim_registry import pid_alive
+
+        fake = self._fake_kernel32(1234, 259)
+        with patch(f"{_MOD}._kernel32", fake):
+            self.assertTrue(pid_alive(4452))
+
+    def test_zombie_process_rejected(self):
+        """OpenProcess 成功但已终止（退出码非 STILL_ACTIVE，有句柄引用的僵尸对象）→ 判死。"""
+        from GameBot.runner.driver.claim_registry import pid_alive
+
+        fake = self._fake_kernel32(1234, 1)
+        with patch(f"{_MOD}._kernel32", fake):
+            self.assertFalse(pid_alive(4452))
+
+    def test_openprocess_failure(self):
+        """OpenProcess 失败（进程对象已消失）→ 判死。"""
+        from GameBot.runner.driver.claim_registry import pid_alive
+
+        fake = self._fake_kernel32(0, 0)
+        with patch(f"{_MOD}._kernel32", fake):
+            self.assertFalse(pid_alive(4452))
+            self.assertFalse(pid_alive(0))
 
 
 class TestInstanceRegistration(unittest.TestCase):

@@ -86,14 +86,23 @@ def default_registry_path() -> str:
 
 
 def pid_alive(pid: int) -> bool:
-    """进程是否存活（OpenProcess 探测）。"""
+    """进程是否存活（OpenProcess + GetExitCodeProcess 探测）。
+
+    OpenProcess 对已终止但仍有句柄引用的僵尸进程对象也会成功，
+    须再查退出码：返回 STILL_ACTIVE(259) 才算存活。
+    """
     if not pid:
         return False
     handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
     if not handle:
         return False
-    _kernel32.CloseHandle(handle)
-    return True
+    try:
+        code = wintypes.DWORD(0)
+        if not _kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return False
+        return code.value == 259  # STILL_ACTIVE
+    finally:
+        _kernel32.CloseHandle(handle)
 
 
 def process_start_time(pid: int) -> int:
