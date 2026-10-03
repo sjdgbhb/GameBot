@@ -38,6 +38,7 @@ class FishingTask:
         # target_player 在变体 [this] 里配置，注入 war3 做多开窗口认领
         self.fishing_cfg = get_task_view(cfg, task_name)
         self.war3.target_player = self.fishing_cfg.get("target_player", "")
+        self.war3.task_name = task_name
         self.check_cfg = self.fishing_cfg.get("check", {})
         self.prompt_cfg = cfg.get("war3", {}).get("jiubing2", {}).get("prompt_text", {})
         self.hero_cfg = cfg.get("hero", {})

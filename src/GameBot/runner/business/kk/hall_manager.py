@@ -1,17 +1,20 @@
 """KK 主界面管理 mixin — 主界面弹窗清理、自动创建房间。
 
-包含 HallManagerMixin：dismiss_hall_popups、create_room 及辅助方法。
+包含 HallManagerMixin：dismiss_hall_popups、claim_hall_window、create_room 及辅助方法。
 """
 
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Optional, Set
+from typing import TYPE_CHECKING, Optional, Set, cast
 
 from GameBot.config import resolve_bind_cfg
+from GameBot.runner.business.claim import claim_window, ensure_registered, player_matches, self_kk_pid
+from GameBot.runner.driver.claim_registry import window_pid
 from GameBot.utils import StopTaskError, logger
 
 if TYPE_CHECKING:
+    from GameBot.runner.business.kk import KKBusiness  # 跨 mixin 方法跳转用，避免运行时循环导入
     from GameBot.runner.driver.base import DmClientBase as DmClient
 
 
@@ -52,8 +55,10 @@ class HallManagerMixin:
 
         :param exclude_hwnds: 需要保留的窗口句柄集合（如创建房间弹窗），不关闭。
                               默认为空集合。
-        :param owner_pid: 所属 KK 进程 PID，多开时传入以避免关闭其他账号弹窗。
+        :param owner_pid: 所属 KK 进程 PID，多开时传入以避免关闭其他账号弹窗；
+                          为 0 时读注册表缓存的本账号 kk_pid
         """
+        owner_pid = owner_pid or self_kk_pid(self, self.kk_cfg)
         if exclude_hwnds is None:
             exclude_hwnds = set()
         popup_cfg = self.kk_cfg.get("popup", {})
@@ -106,163 +111,143 @@ class HallManagerMixin:
         dm: DmClient,
         target_player: str,
         stop_event=None,
-        hall_owner_cache=None,
-        busy_retry: int = 3,
-        busy_wait: float = 2.0,
+        claim_timeout: float = None,
     ) -> tuple[int, int]:
-        """多开场景下认领属于 target_player 的 KK 大厅窗口。
+        """多开场景下认领属于 target_player 的 KK 大厅窗口，返回 (hwnd, kk_pid)。
 
-        枚举所有候选大厅窗口，逐个 OCR 识别玩家 ID，匹配后返回 (hwnd, pid)。
-        认领前会先恢复最小化窗口并清理同 PID 下的 KK 弹窗，避免玩家名区域被遮挡。
+        协议（统一认领原语 claim_window）：枚举大厅候选（排除房间窗口、恢复
+        最小化）→ per-hwnd 互斥锁 → 归属判定（窗口 PID == 本账号 kk_pid /
+        注册表 kk_owner 反查）→ kk_pid 未知时下拉框 OCR 自举并写注册表 →
+        匹配持锁，超时抛 ClaimError。
 
-        通过 IPC 共享所有非空 OCR 归属。任一进程识别窗口 K1 后立即写入缓存，
-        其他进程枚举到 K1 时直接读取归属，省去重复点击头像和 OCR。
+        认领成功后窗口互斥锁持有到进程退出，self._claimed_hall_hwnd /
+        _claimed_hall_pid 记录结果，复用时校验存活。
 
-        多开并发时，identify_hall_owner 按 KK PID 串行下拉框操作与 OCR；不同 PID
-        可并行识别。互斥锁冲突时返回 None，先跳过该窗口继续遍历其他窗口，
-        第一轮结束后再回头重试被跳过的窗口。
-
-        :param target_player: 目标玩家 ID
-        :param hall_owner_cache: 可选跨进程归属缓存（提供 read_hall_owner/write_hall_owner 接口）
-        :param busy_retry: 被跳过的正忙窗口的重试轮数
-        :param busy_wait: 每轮重试间隔秒数
-        :return: (大厅句柄, 进程 PID)，未找到返回 (0, 0)
+        :param target_player: 目标玩家 ID；为空则认领第一个未被占用的大厅窗口
+        :param claim_timeout: 认领总超时（秒），None 时用 multi_instance.claim_timeout
+        :return: (大厅句柄, 本账号 KK 进程 PID)
+        :raises ClaimError: 认领超时（任务须终止）
         """
         window_class = self.kk_cfg.get("window_class", "")
         min_width, min_height = self.kk_cfg.get("min_business_window_size", [200, 200])
         if not window_class:
-            return 0, 0
+            from GameBot.utils import ClaimError
 
-        # 本地缓存：实例属性，跨 claim_hall_window 调用保留，避免重复 OCR 同一窗口
-        # 非空结果永久缓存；空结果记录重试次数，超过上限不再重试
-        local_cache = getattr(self, "_hall_owner_cache", None)
-        if local_cache is None:
-            local_cache = self._hall_owner_cache = {}
-        # 空结果重试计数：记录每个窗口 OCR 失败次数
-        empty_retry_counts = getattr(self, "_hall_empty_retry_counts", None)
-        if empty_retry_counts is None:
-            empty_retry_counts = self._hall_empty_retry_counts = {}
-        max_empty_retries = self.kk_cfg.get("max_hall_owner_empty_retries", 2)
-        busy_hwnds: list[int] = []  # 被跳过的正忙窗口
+            raise ClaimError("未配置 kk.window_class，无法认领大厅窗口")
 
-        def _try_identify(hwnd: int, pid: int) -> Optional[str]:
-            """识别单个窗口的归属玩家，返回 None 表示窗口正忙需稍后重试。"""
-            if stop_event and stop_event.is_set():
-                raise StopTaskError("停止 KK 大厅窗口认领")
-            # 本地缓存命中（非空结果）：直接返回，跳过点击 OCR
-            if hwnd in local_cache:
-                return local_cache[hwnd]
-            # 空结果重试耗尽：不再点击 OCR，直接返回空字符串
-            if empty_retry_counts.get(hwnd, 0) >= max_empty_retries:
-                return ""
-            # IPC 缓存命中：直接返回，跳过点击 OCR
-            if hall_owner_cache:
-                cached_owner = hall_owner_cache.read_hall_owner(hwnd, pid)
-                if cached_owner:
-                    local_cache[hwnd] = cached_owner
-                    logger.info(f"大厅归属共享缓存命中: hwnd={hwnd}, pid={pid}, owner={cached_owner}")
-                    return cached_owner
-            self.dismiss_hall_popups(dm, exclude_hwnds={hwnd}, owner_pid=pid)
-            owner = self.identify_hall_owner(
-                dm,
-                hwnd,
-                stop_event=stop_event,
-                hall_owner_cache=hall_owner_cache,
-            )
-            if owner is None:
-                return None  # 正忙，稍后重试
-            if owner:
-                local_cache[hwnd] = owner
-            else:
-                # 空结果：记录重试次数，超过上限不再重试
-                empty_retry_counts[hwnd] = empty_retry_counts.get(hwnd, 0) + 1
-                if empty_retry_counts[hwnd] >= max_empty_retries:
-                    logger.warning(f"KK 大厅窗口 {hwnd} OCR 空结果已达 {max_empty_retries} 次，不再重试")
-            return owner
+        # 缓存复用：hwnd 存活且 PID 未变直接返回
+        cached = getattr(self, "_claimed_hall_hwnd", 0)
+        pid = getattr(self, "_claimed_hall_pid", 0)
+        if cached and pid and window_pid(cached) == pid:
+            return cached, pid
+        self._claimed_hall_hwnd = 0
+        self._claimed_hall_pid = 0
 
-        def _check_match(owner: str, pid: int, hwnd: int) -> bool:
-            """检查 owner 是否匹配 target_player。"""
-            normalized_owner = "".join(owner.split()).casefold()
-            normalized_target = "".join(target_player.split()).casefold()
-            if normalized_target and (
-                normalized_owner == normalized_target or normalized_owner.startswith(normalized_target)
-            ):
-                logger.info(f"认领大厅成功: target={target_player}, hwnd={hwnd}, pid={pid}, owner={owner}")
-                return True
-            return False
-
-        # 第一轮：按 PID + 类名 + 标题枚举所有窗口，先跳过正忙的，识别其他窗口
+        reg = ensure_registered(self, self.kk_cfg, target_player)
+        mi_cfg = self.kk_cfg.get("multi_instance", {})
+        if claim_timeout is None:
+            claim_timeout = float(mi_cfg.get("claim_timeout", 60))
+        retry_interval = float(mi_cfg.get("claim_retry_interval", 0.5))
+        kk_pid_box = [self_kk_pid(self, self.kk_cfg, target_player, reg=reg)]
         window_title = self.kk_cfg.get("window_title", "")
-        for w in dm.find_windows(window_class, window_title, 0):
-            hwnd = w["hwnd"]
-            if stop_event and stop_event.is_set():
-                raise StopTaskError("停止 KK 大厅窗口认领")
-            try:
-                x1, y1, x2, y2 = dm.get_client_rect(hwnd)
-                if x2 - x1 < min_width or y2 - y1 < min_height:
-                    continue
-                # 排除房间窗口：KK 大厅和房间类名/标题相同，房间窗口点击头像无下拉框
-                if self._is_room_window(dm, hwnd):
-                    logger.debug(f"跳过房间窗口: hwnd={hwnd}")
-                    continue
-                pid = dm.get_window_process_id(hwnd)
-                if dm.is_window_minimized(hwnd):
-                    logger.warning(f"KK 大厅窗口 {hwnd} 处于最小化，尝试无激活恢复")
-                    dm.set_window_state(hwnd, 5)
-                    if stop_event:
-                        if stop_event.wait(0.5):
-                            raise StopTaskError("停止 KK 大厅窗口认领")
-                    else:
-                        time.sleep(0.5)
-                owner = _try_identify(hwnd, pid)
-                if owner is None:
-                    # 窗口正忙，先跳过，留待后续轮次重试
-                    busy_hwnds.append(hwnd)
-                    continue
-                if _check_match(owner, pid, hwnd):
-                    return hwnd, pid
-            except StopTaskError:
-                raise
-            except Exception as e:
-                logger.warning(f"识别 KK 大厅窗口 {hwnd} 失败: {e}")
-                continue
+        kk = cast("KKBusiness", self)
 
-        # 后续轮次：重试被跳过的正忙窗口
-        for round_idx in range(busy_retry):
-            if not busy_hwnds:
-                break
-            if stop_event and stop_event.is_set():
-                raise StopTaskError("停止 KK 大厅窗口认领")
-            logger.debug(f"重试繁忙大厅: hwnds={busy_hwnds}, attempt={round_idx + 1}/{busy_retry}, wait={busy_wait}s")
-            if stop_event:
-                if stop_event.wait(busy_wait):
-                    raise StopTaskError("停止 KK 大厅窗口认领")
-            else:
-                time.sleep(busy_wait)
-            still_busy: list[int] = []
-            for hwnd in busy_hwnds:
+        def _candidates() -> list:
+            wins = []
+            for w in dm.find_windows(window_class, window_title, 0):
+                hwnd = w["hwnd"]
                 if stop_event and stop_event.is_set():
                     raise StopTaskError("停止 KK 大厅窗口认领")
-                pid = dm.get_window_process_id(hwnd)
                 try:
-                    owner = _try_identify(hwnd, pid)
+                    x1, y1, x2, y2 = dm.get_client_rect(hwnd)
+                    if x2 - x1 < min_width or y2 - y1 < min_height:
+                        continue
+                    if dm.is_window_minimized(hwnd):
+                        logger.warning(f"KK 大厅窗口 {hwnd} 处于最小化，尝试无激活恢复")
+                        dm.set_window_state(hwnd, 5)
+                        if stop_event:
+                            if stop_event.wait(0.5):
+                                raise StopTaskError("停止 KK 大厅窗口认领")
+                        else:
+                            time.sleep(0.5)
+                    # 排除房间窗口：KK 大厅和房间类名/标题相同，房间窗口点击头像无下拉框
+                    if kk._is_room_window(dm, hwnd):
+                        continue
+                    wins.append(hwnd)
                 except StopTaskError:
                     raise
                 except Exception as e:
-                    logger.warning(f"重试识别 KK 大厅窗口 {hwnd} 失败: {e}")
+                    logger.debug(f"枚举 KK 大厅窗口 {hwnd} 失败: {e}")
                     continue
-                if owner is None:
-                    still_busy.append(hwnd)
-                    continue
-                if _check_match(owner, pid, hwnd):
-                    return hwnd, pid
-            busy_hwnds = still_busy
+            return wins
 
-        if busy_hwnds:
-            logger.debug(f"大厅认领本轮未完成: target={target_player}, busy_hwnds={busy_hwnds}")
-        else:
-            logger.debug(f"大厅认领本轮未匹配: target={target_player}")
-        return 0, 0
+        def _resolve(hwnd: int):
+            if not target_player:
+                return True
+            pid = window_pid(hwnd)
+            if not pid:
+                return None
+            if kk_pid_box[0]:
+                # kk_pid 已知：归属判定是确定性的，不再落入下拉框识别
+                return pid == kk_pid_box[0]
+            player = reg.player_of_kk_pid(pid)
+            if not player:
+                return None
+            return player_matches(player, target_player)
+
+        def _identify(hwnd: int) -> bool:
+            """大厅下拉框 OCR 自举：识别归属写 kk_owner，命中则推出本账号 kk_pid。"""
+            self.dismiss_hall_popups(dm, exclude_hwnds={hwnd}, owner_pid=window_pid(hwnd))
+            owner = self.identify_hall_owner(dm, hwnd, stop_event=stop_event)
+            if not owner:
+                return False
+            pid = window_pid(hwnd)
+            if pid:
+                reg.set_kk_owner(pid, owner)
+            if target_player and player_matches(owner, target_player):
+                self._kk_pid = kk_pid_box[0] = pid
+                logger.info(f"认领大厅成功: target={target_player}, hwnd={hwnd}, pid={pid}, owner={owner}")
+                return True
+            logger.info(f"KK 大厅窗口 {hwnd} 归属 {owner}，与目标玩家 {target_player} 不匹配")
+            return False
+
+        hwnd, mutex = claim_window(
+            kind="kk_hall",
+            candidates_fn=_candidates,
+            mutex_prefix="Local\\GameBot_KK_Hall_",
+            resolve_owner=_resolve,
+            identify=_identify,
+            timeout=claim_timeout,
+            retry_interval=retry_interval,
+            stop_event=stop_event,
+            registry=reg,
+        )
+        pid = window_pid(hwnd)
+        self._claimed_hall_mutex = mutex
+        self._claimed_hall_hwnd = hwnd
+        self._claimed_hall_pid = pid
+        if pid:
+            self._kk_pid = pid
+            if target_player:
+                reg.set_kk_owner(pid, target_player)
+        return hwnd, pid
+
+    def release_hall_claim(self) -> None:
+        """释放当前认领的 KK 大厅窗口锁并清除缓存句柄/注册表窗口记录。"""
+        hwnd = getattr(self, "_claimed_hall_hwnd", 0)
+        mutex = getattr(self, "_claimed_hall_mutex", None)
+        if mutex is not None:
+            mutex.release()
+        self._claimed_hall_mutex = None
+        self._claimed_hall_hwnd = 0
+        self._claimed_hall_pid = 0
+        if hwnd:
+            try:
+                from GameBot.runner.business.claim import get_registry
+
+                get_registry(self, self.kk_cfg).release_window("kk_hall", hwnd)
+            except Exception as e:
+                logger.debug(f"清理 KK 大厅注册表记录失败: {e}")
 
     def _find_hall_hwnd(self, dm: DmClient, target_player: str = "", owner_pid: int = 0) -> int:
         """按 PID + 类名 + 标题枚举 KK 大厅窗口，排除房间窗口。
@@ -270,14 +255,18 @@ class HallManagerMixin:
         KK 大厅和房间的类名、标题相同，通过 OCR 房间按钮关键词区分：
         房间窗口含"开始游戏"/"准备"等按钮文本，大厅窗口不含。
 
-        :param target_player: 目标玩家 ID，提供时优先通过 claim_hall_window 精确认领。
-        :param owner_pid: 目标进程 PID，>0 时只枚举该进程的窗口；0 表示单开不过滤。
+        :param target_player: 目标玩家 ID，提供时通过 claim_hall_window 精确认领
+            （认领失败抛 ClaimError，不再回退到无归属过滤的枚举）。
+        :param owner_pid: 目标进程 PID，>0 时只枚举该进程的窗口；
+            为 0 时读注册表缓存的本账号 kk_pid（仍无归属则不过滤）。
         """
         if target_player:
             hwnd, pid = self.claim_hall_window(dm, target_player)
             if hwnd and (not owner_pid or pid == owner_pid):
                 return hwnd
+            return 0
 
+        owner_pid = owner_pid or self_kk_pid(self, self.kk_cfg)
         main_cfg = self.kk_cfg.get("main", {})
         main_size = tuple(main_cfg.get("window_size", [1328, 945]))
         window_class = self.kk_cfg.get("window_class", "")
@@ -334,6 +323,7 @@ class HallManagerMixin:
 
     def _find_create_room_dialog(self, dm: DmClient, owner_pid: int = 0) -> int:
         """通过所属 PID、类名和原生尺寸识别创建房间弹窗。"""
+        owner_pid = owner_pid or self_kk_pid(self, self.kk_cfg)
         create_cfg = self.kk_cfg.get("create_room", {})
         return self._find_dialog_by_keyword(
             dm,
@@ -406,9 +396,10 @@ class HallManagerMixin:
 
         :param map_name: 要搜索的地图名称（从游戏配置 [game] map_name 传入）
         :param hall_hwnd: 已知大厅句柄，传入时跳过查找
-        :param owner_pid: 大厅所属进程 PID，用于弹窗过滤
+        :param owner_pid: 大厅所属进程 PID，用于弹窗过滤；为 0 时读注册表缓存的本账号 kk_pid
         :return: KK 房间窗口句柄，失败返回 0
         """
+        owner_pid = owner_pid or self_kk_pid(self, self.kk_cfg)
         create_cfg = self.kk_cfg.get("create_room", {})
         main_cfg = self.kk_cfg.get("main", {})
         main_size = tuple(main_cfg.get("window_size", [1328, 945]))

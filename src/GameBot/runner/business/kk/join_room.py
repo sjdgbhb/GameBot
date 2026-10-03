@@ -9,6 +9,7 @@ import time
 from typing import TYPE_CHECKING
 
 from GameBot.config import resolve_bind_cfg
+from GameBot.runner.business.claim import self_kk_pid
 from GameBot.runner.business.kk.hall_manager import _longest_common_substring_len
 from GameBot.utils import logger
 
@@ -43,9 +44,10 @@ class JoinRoomMixin:
         :param password: 房间密码
         :param map_name: 地图名称（用于搜索进入地图详情页）
         :param hall_hwnd: 已知的 KK 主界面窗口句柄，传入时跳过查找
-        :param owner_pid: 大厅所属进程 PID，用于弹窗过滤
+        :param owner_pid: 大厅所属进程 PID，用于弹窗过滤；为 0 时读注册表缓存的本账号 kk_pid
         :return: 房间窗口句柄，失败返回 0
         """
+        owner_pid = owner_pid or self_kk_pid(self, self.kk_cfg)
         main_cfg = self.kk_cfg.get("main", {})
         password_cfg = self.kk_cfg.get("password_input", {})
         main_size = tuple(main_cfg.get("window_size", [1328, 945]))
@@ -326,6 +328,7 @@ class JoinRoomMixin:
         exclude_hwnds: set = None,
     ) -> int:
         """通过所属 PID、新 HWND 和原生尺寸识别密码输入弹窗。"""
+        owner_pid = owner_pid or self_kk_pid(self, self.kk_cfg)
         password_cfg = self.kk_cfg.get("password_input", {})
         return self._find_dialog_by_keyword(
             dm,

@@ -355,7 +355,8 @@ class TestEndlessOptimizationConfig:
         assert "window_size" in room, "kk.room 应含 window_size"
         assert "room_id_ocr_area_coords" in room, "kk.room 应含 room_id_ocr_area_coords"
 
-    # I-02: war3.multi_instance 配置可加载
+    # I-02: war3.multi_instance 配置可加载（聊天 token 自举参数；loading_page 已随
+    # 注册表+PPID 认领协议移除，加载页只读认领约束不复存在）
     def test_war3_multi_instance_config_loads(self):
         """war3.toml 中 [war3.multi_instance] 配置段应可加载。"""
         war3_path = _CONFIG_DIR / "war3" / "war3.toml"
@@ -364,8 +365,17 @@ class TestEndlessOptimizationConfig:
             data = tomllib.load(f)
         war3 = data.get("this", {})
         multi = war3.get("multi_instance", {})
-        loading_page = multi.get("loading_page", {})
-        assert "area_coords" in loading_page, "war3.multi_instance.loading_page 应含 area_coords"
+        assert "chat_area_coords" in multi, "war3.multi_instance 应含 chat_area_coords（token 自举用）"
+        assert "loading_page" not in multi, "war3.multi_instance.loading_page 已移除"
+
+    # I-02b: base.claim_registry 配置可加载
+    def test_base_claim_registry_config_loads(self):
+        """base.toml 中 [this.claim_registry] 配置段应可加载。"""
+        base_path = _CONFIG_DIR / "base.toml"
+        with open(base_path, "rb") as f:
+            data = tomllib.load(f)
+        cr = data.get("this", {}).get("claim_registry", {})
+        assert "lock_timeout_ms" in cr, "base.claim_registry 应含 lock_timeout_ms"
 
     # I-03: endless 变体 target_player 可读取
     def test_endless_variant_target_player(self):

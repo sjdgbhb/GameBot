@@ -42,6 +42,7 @@ class EndlessSingleTask:
         self.war3 = War3Business(self.dm, war3_cfg)
         # 多开认领：target_player 在变体 [this] 里配置，注入 war3 供 find_game_window 认领链路读取
         self.war3.target_player = endless_cfg.get("target_player", "")
+        self.war3.task_name = task_name
         self.ui = GameUI(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
         self.combat = CombatHelper(self.dm, war3_cfg, hero_cfg, self.task_cfg, self.war3)
         self.runner = EndlessRunner(self.dm, self.war3, self.ui, self.combat, war3_cfg, hero_cfg, self.task_cfg)

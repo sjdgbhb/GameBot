@@ -23,6 +23,10 @@ class KKBusiness(BasePlatform, RoomManagerMixin, HallManagerMixin, MultiInstance
         super().__init__(dm)
         self.dm = dm
         self.kk_cfg = kk_cfg
+        # 多开认领：目标玩家名与本账号 KK 进程 PID（认领/注册表链路读写）
+        self.target_player = ""
+        self._kk_pid = 0
+        self.task_name = ""
 
     def ocr_kk_lines(self, hwnd: int, ocr_cfg: dict, merge_lines: bool = True) -> list:
         """OCR KK 窗口区域，返回逐行结果（WGC 截图，无需绑定）。"""

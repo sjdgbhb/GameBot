@@ -38,6 +38,10 @@ class WindowLostError(GameBotError):
     """游戏窗口消失异常（掉线、崩溃等情况）。"""
 
 
+class ClaimError(GameBotError):
+    """窗口认领失败异常（认领超时、重复玩家实例冲突等），任务须终止。"""
+
+
 class CaptureError(GameBotError):
     """WGC 窗口截图异常（会话未启动、帧流停止、窗口关闭、裁剪越界等）。"""
 
