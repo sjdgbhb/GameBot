@@ -164,10 +164,6 @@ GameBot — 魔兽争霸3 RPG地图"九种兵器2"的 Python 自动化脚本系�
 ## GitHub 认证（gh CLI）
 
 - `gh` 已持久化登录（`%APPDATA%\GitHub CLI\hosts.yml`，账号 sjdgbhb），
-  直接执行 `gh` 命令即可，**不要要求用户手动 `gh auth login`**
-- 凭据丢失时从 `.devin/config.local.json` 的 `mcpServers.github.headers.Authorization`
-  取 PAT 恢复（gitignored，勿打印/提交 token 内容）：
-  提取 `Bearer ` 前缀后的 token，注入 `GH_TOKEN` 或重写 hosts.yml
-  （`gh auth login --with-token` 对 fine-grained PAT 的校验接口可能返回 401，token 本身有效）
+  直接执行 `gh` 命令即可，不要要求用户手动 `gh auth login`
 - dev/main 分支受保护：合入必须走 PR（`gh pr create --base dev` + `gh pr merge`），
   直接 push 会被仓库规则拒绝
