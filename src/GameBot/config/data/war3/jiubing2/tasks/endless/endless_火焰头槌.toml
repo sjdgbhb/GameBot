@@ -22,8 +22,8 @@ bind_mode = "background"
 bind_mode = "background"
 
 [war3.jiubing2.tasks.endless.endless]
-min_level = 1
-max_level = 30
+min_level = 10
+max_level = 25
 
 # 圣痕
 [hero.stigmata]
