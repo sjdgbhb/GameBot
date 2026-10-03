@@ -160,3 +160,19 @@ GameBot — 魔兽争霸3 RPG地图"九种兵器2"的 Python 自动化脚本系�
 - 扩展命令（new/continue/ff/verify/bulk-archive/onboard）用 `openspec config profile` 切换
 - 更新 OpenSpec：`openspec update`（刷新技能/命令文件）
 - OpenSpec 生成的 spec/tasks 仍须遵守本文件所有规则
+
+## GitHub 认证（gh CLI）
+
+- GitHub PAT 已配置在 `.devin/config.local.json` 的
+  `mcpServers.github.headers.Authorization`（gitignored，勿打印/提交 token 内容）
+- `gh` 命令前注入 `GH_TOKEN` 即可认证，**不要要求用户手动 `gh auth login`**：
+
+```powershell
+$c = Get-Content '.\.devin\config.local.json' -Raw | ConvertFrom-Json
+$env:GH_TOKEN = (($c.mcpServers.github.headers.Authorization) -replace '^(Bearer|token)\s+', '')
+gh <命令...>
+```
+
+- exec 每次是新 shell，env 不跨命令保留，须在同一条命令内注入
+- dev/main 分支受保护：合入必须走 PR（`gh pr create --base dev` + `gh pr merge`），
+  直接 push 会被仓库规则拒绝
